@@ -13,7 +13,6 @@ import { useCart } from "@/components/providers/cart-provider"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
-import { orderService } from "@/lib/order-service"
 
 const paymentMethods = [
   {
@@ -110,7 +109,14 @@ export function CheckoutForm() {
         payment_method: paymentMethod,
       }
 
-      const { order, paymentUrl } = await orderService.createOrder(orderData)
+      // Call the API route instead of orderService directly
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData),
+      })
+      const { order, paymentUrl, error } = await res.json()
+      if (error) throw new Error(error)
 
       // Clear cart after successful order creation
       await clearCart()

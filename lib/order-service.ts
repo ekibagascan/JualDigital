@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-client'
+import { createServerClient } from '@/lib/supabase-client'
 import { xenditAPI, XenditPaymentRequest } from './xendit'
 
 export interface OrderItem {
@@ -40,7 +40,7 @@ export interface Order {
 }
 
 export class OrderService {
-  private supabase = createClient()
+  private supabase = createServerClient()
 
   async createOrder(orderData: CreateOrderRequest): Promise<{ order: Order; paymentUrl?: string }> {
     try {

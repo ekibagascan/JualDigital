@@ -59,7 +59,9 @@ export class XenditAPI {
   constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_XENDIT_API_URL || 'https://api.xendit.co'
     this.secretKey = process.env.XENDIT_SECRET_KEY || ''
-    this.publicKey = process.env.NEXT_PUBLIC_XENDIT_PUBLIC_KEY || ''
+    this.publicKey = process.env.XENDIT_PUBLIC_KEY || ''
+    // Debug: print secret key (masked) and server/client context
+    console.log('[XenditAPI] Secret Key:', this.secretKey ? this.secretKey.slice(0, 6) + '...' : '(empty)', '| Is server:', typeof window === 'undefined')
   }
 
   async createPayment(paymentData: XenditPaymentRequest): Promise<XenditPaymentResponse> {
