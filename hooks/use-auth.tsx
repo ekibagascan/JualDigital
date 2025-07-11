@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { createClient } from "@/lib/supabase-client"
+import { supabase } from "@/lib/supabase-client"
 import type { User } from "@supabase/supabase-js"
 
 // Extended User type with custom properties
@@ -14,7 +14,7 @@ interface ExtendedUser extends User {
 interface AuthContextType {
   user: ExtendedUser | null
   login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string) => Promise<void>
+  register: (name: string, email: string, password: string) => Promise<void | { needsConfirmation: boolean }>
   signOut: () => Promise<void>
   logout: () => Promise<void> // Alias for signOut for backward compatibility
   loading: boolean
@@ -27,18 +27,50 @@ export function useAuth() {
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
-  return context
+  return context as AuthContextType
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<ExtendedUser | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+
+  // Function to ensure user profile exists
+  const ensureUserProfile = async (user: User) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile) {
+        // Profile doesn't exist, create it
+        const { error: createError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+            role: 'user'
+          })
+        if (createError) {
+          console.error('Error creating profile:', createError)
+        }
+      }
+    } catch (error) {
+      console.error('Error ensuring user profile:', error)
+    }
+  }
 
   useEffect(() => {
     // Get initial session
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
+      console.log('[useAuth] getSession:', session)
+
+      if (session?.user) {
+        await ensureUserProfile(session.user)
+      }
+
       setUser(session?.user ?? null)
       setLoading(false)
     }
@@ -48,6 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('[useAuth] onAuthStateChange:', event, session)
+
+        if (session?.user) {
+          await ensureUserProfile(session.user)
+        }
+
         setUser(session?.user ?? null)
         setLoading(false)
       }
@@ -85,11 +123,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             name,
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
       console.log("Signup response:", { error, data })
       if (error) {
         throw new Error(error.message)
+      }
+      // Check if email confirmation is required
+      if (data.user && !data.user.email_confirmed_at) {
+        return { needsConfirmation: true }
       }
     } catch (error) {
       console.error("Signup error:", error)
@@ -101,9 +144,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut()
+      console.log('[useAuth] Attempting to sign out...')
+
+      // Clear local state immediately to prevent UI issues
+      setUser(null)
+
+      // Try to sign out from Supabase, but don't fail if session is missing
+      try {
+        const { error } = await supabase.auth.signOut()
+        if (error) {
+          console.log('[useAuth] Sign out error (non-critical):', error.message)
+          // Don't throw error for session missing - this is expected in some cases
+        } else {
+          console.log('[useAuth] Sign out successful')
+        }
+      } catch (signOutError) {
+        console.log('[useAuth] Sign out failed (non-critical):', signOutError)
+        // Don't throw error - we've already cleared local state
+      }
+
+      // Clear any stored tokens manually
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('supabase.auth.token')
+        sessionStorage.removeItem('supabase.auth.token')
+      }
+
     } catch (error) {
-      console.error("Error signing out:", error)
+      console.error("Error in signOut:", error)
+      // Always clear local state even if there's an error
+      setUser(null)
     }
   }
 

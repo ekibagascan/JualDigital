@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase-client"
+import { supabase } from "@/lib/supabase-client"
 
 const steps = [
   {
@@ -66,8 +66,6 @@ export function SellerRegistrationFlow() {
     agreedToTerms: false,
     agreedToCommission: false,
   })
-
-  const supabase = createClient()
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))

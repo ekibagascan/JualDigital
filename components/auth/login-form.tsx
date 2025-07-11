@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff, Mail, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase-client"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -24,25 +25,50 @@ export function LoginForm() {
 
   const { login } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Handle errors from auth callback
+  useEffect(() => {
+    const error = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
+
+    if (error) {
+      console.error('Auth callback error:', error, errorDescription)
+      toast({
+        title: "Login gagal",
+        description: errorDescription || "Terjadi kesalahan saat login.",
+        variant: "destructive",
+      })
+
+      // Clean up the URL
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('error')
+      newUrl.searchParams.delete('error_description')
+      window.history.replaceState({}, '', newUrl.toString())
+    }
+  }, [searchParams])
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
-      // Mock Google login - replace with actual Google OAuth
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Mock successful Google login
-      await login("google.user@gmail.com", "google_oauth_token")
-      toast({
-        title: "Login berhasil!",
-        description: "Selamat datang di Jual Digital.",
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/')}`,
+          queryParams: {
+            prompt: 'select_account'
+          }
+        }
       })
-      router.push("/")
+      if (error) {
+        throw new Error(error.message)
+      }
+      // No need to show success toast; user will be redirected by Supabase
     } catch (error) {
-      console.error("Google login error (form):", error)
+      console.error("Google login error:", error)
       toast({
-        title: "Login Google gagal",
-        description: "Terjadi kesalahan saat login dengan Google.",
+        title: "Login gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat login dengan Google",
         variant: "destructive",
       })
     } finally {
@@ -70,7 +96,8 @@ export function LoginForm() {
         title: "Login berhasil!",
         description: "Selamat datang kembali di Jual Digital.",
       })
-      router.push("/")
+      const next = searchParams.get('next') || '/'
+      router.push(next)
     } catch (error) {
       console.error("Login error (form):", error)
       toast({

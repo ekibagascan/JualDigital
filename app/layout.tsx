@@ -1,4 +1,4 @@
-import type React from "react"
+import React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description:
     "Platform jual beli produk digital terpercaya di Indonesia. Temukan ebook, template, musik, software, dan produk digital lainnya.",
   keywords: "marketplace digital, jual produk digital, ebook indonesia, template design, software",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({

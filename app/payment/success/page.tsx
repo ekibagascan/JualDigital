@@ -1,17 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { CheckCircle, Download, Mail } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { orderService } from "@/lib/order-service"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { OrderService } from "@/lib/order-service"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
     const searchParams = useSearchParams()
     const orderId = searchParams.get("order_id")
     const paymentId = searchParams.get("payment_id")
@@ -23,6 +24,9 @@ export default function PaymentSuccessPage() {
         const fetchOrder = async () => {
             if (orderId) {
                 try {
+                    const supabase = createClientComponentClient()
+                    const orderService = new OrderService(supabase)
+
                     const orderData = await orderService.getOrder(orderId)
                     const items = await orderService.getOrderItems(orderId)
 
@@ -191,5 +195,24 @@ export default function PaymentSuccessPage() {
             </main>
             <Footer />
         </div>
+    )
+}
+
+export default function PaymentSuccessPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-background">
+                <Header />
+                <main className="container mx-auto px-4 py-8">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+                        <p className="mt-4 text-muted-foreground">Loading...</p>
+                    </div>
+                </main>
+                <Footer />
+            </div>
+        }>
+            <PaymentSuccessContent />
+        </Suspense>
     )
 } 

@@ -2,47 +2,69 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { CreditCard, Wallet, Building } from "lucide-react"
+import { CreditCard, Wallet, Building, QrCode, Store, Banknote } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useCart } from "@/components/providers/cart-provider"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
+import { PAYMENT_METHODS, PAYMENT_METHOD_DISPLAY } from "@/lib/xendit"
 
-const paymentMethods = [
+// Payment method categories with icons
+const paymentCategories = [
   {
-    id: "credit_card",
-    name: "Kartu Kredit/Debit",
-    icon: CreditCard,
-    description: "Visa, Mastercard, JCB",
+    id: "qris",
+    name: "QRIS",
+    icon: QrCode,
+    description: "Scan QRIS dengan aplikasi e-wallet atau mobile banking",
+    methods: [PAYMENT_METHODS.QRIS],
+    isSingle: true,
   },
   {
     id: "ewallet",
     name: "E-Wallet",
     icon: Wallet,
-    description: "OVO, GoPay, DANA, LinkAja",
+    description: "Pembayaran melalui e-wallet",
+    methods: [PAYMENT_METHODS.E_WALLET.ASTRAPAY, PAYMENT_METHODS.E_WALLET.SHOPEEPAY],
   },
   {
-    id: "bank_transfer",
-    name: "Transfer Bank",
+    id: "virtual_account",
+    name: "Virtual Account",
     icon: Building,
-    description: "BCA, Mandiri, BNI, BRI",
+    description: "Transfer melalui virtual account bank",
+    methods: [
+      PAYMENT_METHODS.VIRTUAL_ACCOUNT.BJB,
+      PAYMENT_METHODS.VIRTUAL_ACCOUNT.BNI,
+      PAYMENT_METHODS.VIRTUAL_ACCOUNT.BRI,
+      PAYMENT_METHODS.VIRTUAL_ACCOUNT.BSI,
+      PAYMENT_METHODS.VIRTUAL_ACCOUNT.CIMB,
+      PAYMENT_METHODS.VIRTUAL_ACCOUNT.MANDIRI,
+      PAYMENT_METHODS.VIRTUAL_ACCOUNT.PERMATA,
+    ],
   },
   {
-    id: "qris",
-    name: "QRIS",
-    icon: CreditCard,
-    description: "Scan QRIS dengan aplikasi e-wallet atau mobile banking",
+    id: "retail_outlet",
+    name: "Retail Outlet",
+    icon: Store,
+    description: "Bayar di minimarket terdekat",
+    methods: [
+      PAYMENT_METHODS.RETAIL_OUTLET.ALFAMART,
+      PAYMENT_METHODS.RETAIL_OUTLET.INDOMARET,
+      PAYMENT_METHODS.RETAIL_OUTLET.AKULAKU,
+    ],
   },
 ]
 
 export function CheckoutForm() {
-  const [paymentMethod, setPaymentMethod] = useState("credit_card")
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("QRIS") // Set QRIS as default for testing
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [guestInfo, setGuestInfo] = useState({
     name: "",
@@ -50,12 +72,29 @@ export function CheckoutForm() {
     phone: "",
   })
 
+  // Check if selected payment method requires phone number
+  const phoneRequiredMethods = ['ASTRAPAY', 'SHOPEEPAY']
+  const requiresPhone = phoneRequiredMethods.includes(selectedPaymentMethod)
+
   const { items, getTotalPrice, clearCart, loading } = useCart()
   const { user } = useAuth()
   const router = useRouter()
 
+  // Debug log: print user object
+  console.log('[DEBUG] user object:', user);
+  console.log('[DEBUG] user?.user_metadata:', user?.user_metadata);
+  console.log('[DEBUG] user?.email:', user?.email);
+  console.log('[DEBUG] Is user logged in?', !!user);
+  console.log('[DEBUG] User ID:', user?.id);
+  console.log('[DEBUG] User email confirmed?', user?.email_confirmed_at);
+  console.log('[DEBUG] User app_metadata:', user?.app_metadata);
+
   const handleGuestInfoChange = (field: string, value: string) => {
     setGuestInfo((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handlePaymentMethodSelect = (method: string) => {
+    setSelectedPaymentMethod(method)
   }
 
   const handlePayment = async () => {
@@ -77,6 +116,15 @@ export function CheckoutForm() {
       return
     }
 
+    if (!selectedPaymentMethod) {
+      toast({
+        title: "Metode pembayaran belum dipilih",
+        description: "Silakan pilih metode pembayaran terlebih dahulu.",
+        variant: "destructive",
+      })
+      return
+    }
+
     // Validate guest information if user is not logged in
     if (!user) {
       if (!guestInfo.name || !guestInfo.email) {
@@ -89,13 +137,35 @@ export function CheckoutForm() {
       }
     }
 
+    // Validate phone number for payment methods that require it
+    if (requiresPhone && !guestInfo.phone) {
+      toast({
+        title: "Nomor telepon diperlukan",
+        description: "Mohon masukkan nomor telepon untuk metode pembayaran ini.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsProcessing(true)
 
     try {
+      // Get user name from various sources
+      const getUserName = () => {
+        if (user?.user_metadata?.name) return user.user_metadata.name
+        if (user?.user_metadata?.full_name) return user.user_metadata.full_name
+        if (user?.app_metadata?.provider === 'google' && user?.user_metadata?.full_name) return user.user_metadata.full_name
+        return user?.email || 'User'
+      }
+
       const orderData = {
         user_id: user?.id,
+        user_name: getUserName(),
+        user_email: user?.email,
+        user_phone: user ? guestInfo.phone : undefined, // Include phone for logged-in users
         guest_name: !user ? guestInfo.name : undefined,
         guest_email: !user ? guestInfo.email : undefined,
+        guest_phone: !user ? guestInfo.phone : undefined,
         items: items.map((item) => ({
           product_id: item.product_id,
           seller_id: item.seller_id,
@@ -106,16 +176,22 @@ export function CheckoutForm() {
         })),
         total_amount: getTotalPrice(),
         tax_amount: 0, // No tax for now
-        payment_method: paymentMethod,
+        payment_method: selectedPaymentMethod,
       }
 
-      // Call the API route instead of orderService directly
-      const res = await fetch('/api/checkout', {
+      // Debug log: print orderData before sending
+      console.log('[DEBUG] orderData sent to API:', orderData);
+      console.log('[DEBUG] getUserName() result:', getUserName());
+      console.log('[DEBUG] user_email value:', user?.email);
+      console.log('[DEBUG] User provider:', user?.app_metadata?.provider);
+
+      // Call the API route for custom payment processing
+      const res = await fetch('/api/checkout/custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData),
       })
-      const { order, paymentUrl, error } = await res.json()
+      const { order, paymentData, error } = await res.json()
       if (error) throw new Error(error)
 
       // Clear cart after successful order creation
@@ -126,11 +202,11 @@ export function CheckoutForm() {
         description: "Anda akan diarahkan ke halaman pembayaran.",
       })
 
-      // Redirect to payment URL
-      if (paymentUrl) {
-        window.location.href = paymentUrl
+      // Redirect to payment page with payment data
+      if (selectedPaymentMethod === 'QRIS') {
+        router.push(`/payment/qris/${order.id}`)
       } else {
-        router.push(`/payment/success?order_id=${order.id}`)
+        router.push(`/payment/process?order_id=${order.id}&payment_id=${paymentData.id}`)
       }
     } catch (error) {
       console.error("Payment error:", error)
@@ -196,39 +272,140 @@ export function CheckoutForm() {
                 />
               </div>
               <div>
-                <Label htmlFor="phone">Nomor Telepon (Opsional)</Label>
+                <Label htmlFor="phone">
+                  Nomor Telepon {requiresPhone && <span className="text-red-500">*</span>}
+                </Label>
                 <Input
                   id="phone"
+                  type="tel"
                   value={guestInfo.phone}
                   onChange={(e) => handleGuestInfoChange("phone", e.target.value)}
-                  placeholder="Masukkan nomor telepon"
+                  placeholder="Contoh: +6281234567890"
+                  required={requiresPhone}
                 />
+                {requiresPhone && (
+                  <p className="text-xs text-red-500 mt-1">
+                    Nomor telepon diperlukan untuk metode pembayaran ini
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Format: +62 diikuti nomor HP tanpa angka 0 di depan
+                </p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Payment Method */}
+        {/* Payment Method Selection */}
         <Card>
           <CardHeader>
-            <CardTitle>Metode Pembayaran</CardTitle>
+            <CardTitle>Pilih Metode Pembayaran</CardTitle>
           </CardHeader>
           <CardContent>
-            <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+            <RadioGroup value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
               <div className="space-y-4">
-                {paymentMethods.map((method) => {
-                  const Icon = method.icon
-                  return (
-                    <div key={method.id} className="flex items-center space-x-3">
-                      <RadioGroupItem value={method.id} id={method.id} />
-                      <Label htmlFor={method.id} className="flex items-center space-x-3 cursor-pointer">
-                        <Icon className="w-5 h-5" />
-                        <div>
-                          <div className="font-medium">{method.name}</div>
-                          <div className="text-sm text-muted-foreground">{method.description}</div>
+                {paymentCategories.map((category) => {
+                  if (category.isSingle) {
+                    // Render QRIS as a single card
+                    const method = category.methods[0]
+                    const methodInfo = PAYMENT_METHOD_DISPLAY[method as keyof typeof PAYMENT_METHOD_DISPLAY]
+                    const isSelected = selectedPaymentMethod === method
+                    return (
+                      <div
+                        key={method}
+                        className={`flex flex-col border rounded-lg mb-2 ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+                        onClick={() => handlePaymentMethodSelect(method)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="flex items-center justify-between p-3">
+                          <div className="flex items-center space-x-3">
+                            <RadioGroupItem value={method} id={method} />
+                            <span className="text-lg">{methodInfo?.icon ?? '❓'}</span>
+                            <div>
+                              <div className="font-medium text-sm">{methodInfo?.name ?? method}</div>
+                              <div className="text-xs text-muted-foreground">{methodInfo?.category ?? 'Unknown'}</div>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <Badge variant="default" className="text-xs">Dipilih</Badge>
+                          )}
                         </div>
-                      </Label>
-                    </div>
+                      </div>
+                    )
+                  }
+                  const Icon = category.icon
+                  return (
+                    <Collapsible
+                      key={category.id}
+                      open={expandedCategory === category.id}
+                      onOpenChange={(open) => setExpandedCategory(open ? category.id : null)}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center space-x-3">
+                            <Icon className="w-5 h-5 text-primary" />
+                            <div>
+                              <div className="font-medium">{category.name}</div>
+                              <div className="text-sm text-muted-foreground">{category.description}</div>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {category.methods.length} metode
+                          </Badge>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2">
+                        <div className="space-y-2 pl-4">
+                          {category.methods.map((method) => {
+                            const methodInfo = PAYMENT_METHOD_DISPLAY[method as keyof typeof PAYMENT_METHOD_DISPLAY]
+                            const isSelected = selectedPaymentMethod === method
+                            const isEwallet = phoneRequiredMethods.includes(method)
+                            return (
+                              <div
+                                key={method}
+                                className={`flex flex-col border rounded-lg mb-2 ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+                              >
+                                <div
+                                  className="flex items-center justify-between p-3 cursor-pointer"
+                                  onClick={() => handlePaymentMethodSelect(method)}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <RadioGroupItem value={method} id={method} />
+                                    <span className="text-lg">{methodInfo?.icon ?? '❓'}</span>
+                                    <div>
+                                      <div className="font-medium text-sm">{methodInfo?.name ?? method}</div>
+                                      <div className="text-xs text-muted-foreground">{methodInfo?.category ?? 'Unknown'}</div>
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <Badge variant="default" className="text-xs">Dipilih</Badge>
+                                  )}
+                                </div>
+                                {/* Inline phone input for selected e-wallet */}
+                                {isSelected && isEwallet && (
+                                  <div className="px-4 pb-4">
+                                    <Label htmlFor="phone">
+                                      Nomor Telepon <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                      id="phone"
+                                      type="tel"
+                                      value={guestInfo.phone}
+                                      onChange={(e) => handleGuestInfoChange("phone", e.target.value)}
+                                      placeholder="Contoh: +6281234567890"
+                                      required
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Format: +62 diikuti nomor HP tanpa angka 0 di depan
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   )
                 })}
               </div>
@@ -289,11 +466,28 @@ export function CheckoutForm() {
               </div>
             </div>
 
+            {/* Selected Payment Method */}
+            {selectedPaymentMethod && (
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Metode Pembayaran:</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">
+                      {PAYMENT_METHOD_DISPLAY[selectedPaymentMethod as keyof typeof PAYMENT_METHOD_DISPLAY]?.icon}
+                    </span>
+                    <span className="font-medium text-sm">
+                      {PAYMENT_METHOD_DISPLAY[selectedPaymentMethod as keyof typeof PAYMENT_METHOD_DISPLAY]?.name}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Button
               className="w-full"
               size="lg"
               onClick={handlePayment}
-              disabled={isProcessing}
+              disabled={isProcessing || !selectedPaymentMethod}
             >
               {isProcessing ? "Memproses..." : "Bayar Sekarang"}
             </Button>

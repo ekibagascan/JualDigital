@@ -1,5 +1,5 @@
-import { createServerClient } from '@/lib/supabase-client'
-import { xenditAPI, XenditPaymentRequest } from './xendit'
+import { SupabaseClient } from '@supabase/supabase-js'
+import { xenditAPI } from './xendit'
 
 export interface OrderItem {
   product_id: string
@@ -14,6 +14,8 @@ export interface CreateOrderRequest {
   user_id?: string
   guest_name?: string
   guest_email?: string
+  user_phone?: string
+  guest_phone?: string
   items: OrderItem[]
   total_amount: number
   tax_amount: number
@@ -40,7 +42,75 @@ export interface Order {
 }
 
 export class OrderService {
-  private supabase = createServerClient()
+  constructor(private supabase: SupabaseClient) {}
+
+  async createOrderWithoutPayment(orderData: CreateOrderRequest): Promise<{ order: Order | null, error?: any }> {
+    try {
+      // 1. Create order in Supabase
+      const { data: order, error: orderError } = await this.supabase
+        .from('orders')
+        .insert({
+          user_id: orderData.user_id || null,
+          guest_name: orderData.guest_name || null,
+          guest_email: orderData.guest_email || null,
+          total_amount: orderData.total_amount,
+          tax_amount: orderData.tax_amount,
+          platform_fee: 0, // No platform fee for now
+          status: 'pending',
+          payment_method: orderData.payment_method,
+          payment_provider: 'xendit',
+        })
+        .select()
+        .single()
+
+      if (orderError) {
+        console.error('Order creation error:', orderError)
+        return { order: null, error: orderError };
+      }
+
+      // 2. Fetch products to get seller_id
+      const productIds = orderData.items.map(item => item.product_id)
+      const { data: products, error: productsError } = await this.supabase
+        .from('products')
+        .select('id, seller_id')
+        .in('id', productIds)
+
+      if (productsError) {
+        console.error('Error fetching products for order items:', productsError)
+        return { order: null, error: productsError };
+      }
+
+      const productSellerMap = Object.fromEntries(products.map(p => [p.id, p.seller_id]))
+
+      // 3. Create order items
+      const orderItems = orderData.items.map(item => ({
+        order_id: order.id,
+        product_id: item.product_id,
+        seller_id: productSellerMap[item.product_id], // always from products table
+        product_title: item.title,
+        product_image: item.image_url,
+        price: item.price,
+        quantity: item.quantity,
+        seller_earnings: item.price * item.quantity * 0.9, // 90% to seller, 10% platform fee
+      }))
+
+      console.log('Order items payload:', orderItems)
+
+      const { error: itemsError } = await this.supabase
+        .from('order_items')
+        .insert(orderItems)
+
+      if (itemsError) {
+        console.error('Order items creation error:', itemsError)
+        return { order: null, error: itemsError };
+      }
+
+      return { order };
+    } catch (err) {
+      console.error('Order service error:', err)
+      return { order: null, error: err };
+    }
+  }
 
   async createOrder(orderData: CreateOrderRequest): Promise<{ order: Order; paymentUrl?: string }> {
     try {
@@ -104,34 +174,43 @@ export class OrderService {
         throw new Error('Failed to create order items')
       }
 
-      // 4. Create Xendit payment
-      const paymentRequest: XenditPaymentRequest = {
+      // 4. Create Xendit payment using v2 for all payment methods
+      const paymentMethod = orderData.payment_method
+      console.log('[DEBUG] Using Xendit v2 for payment method:', paymentMethod)
+      
+      // Validate phone number for payment methods that require it
+      const phoneRequiredMethods = ['ASTRAPAY', 'SHOPEEPAY']
+      if (phoneRequiredMethods.includes(paymentMethod) && !orderData.user_phone && !orderData.guest_phone) {
+        throw new Error('Phone number is required for this payment method')
+      }
+
+      const customerName = orderData.user_id ? 'User' : (orderData.guest_name || 'Guest')
+      const customerEmail = orderData.guest_email || 'guest@example.com'
+      const customerPhone = orderData.user_phone || orderData.guest_phone
+
+      const paymentData = {
+        external_id: order.id,
         amount: orderData.total_amount + orderData.tax_amount,
-        currency: 'IDR',
-        payment_method: orderData.payment_method,
-        customer: {
-          name: orderData.user_id ? 'User' : (orderData.guest_name || 'Guest'),
-          email: orderData.guest_email || 'guest@example.com',
-        },
-        items: orderData.items.map(item => ({
-          id: item.product_id,
-          name: item.title,
-          price: item.price,
-          quantity: item.quantity,
-        })),
-        order_id: order.order_number,
+        payment_method: paymentMethod,
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        callback_url: `https://jualdigital.id/api/payments/callback`,
+        redirect_url: `https://jualdigital.id/payment/success`,
         description: `Order ${order.order_number} - Digital Products`,
       }
 
-      const paymentResponse = await xenditAPI.createPayment(paymentRequest)
+      console.log('[XENDIT V2 DEBUG] Payment request:', paymentData)
+
+      const paymentResponse = await xenditAPI.createPayment(paymentData)
 
       // 5. Update order with payment info
       const { error: updateError } = await this.supabase
         .from('orders')
         .update({
           payment_id: paymentResponse.id,
-          transaction_id: paymentResponse.transaction_id,
-          invoice_url: paymentResponse.invoice_url,
+          transaction_id: paymentResponse.id,
+          invoice_url: paymentResponse.checkout_url || paymentResponse.qr_code_url || paymentResponse.account_number || paymentResponse.payment_code,
         })
         .eq('id', order.id)
 
@@ -141,7 +220,7 @@ export class OrderService {
 
       return {
         order,
-        paymentUrl: paymentResponse.invoice_url,
+        paymentUrl: paymentResponse.checkout_url || paymentResponse.qr_code_url || paymentResponse.account_number || paymentResponse.payment_code,
       }
     } catch (error) {
       console.error('Order service error:', error)
@@ -229,6 +308,4 @@ export class OrderService {
       return []
     }
   }
-}
-
-export const orderService = new OrderService() 
+} 

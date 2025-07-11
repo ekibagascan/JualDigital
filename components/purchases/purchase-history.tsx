@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
-import { orderService } from "@/lib/order-service"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { OrderService } from "@/lib/order-service"
 import { downloadService } from "@/lib/download-service"
 
 
@@ -26,6 +27,9 @@ export function PurchaseHistory() {
     const fetchOrders = async () => {
       if (user?.id) {
         try {
+          const supabase = createClientComponentClient()
+          const orderService = new OrderService(supabase)
+
           const userOrders = await orderService.getUserOrders(user.id)
           setOrders(userOrders)
         } catch (error) {

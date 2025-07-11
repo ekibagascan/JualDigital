@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase-client"
+import { supabase } from '@/lib/supabase-client'
 
 export function ProductManagement() {
   const { user } = useAuth()
@@ -23,7 +23,6 @@ export function ProductManagement() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [sortBy, setSortBy] = useState("newest")
-  const supabase = createClient()
 
   useEffect(() => {
     if (!user) return;

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { createClient } from "@/lib/supabase-client"
+import { supabase } from '@/lib/supabase-client'
 import { useAuth } from "@/hooks/use-auth"
 
 export interface SupabaseCartItem {
@@ -17,12 +17,11 @@ export interface SupabaseCartItem {
 
 export function useSupabaseCart() {
   const { user } = useAuth()
-  const supabase = createClient()
   const [cartId, setCartId] = useState<string | null>(null)
   const [items, setItems] = useState<SupabaseCartItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Fetch or create cart on login
+  // Fetch cart on login (do not create cart automatically)
   useEffect(() => {
     if (!user) {
       setCartId(null)
@@ -31,69 +30,61 @@ export function useSupabaseCart() {
       return
     }
     setLoading(true)
-    const fetchOrCreateCart = async () => {
+    const fetchCart = async () => {
       try {
-        // Try to fetch cart
+        // Only fetch cart, do not create
         let { data: cart, error } = await supabase
           .from("carts")
           .select("id")
           .eq("user_id", user.id)
           .single()
-        
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching cart:', error)
         }
-        
-        if (!cart) {
-          // Create cart if not exists
-          const { data: newCart, error: createError } = await supabase
-            .from("carts")
-            .insert({ user_id: user.id })
-            .select("id")
-            .single()
-          
-          if (createError) {
-            console.error('Error creating cart:', createError)
-            setLoading(false)
-            return
-          }
-          
-          cart = newCart
-        }
-        
         setCartId(cart?.id || null)
-        
-        // Fetch cart items
+        // Fetch cart items if cart exists
         if (cart?.id) {
           const { data: cartItems, error: itemsError } = await supabase
             .from("cart_items")
             .select("*")
             .eq("cart_id", cart.id)
-          
           if (itemsError) {
             console.error('Error fetching cart items:', itemsError)
           }
-          
           setItems(cartItems || [])
         } else {
           setItems([])
         }
       } catch (error) {
-        console.error('Error in fetchOrCreateCart:', error)
+        console.error('Error in fetchCart:', error)
       } finally {
         setLoading(false)
       }
     }
-    fetchOrCreateCart()
+    fetchCart()
   }, [user])
 
   // Add item to cart
   const addItem = useCallback(async (item: Omit<SupabaseCartItem, "id" | "cart_id"> & { seller_id?: string }) => {
-    if (!cartId) {
-      console.error('No cart ID available')
+    if (!user) {
+      console.error('No user available')
       return
     }
-    
+    let currentCartId = cartId
+    if (!currentCartId) {
+      // Create cart only when adding first item
+      const { data: newCart, error: createError } = await supabase
+        .from("carts")
+        .insert({ user_id: user.id })
+        .select("id")
+        .single()
+      if (createError) {
+        console.error('Error creating cart:', createError)
+        return
+      }
+      currentCartId = newCart.id
+      setCartId(currentCartId)
+    }
     try {
       // Check if item already exists
       const existing = items.find(i => i.product_id === item.product_id)
@@ -101,71 +92,24 @@ export function useSupabaseCart() {
         await updateQuantity(existing.id, existing.quantity + 1)
         return
       }
-      
-      // Try without seller_id first to see if that's the issue
       const cartItemData = {
-        cart_id: cartId,
+        cart_id: currentCartId,
         product_id: item.product_id,
         title: item.title,
         price: item.price,
         image_url: item.image_url,
         quantity: item.quantity,
       }
-      
-      console.log('Adding cart item:', cartItemData)
-      console.log('Cart ID:', cartId)
-      console.log('User ID:', user?.id)
-      
       const { data, error } = await supabase
         .from("cart_items")
         .insert(cartItemData)
         .select("*")
         .single()
-      
       if (error) {
         console.error('Error adding item to cart:', error)
-        console.error('Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        
-        // If the error is about seller_id, try without it
-        if (error.message?.includes('seller_id') || error.details?.includes('seller_id')) {
-          console.log('Retrying without seller_id...')
-          const cartItemDataWithoutSeller = {
-            cart_id: cartId,
-            product_id: item.product_id,
-            title: item.title,
-            price: item.price,
-            image_url: item.image_url,
-            quantity: item.quantity,
-          }
-          
-          const { data: retryData, error: retryError } = await supabase
-            .from("cart_items")
-            .insert(cartItemDataWithoutSeller)
-            .select("*")
-            .single()
-          
-          if (retryError) {
-            console.error('Retry error:', retryError)
-            throw retryError
-          }
-          
-          if (retryData) {
-            console.log('Successfully added item to cart (without seller_id):', retryData)
-            setItems(prev => [...prev, retryData])
-            return
-          }
-        }
-        
         throw error
       }
-      
       if (data) {
-        console.log('Successfully added item to cart:', data)
         setItems(prev => [...prev, data])
       }
     } catch (error) {
@@ -209,23 +153,28 @@ export function useSupabaseCart() {
       }
       
       if (data) {
-        setItems(prev => prev.map(i => (i.id === id ? { ...i, quantity } : i)))
+        setItems(prev => prev.map(item => item.id === id ? data : item))
       }
     } catch (error) {
       console.error('Error in updateQuantity:', error)
     }
-  }, [supabase, removeItem])
+  }, [removeItem, supabase])
 
   // Clear cart
   const clearCart = useCallback(async () => {
     if (!cartId) return
     
     try {
-      const { error } = await supabase.from("cart_items").delete().eq("cart_id", cartId)
+      const { error } = await supabase
+        .from("cart_items")
+        .delete()
+        .eq("cart_id", cartId)
+      
       if (error) {
         console.error('Error clearing cart:', error)
         return
       }
+      
       setItems([])
     } catch (error) {
       console.error('Error in clearCart:', error)
@@ -237,12 +186,12 @@ export function useSupabaseCart() {
 
   return {
     items,
+    loading,
     addItem,
     removeItem,
     updateQuantity,
     clearCart,
     getTotalPrice,
     getTotalItems,
-    loading,
   }
 } 

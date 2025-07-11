@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { OrderService } from '@/lib/order-service'
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,11 +29,14 @@ export async function POST(req: NextRequest) {
   )
   const orderService = new OrderService(supabase);
 
-  const orderData = await req.json()
+  const { id } = params
   try {
-    const { order, paymentUrl } = await orderService.createOrder(orderData)
-    return NextResponse.json({ order, paymentUrl })
+    const order = await orderService.getOrder(id)
+    if (!order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+    return NextResponse.json({ order })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Checkout failed' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Failed to get order' }, { status: 500 })
   }
 } 

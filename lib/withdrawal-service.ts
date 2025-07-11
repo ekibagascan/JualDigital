@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-client'
+import { supabase } from '@/lib/supabase-client'
 
 export interface Withdrawal {
   id: string
@@ -25,11 +25,9 @@ export interface CreateWithdrawalRequest {
 }
 
 export class WithdrawalService {
-  private supabase = createClient()
-
   async createWithdrawal(withdrawalData: CreateWithdrawalRequest): Promise<Withdrawal> {
     try {
-      const { data: withdrawal, error } = await this.supabase
+      const { data: withdrawal, error } = await supabase
         .from('withdrawals')
         .insert({
           seller_id: withdrawalData.seller_id,
@@ -57,7 +55,7 @@ export class WithdrawalService {
 
   async getSellerWithdrawals(sellerId: string): Promise<Withdrawal[]> {
     try {
-      const { data: withdrawals, error } = await this.supabase
+      const { data: withdrawals, error } = await supabase
         .from('withdrawals')
         .select('*')
         .eq('seller_id', sellerId)
@@ -77,7 +75,7 @@ export class WithdrawalService {
 
   async getAllWithdrawals(): Promise<Withdrawal[]> {
     try {
-      const { data: withdrawals, error } = await this.supabase
+      const { data: withdrawals, error } = await supabase
         .from('withdrawals')
         .select(`
           *,
@@ -115,7 +113,7 @@ export class WithdrawalService {
         updateData.notes = notes
       }
 
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('withdrawals')
         .update(updateData)
         .eq('id', withdrawalId)
@@ -132,7 +130,7 @@ export class WithdrawalService {
 
   async getWithdrawal(withdrawalId: string): Promise<Withdrawal | null> {
     try {
-      const { data: withdrawal, error } = await this.supabase
+      const { data: withdrawal, error } = await supabase
         .from('withdrawals')
         .select('*')
         .eq('id', withdrawalId)
@@ -153,7 +151,7 @@ export class WithdrawalService {
   async getSellerEarnings(sellerId: string): Promise<{ total_earnings: number; available_balance: number }> {
     try {
       // Get total earnings from profiles
-      const { data: profile, error: profileError } = await this.supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('total_earnings')
         .eq('id', sellerId)
@@ -165,7 +163,7 @@ export class WithdrawalService {
       }
 
       // Get pending withdrawals
-      const { data: pendingWithdrawals, error: withdrawalError } = await this.supabase
+      const { data: pendingWithdrawals, error: withdrawalError } = await supabase
         .from('withdrawals')
         .select('amount')
         .eq('seller_id', sellerId)

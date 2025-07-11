@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { createClient } from "@/lib/supabase-client"
+import { supabase } from '@/lib/supabase-client'
 import { useAuth } from "@/hooks/use-auth"
 
 export interface SupabaseWishlistItem {
@@ -13,7 +13,6 @@ export interface SupabaseWishlistItem {
 
 export function useSupabaseWishlist() {
   const { user } = useAuth()
-  const supabase = createClient()
   const [items, setItems] = useState<SupabaseWishlistItem[]>([])
   const [loading, setLoading] = useState(true)
 

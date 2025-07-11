@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-client'
+import { supabase } from '@/lib/supabase-client'
 
 export interface AnalyticsEvent {
   id: string
@@ -43,8 +43,6 @@ export interface UserAnalytics {
 }
 
 export class AnalyticsService {
-  private supabase = createClient()
-
   async trackEvent(eventData: {
     user_id?: string
     event_type: string
@@ -54,7 +52,7 @@ export class AnalyticsService {
     ip_address?: string
   }): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('analytics')
         .insert({
           user_id: eventData.user_id,
@@ -75,7 +73,7 @@ export class AnalyticsService {
 
   async getSalesAnalytics(sellerId?: string, period: string = '30d'): Promise<SalesAnalytics> {
     try {
-      let query = this.supabase
+      let query = supabase
         .from('order_items')
         .select(`
           *,
@@ -196,7 +194,7 @@ export class AnalyticsService {
   async getUserAnalytics(): Promise<UserAnalytics> {
     try {
       // Get total users
-      const { count: totalUsers, error: usersError } = await this.supabase
+      const { count: totalUsers, error: usersError } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
 
@@ -215,7 +213,7 @@ export class AnalyticsService {
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-      const { data: activeUsers, error: activeError } = await this.supabase
+      const { data: activeUsers, error: activeError } = await supabase
         .from('orders')
         .select('user_id')
         .gte('created_at', thirtyDaysAgo.toISOString())
@@ -224,13 +222,13 @@ export class AnalyticsService {
       const uniqueActiveUsers = new Set(activeUsers?.map(order => order.user_id)).size
 
       // Get new users (registered in last 30 days)
-      const { count: newUsers, error: newUsersError } = await this.supabase
+      const { count: newUsers, error: newUsersError } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', thirtyDaysAgo.toISOString())
 
       // Get top sellers
-      const { data: topSellers, error: sellersError } = await this.supabase
+      const { data: topSellers, error: sellersError } = await supabase
         .from('profiles')
         .select(`
           id,

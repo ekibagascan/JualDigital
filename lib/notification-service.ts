@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-client'
+import { supabase } from '@/lib/supabase-client'
 
 export interface Notification {
   id: string
@@ -21,11 +21,9 @@ export interface CreateNotificationRequest {
 }
 
 export class NotificationService {
-  private supabase = createClient()
-
   async createNotification(notificationData: CreateNotificationRequest): Promise<Notification> {
     try {
-      const { data: notification, error } = await this.supabase
+      const { data: notification, error } = await supabase
         .from('notifications')
         .insert({
           user_id: notificationData.user_id,
@@ -52,7 +50,7 @@ export class NotificationService {
 
   async getUserNotifications(userId: string): Promise<Notification[]> {
     try {
-      const { data: notifications, error } = await this.supabase
+      const { data: notifications, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
@@ -72,7 +70,7 @@ export class NotificationService {
 
   async getUnreadNotifications(userId: string): Promise<Notification[]> {
     try {
-      const { data: notifications, error } = await this.supabase
+      const { data: notifications, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
@@ -93,7 +91,7 @@ export class NotificationService {
 
   async markAsRead(notificationId: string): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
         .eq('id', notificationId)
@@ -110,7 +108,7 @@ export class NotificationService {
 
   async markAllAsRead(userId: string): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
         .eq('user_id', userId)
@@ -128,7 +126,7 @@ export class NotificationService {
 
   async deleteNotification(notificationId: string): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('notifications')
         .delete()
         .eq('id', notificationId)
@@ -145,7 +143,7 @@ export class NotificationService {
 
   async getUnreadCount(userId: string): Promise<number> {
     try {
-      const { count, error } = await this.supabase
+      const { count, error } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)

@@ -1,186 +1,379 @@
-// Xendit Payment Methods for Indonesia
+// Xendit v2 Payment Channel Codes
 export const PAYMENT_METHODS = {
   E_WALLET: {
-    OVO: 'OVO',
-    DANA: 'DANA',
-    LINKAJA: 'LINKAJA',
+    ASTRAPAY: 'ASTRAPAY',
     SHOPEEPAY: 'SHOPEEPAY',
   },
-  BANK_TRANSFER: {
-    BCA: 'BCA',
-    BNI: 'BNI',
-    BRI: 'BRI',
-    MANDIRI: 'MANDIRI',
-  },
-  CREDIT_CARD: 'CREDIT_CARD',
-  QRIS: 'QRIS',
   RETAIL_OUTLET: {
-    INDOMARET: 'INDOMARET',
     ALFAMART: 'ALFAMART',
+    INDOMARET: 'INDOMARET',
+    AKULAKU: 'AKULAKU',
   },
+  VIRTUAL_ACCOUNT: {
+    BJB: 'BJB_VIRTUAL_ACCOUNT',
+    BNI: 'BNI_VIRTUAL_ACCOUNT',
+    BRI: 'BRI_VIRTUAL_ACCOUNT',
+    BSI: 'BSI_VIRTUAL_ACCOUNT',
+    CIMB: 'CIMB_VIRTUAL_ACCOUNT',
+    MANDIRI: 'MANDIRI_VIRTUAL_ACCOUNT',
+    PERMATA: 'PERMATA_VIRTUAL_ACCOUNT',
+  },
+  QRIS: 'QRIS',
 }
 
-// Xendit Payment Gateway Integration
+// Payment method display names and icons
+export const PAYMENT_METHOD_DISPLAY = {
+  ASTRAPAY: { name: 'AstraPay', icon: '🏦', category: 'E-Wallet' },
+  SHOPEEPAY: { name: 'ShopeePay', icon: '🛒', category: 'E-Wallet' },
+  ALFAMART: { name: 'Alfamart', icon: '🏪', category: 'Retail Outlet' },
+  INDOMARET: { name: 'Indomaret', icon: '🏪', category: 'Retail Outlet' },
+  AKULAKU: { name: 'Akulaku', icon: '💳', category: 'Retail Outlet' },
+  BJB_VIRTUAL_ACCOUNT: { name: 'BJB Virtual Account', icon: '🏦', category: 'Virtual Account' },
+  BNI_VIRTUAL_ACCOUNT: { name: 'BNI Virtual Account', icon: '🏦', category: 'Virtual Account' },
+  BRI_VIRTUAL_ACCOUNT: { name: 'BRI Virtual Account', icon: '🏦', category: 'Virtual Account' },
+  CIMB_VIRTUAL_ACCOUNT: { name: 'CIMB Virtual Account', icon: '🏦', category: 'Virtual Account' },
+  MANDIRI_VIRTUAL_ACCOUNT: { name: 'Mandiri Virtual Account', icon: '🏦', category: 'Virtual Account' },
+  PERMATA_VIRTUAL_ACCOUNT: { name: 'Permata Virtual Account', icon: '🏦', category: 'Virtual Account' },
+  QRIS: { name: 'QRIS', icon: '📱', category: 'QRIS' },
+}
+
+// Xendit API Integration using direct HTTP calls
 export interface XenditPaymentRequest {
+  external_id: string
   amount: number
-  currency: string
   payment_method: string
-  customer: {
-    name: string
-    email: string
-    phone?: string
-  }
-  items: Array<{
-    id: string
-    name: string
-    price: number
-    quantity: number
-  }>
-  order_id: string
+  customer_name: string
+  customer_email: string
+  customer_phone?: string
+  callback_url: string
+  redirect_url: string
   description?: string
 }
 
 export interface XenditPaymentResponse {
   id: string
-  status: string
+  external_id: string
   amount: number
-  currency: string
-  payment_method: string
-  invoice_url?: string
-  transaction_id?: string
-  created_at: string
+  status: string
+  checkout_url?: string
+  qr_code_url?: string
+  payment_code?: string
+  account_number?: string
+  created: string
+  [key: string]: any
+}
+
+// Helper function for base64 encoding
+function btoa(str: string): string {
+  if (typeof window !== 'undefined') {
+    return window.btoa(str)
+  }
+  // Fallback for server-side - use a simple base64 implementation
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='
+  let output = ''
+  const bytes = new Uint8Array(str.length)
+  for (let i = 0; i < str.length; i++) {
+    bytes[i] = str.charCodeAt(i)
+  }
+  
+  let byteNum
+  let chunk
+  let i = 0
+  while (i < bytes.length) {
+    byteNum = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2]
+    chunk = [
+      chars[(byteNum >> 18) & 63],
+      chars[(byteNum >> 12) & 63],
+      chars[(byteNum >> 6) & 63],
+      chars[byteNum & 63]
+    ]
+    output += chunk.join('')
+    i += 3
+  }
+  
+  return output
 }
 
 export class XenditAPI {
   private baseUrl: string
   private secretKey: string
-  private publicKey: string
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_XENDIT_API_URL || 'https://api.xendit.co'
-    this.secretKey = process.env.XENDIT_SECRET_KEY || ''
-    this.publicKey = process.env.XENDIT_PUBLIC_KEY || ''
-    // Debug: print secret key (masked) and server/client context
+    this.baseUrl = 'https://api.xendit.co'
+    this.secretKey = (typeof process !== 'undefined' && process.env) ? process.env.XENDIT_SECRET_KEY || '' : ''
     console.log('[XenditAPI] Secret Key:', this.secretKey ? this.secretKey.slice(0, 6) + '...' : '(empty)', '| Is server:', typeof window === 'undefined')
   }
 
-  async createPayment(paymentData: XenditPaymentRequest): Promise<XenditPaymentResponse> {
+  // Create QRIS payment using /qr_codes endpoint
+  async createQRISPayment(paymentData: {
+    external_id: string
+    amount: number
+    callback_url: string
+    redirect_url: string
+  }): Promise<XenditPaymentResponse> {
     try {
-      // Map payment method to Xendit format
-      let xenditPaymentMethod = paymentData.payment_method
-      
-      // Handle QRIS specifically
-      if (paymentData.payment_method === 'qris') {
-        xenditPaymentMethod = 'QRIS'
+      const requestBody = {
+        external_id: paymentData.external_id,
+        amount: paymentData.amount,
+        type: 'DYNAMIC',
+        callback_url: paymentData.callback_url,
       }
-      
-      const response = await fetch(`${this.baseUrl}/v2/invoices`, {
+
+      console.log('[XENDIT QRIS DEBUG] Request to Xendit:', requestBody)
+
+      const response = await fetch(`${this.baseUrl}/qr_codes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${btoa(this.secretKey + ':')}`,
         },
-        body: JSON.stringify({
-          external_id: paymentData.order_id,
-          amount: paymentData.amount,
-          currency: paymentData.currency,
-          description: paymentData.description || 'Digital Product Purchase',
-          customer: paymentData.customer,
-          items: paymentData.items,
-          payment_methods: [xenditPaymentMethod],
-          should_send_email: true,
-          success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success`,
-          failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/failed`,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || 'Payment creation failed')
+        console.error('[XENDIT QRIS ERROR] Response status:', response.status)
+        console.error('[XENDIT QRIS ERROR] Error data:', errorData)
+        throw new Error(errorData.message || errorData.error_code || 'QRIS payment creation failed')
       }
 
       const data = await response.json()
-      
       return {
         id: data.id,
-        status: data.status,
+        external_id: data.external_id,
         amount: data.amount,
-        currency: data.currency,
-        payment_method: paymentData.payment_method,
-        invoice_url: data.invoice_url,
-        transaction_id: data.external_id,
-        created_at: data.created,
+        status: data.status,
+        qr_code_url: data.qr_string,
+        created: data.created,
       }
     } catch (error) {
-      console.error('Xendit payment error:', error)
-      throw new Error('Payment processing failed')
+      console.error('Xendit QRIS payment error:', error)
+      throw new Error('QRIS payment processing failed')
     }
   }
 
-  async getPaymentStatus(paymentId: string): Promise<XenditPaymentResponse> {
+  // Create e-wallet payment using /ewallets endpoint
+  async createEwalletPayment(paymentData: {
+    external_id: string
+    amount: number
+    ewallet_type: 'SHOPEEPAY' | 'ASTRAPAY'
+    phone?: string
+    callback_url: string
+    redirect_url: string
+  }): Promise<XenditPaymentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/v2/invoices/${paymentId}`, {
-        method: 'GET',
+      const requestBody: any = {
+        external_id: paymentData.external_id,
+        amount: paymentData.amount,
+        ewallet_type: paymentData.ewallet_type,
+        callback_url: paymentData.callback_url,
+        redirect_url: paymentData.redirect_url,
+      }
+
+      if (paymentData.phone) {
+        requestBody.phone = paymentData.phone
+      }
+
+      console.log('[XENDIT E-WALLET DEBUG] Request to Xendit:', requestBody)
+
+      const response = await fetch(`${this.baseUrl}/ewallets`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Basic ${btoa(this.secretKey + ':')}`,
         },
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get payment status')
+        const errorData = await response.json()
+        console.error('[XENDIT E-WALLET ERROR] Response status:', response.status)
+        console.error('[XENDIT E-WALLET ERROR] Error data:', errorData)
+        throw new Error(errorData.message || errorData.error_code || 'E-wallet payment creation failed')
       }
 
       const data = await response.json()
-      
       return {
         id: data.id,
-        status: data.status,
+        external_id: data.external_id,
         amount: data.amount,
-        currency: data.currency,
-        payment_method: data.payment_methods?.[0] || 'unknown',
-        invoice_url: data.invoice_url,
-        transaction_id: data.external_id,
-        created_at: data.created,
+        status: data.status,
+        checkout_url: data.checkout_url,
+        created: data.created,
       }
     } catch (error) {
-      console.error('Xendit status check error:', error)
-      throw new Error('Failed to check payment status')
+      console.error('Xendit e-wallet payment error:', error)
+      throw new Error('E-wallet payment processing failed')
     }
   }
 
-  // Create QRIS payment specifically
-  async createQRISPayment(paymentData: Omit<XenditPaymentRequest, 'payment_method'>): Promise<XenditPaymentResponse> {
-    const qrisPaymentData: XenditPaymentRequest = {
-      ...paymentData,
-      payment_method: 'qris'
-    }
-    return this.createPayment(qrisPaymentData)
-  }
-
-  // Get QRIS QR code URL
-  async getQRISQRCode(invoiceId: string): Promise<string | null> {
+  // Create virtual account using /virtual_accounts endpoint
+  async createVirtualAccount(paymentData: {
+    external_id: string
+    bank_code: string
+    name: string
+    expected_amount: number
+    is_closed: boolean
+    callback_url: string
+    description?: string
+  }): Promise<XenditPaymentResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/v2/invoices/${invoiceId}`, {
-        method: 'GET',
+      const requestBody = {
+        external_id: paymentData.external_id,
+        bank_code: paymentData.bank_code,
+        name: paymentData.name,
+        expected_amount: paymentData.expected_amount,
+        is_closed: paymentData.is_closed,
+        callback_url: paymentData.callback_url,
+        description: paymentData.description || 'Digital Product Purchase',
+      }
+
+      console.log('[XENDIT VA DEBUG] Request to Xendit:', requestBody)
+
+      const response = await fetch(`${this.baseUrl}/virtual_accounts`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Basic ${btoa(this.secretKey + ':')}`,
         },
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get QRIS QR code')
+        const errorData = await response.json()
+        console.error('[XENDIT VA ERROR] Response status:', response.status)
+        console.error('[XENDIT VA ERROR] Error data:', errorData)
+        throw new Error(errorData.message || errorData.error_code || 'Virtual account creation failed')
       }
 
       const data = await response.json()
-      
-      // QRIS QR code is usually available in the invoice response
-      return data.qr_code_url || data.qr_code || null
+      return {
+        id: data.id,
+        external_id: data.external_id,
+        amount: data.expected_amount,
+        status: data.status,
+        account_number: data.account_number,
+        created: data.created,
+      }
     } catch (error) {
-      console.error('Get QRIS QR code error:', error)
-      return null
+      console.error('Xendit virtual account error:', error)
+      throw new Error('Virtual account creation failed')
     }
+  }
+
+  // Create retail outlet using /fixed_payment_codes endpoint
+  async createRetailOutlet(paymentData: {
+    external_id: string
+    retail_outlet_name: string
+    name: string
+    expected_amount: number
+    callback_url: string
+    description?: string
+  }): Promise<XenditPaymentResponse> {
+    try {
+      const requestBody = {
+        external_id: paymentData.external_id,
+        retail_outlet_name: paymentData.retail_outlet_name,
+        name: paymentData.name,
+        expected_amount: paymentData.expected_amount,
+        callback_url: paymentData.callback_url,
+        description: paymentData.description || 'Digital Product Purchase',
+      }
+
+      console.log('[XENDIT RETAIL DEBUG] Request to Xendit:', requestBody)
+
+      const response = await fetch(`${this.baseUrl}/fixed_payment_codes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${btoa(this.secretKey + ':')}`,
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[XENDIT RETAIL ERROR] Response status:', response.status)
+        console.error('[XENDIT RETAIL ERROR] Error data:', errorData)
+        throw new Error(errorData.message || errorData.error_code || 'Retail outlet creation failed')
+      }
+
+      const data = await response.json()
+      return {
+        id: data.id,
+        external_id: data.external_id,
+        amount: data.expected_amount,
+        status: data.status,
+        payment_code: data.payment_code,
+        created: data.created,
+      }
+    } catch (error) {
+      console.error('Xendit retail outlet error:', error)
+      throw new Error('Retail outlet creation failed')
+    }
+  }
+
+  // Helper method to determine payment type and create appropriate payment
+  async createPayment(paymentData: XenditPaymentRequest): Promise<XenditPaymentResponse> {
+    const { payment_method } = paymentData
+
+    // QRIS - handled separately from e-wallets
+    if (payment_method === 'QRIS') {
+      return this.createQRISPayment({
+        external_id: paymentData.external_id,
+        amount: paymentData.amount,
+        callback_url: paymentData.callback_url,
+        redirect_url: paymentData.redirect_url,
+      })
+    }
+
+    // E-wallets
+    if (['SHOPEEPAY', 'ASTRAPAY'].includes(payment_method)) {
+      return this.createEwalletPayment({
+        external_id: paymentData.external_id,
+        amount: paymentData.amount,
+        ewallet_type: payment_method as 'SHOPEEPAY' | 'ASTRAPAY',
+        phone: paymentData.customer_phone,
+        callback_url: paymentData.callback_url,
+        redirect_url: paymentData.redirect_url,
+      })
+    }
+
+    // Virtual Accounts
+    if (payment_method.endsWith('_VIRTUAL_ACCOUNT')) {
+      const bankCode = payment_method.replace('_VIRTUAL_ACCOUNT', '')
+      return this.createVirtualAccount({
+        external_id: paymentData.external_id,
+        bank_code: bankCode,
+        name: paymentData.customer_name,
+        expected_amount: paymentData.amount,
+        is_closed: true,
+        callback_url: paymentData.callback_url,
+        description: paymentData.description,
+      })
+    }
+
+    // Retail Outlets
+    if (['ALFAMART', 'INDOMARET', 'AKULAKU'].includes(payment_method)) {
+      return this.createRetailOutlet({
+        external_id: paymentData.external_id,
+        retail_outlet_name: payment_method,
+        name: paymentData.customer_name,
+        expected_amount: paymentData.amount,
+        callback_url: paymentData.callback_url,
+        description: paymentData.description,
+      })
+    }
+
+    throw new Error(`Unsupported payment method: ${payment_method}`)
+  }
+
+  // Helper method to determine if payment method should use v2 (all methods now)
+  shouldUseV2(paymentMethod: string): boolean {
+    // All payment methods now use v2
+    return true
   }
 }
 
 // Create singleton instance
-export const xenditAPI = new XenditAPI() 
+export const xenditAPI = new XenditAPI()  

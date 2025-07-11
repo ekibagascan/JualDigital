@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-client'
+import { supabase } from '@/lib/supabase-client'
 
 export interface Download {
   id: string
@@ -20,11 +20,9 @@ export interface CreateDownloadRequest {
 }
 
 export class DownloadService {
-  private supabase = createClient()
-
   async createDownload(downloadData: CreateDownloadRequest): Promise<Download> {
     try {
-      const { data: download, error } = await this.supabase
+      const { data: download, error } = await supabase
         .from('downloads')
         .insert({
           user_id: downloadData.user_id,
@@ -50,7 +48,7 @@ export class DownloadService {
 
   async getUserDownloads(userId: string): Promise<Download[]> {
     try {
-      const { data: downloads, error } = await this.supabase
+      const { data: downloads, error } = await supabase
         .from('downloads')
         .select(`
           *,
@@ -82,7 +80,7 @@ export class DownloadService {
 
   async getDownload(downloadId: string): Promise<Download | null> {
     try {
-      const { data: download, error } = await this.supabase
+      const { data: download, error } = await supabase
         .from('downloads')
         .select('*')
         .eq('id', downloadId)
@@ -102,10 +100,10 @@ export class DownloadService {
 
   async incrementDownloadCount(downloadId: string): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('downloads')
         .update({
-          download_count: this.supabase.rpc('increment', { row_id: downloadId }),
+          download_count: supabase.rpc('increment', { row_id: downloadId }),
           last_downloaded: new Date().toISOString(),
         })
         .eq('id', downloadId)
@@ -123,7 +121,7 @@ export class DownloadService {
   async canUserDownload(userId: string, productId: string): Promise<boolean> {
     try {
       // Check if user has purchased the product
-      const { data: orderItems, error } = await this.supabase
+      const { data: orderItems, error } = await supabase
         .from('order_items')
         .select('order_id')
         .eq('user_id', userId)
@@ -144,7 +142,7 @@ export class DownloadService {
   async getProductDownloadUrl(productId: string, userId: string): Promise<string | null> {
     try {
       // Get the product's download URL
-      const { data: product, error: productError } = await this.supabase
+      const { data: product, error: productError } = await supabase
         .from('products')
         .select('download_link, file_url')
         .eq('id', productId)

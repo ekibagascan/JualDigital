@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-client'
+import { supabase } from '@/lib/supabase-client'
 
 export interface Review {
   id: string
@@ -20,11 +20,9 @@ export interface CreateReviewRequest {
 }
 
 export class ReviewService {
-  private supabase = createClient()
-
   async createReview(reviewData: CreateReviewRequest): Promise<Review> {
     try {
-      const { data: review, error } = await this.supabase
+      const { data: review, error } = await supabase
         .from('reviews')
         .insert({
           product_id: reviewData.product_id,
@@ -49,7 +47,7 @@ export class ReviewService {
 
   async getProductReviews(productId: string): Promise<Review[]> {
     try {
-      const { data: reviews, error } = await this.supabase
+      const { data: reviews, error } = await supabase
         .from('reviews')
         .select(`
           *,
@@ -79,7 +77,7 @@ export class ReviewService {
 
   async getUserReviews(userId: string): Promise<Review[]> {
     try {
-      const { data: reviews, error } = await this.supabase
+      const { data: reviews, error } = await supabase
         .from('reviews')
         .select(`
           *,
@@ -105,7 +103,7 @@ export class ReviewService {
 
   async updateReview(reviewId: string, rating: number, comment: string): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('reviews')
         .update({
           rating,
@@ -126,7 +124,7 @@ export class ReviewService {
 
   async deleteReview(reviewId: string): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from('reviews')
         .delete()
         .eq('id', reviewId)
@@ -144,7 +142,7 @@ export class ReviewService {
   async canUserReview(userId: string, productId: string): Promise<boolean> {
     try {
       // Check if user has purchased the product
-      const { data: orders, error } = await this.supabase
+      const { data: orders, error } = await supabase
         .from('order_items')
         .select('order_id')
         .eq('product_id', productId)
@@ -156,7 +154,7 @@ export class ReviewService {
       }
 
       // Check if user has already reviewed
-      const { data: existingReview, error: reviewError } = await this.supabase
+      const { data: existingReview, error: reviewError } = await supabase
         .from('reviews')
         .select('id')
         .eq('user_id', userId)

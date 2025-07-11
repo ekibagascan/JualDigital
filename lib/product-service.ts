@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-client'
+import { supabase } from '@/lib/supabase-client'
 
 export interface Product {
   id: string
@@ -43,8 +43,6 @@ export interface SellerProfile {
 }
 
 export class ProductService {
-  public supabase = createClient()
-
   async getProducts(options?: {
     category?: string
     status?: string
@@ -53,7 +51,7 @@ export class ProductService {
     search?: string
   }): Promise<Product[]> {
     try {
-      let query = this.supabase
+      let query = supabase
         .from('products')
         .select('*')
         .eq('status', 'active')
@@ -90,7 +88,7 @@ export class ProductService {
 
   async getProduct(id: string): Promise<Product | null> {
     try {
-      const { data: product, error } = await this.supabase
+      const { data: product, error } = await supabase
         .from('products')
         .select('*')
         .eq('id', id)
@@ -110,7 +108,7 @@ export class ProductService {
 
   async getProductVariants(productId: string): Promise<ProductVariant[]> {
     try {
-      const { data: variants, error } = await this.supabase
+      const { data: variants, error } = await supabase
         .from('product_variants')
         .select('*')
         .eq('product_id', productId)
@@ -146,7 +144,7 @@ export class ProductService {
 
   async getRelatedProducts(category: string, currentProductId: string, limit: number = 4): Promise<Product[]> {
     try {
-      const { data: products, error } = await this.supabase
+      const { data: products, error } = await supabase
         .from('products')
         .select('*')
         .eq('status', 'active')
@@ -169,7 +167,7 @@ export class ProductService {
 
   async getSellerProfile(sellerId: string): Promise<SellerProfile | null> {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('id, name, avatar_url, bio, business_name, total_products, total_sales, rating, total_reviews')
         .eq('id', sellerId)
@@ -187,7 +185,6 @@ export class ProductService {
 
   static async fetchSellerNames(sellerIds: string[]): Promise<Record<string, string>> {
     if (sellerIds.length === 0) return {}
-    const supabase = createClient()
     const { data: sellers, error } = await supabase
       .from('profiles')
       .select('id, name, business_name')

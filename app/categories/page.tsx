@@ -23,7 +23,9 @@ export default function CategoriesPage() {
           <h2 className="text-2xl font-bold mb-6">Semua Produk</h2>
           <div className="grid lg:grid-cols-4 gap-8">
             <div className="lg:col-span-1">
-              <ProductsFilter />
+              <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded" />}>
+                <ProductsFilter />
+              </Suspense>
             </div>
             <div className="lg:col-span-3">
               <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded" />}>

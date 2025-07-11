@@ -42,13 +42,24 @@ export function Header() {
     }
   }
 
-  const handleLogout = () => {
-    logout()
-    toast({
-      title: "Logout berhasil",
-      description: "Anda telah keluar dari akun.",
-    })
-    router.push("/")
+  const handleLogout = async () => {
+    try {
+      await logout()
+      toast({
+        title: "Logout berhasil",
+        description: "Anda telah keluar dari akun.",
+      })
+      router.push("/")
+    } catch (error) {
+      console.error("Logout error:", error)
+      // Even if there's an error, the user state should be cleared
+      // So we can still show success and redirect
+      toast({
+        title: "Logout berhasil",
+        description: "Anda telah keluar dari akun.",
+      })
+      router.push("/")
+    }
   }
 
   const cartItemCount = items.reduce((total, item) => total + item.quantity, 0)

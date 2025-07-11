@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,9 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase-client"
-
-const supabase = createClient();
+import { supabase } from '@/lib/supabase-client'
 
 export function RegisterForm() {
   const [formData, setFormData] = useState({
@@ -29,9 +27,32 @@ export function RegisterForm() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [confirmationSent, setConfirmationSent] = useState(false)
 
   const { register } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Handle errors from auth callback
+  useEffect(() => {
+    const error = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
+
+    if (error) {
+      console.error('Auth callback error:', error, errorDescription)
+      toast({
+        title: "Registrasi gagal",
+        description: errorDescription || "Terjadi kesalahan saat registrasi.",
+        variant: "destructive",
+      })
+
+      // Clean up the URL
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('error')
+      newUrl.searchParams.delete('error_description')
+      window.history.replaceState({}, '', newUrl.toString())
+    }
+  }, [searchParams])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -79,7 +100,15 @@ export function RegisterForm() {
     setIsLoading(true)
 
     try {
-      await register(formData.name, formData.email, formData.password)
+      const result = await register(formData.name, formData.email, formData.password)
+      if (result && (result as any).needsConfirmation) {
+        setConfirmationSent(true)
+        toast({
+          title: "Registrasi berhasil!",
+          description: "Silakan cek email Anda dan konfirmasi akun sebelum login.",
+        })
+        return
+      }
       toast({
         title: "Registrasi berhasil!",
         description: "Selamat datang di Jual Digital.",
@@ -109,22 +138,48 @@ export function RegisterForm() {
 
     setIsLoading(true)
     try {
-      // Real Google signup
-      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' })
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/')}`
+        }
+      })
       if (error) {
         throw new Error(error.message)
       }
       // No need to call register or show success toast here; user will be redirected by Supabase
     } catch (error) {
-      console.error("Google signup error (form):", error)
+      console.error("Google signup error:", error)
       toast({
-        title: "Registrasi Google gagal",
-        description: "Terjadi kesalahan saat daftar dengan Google.",
+        title: "Registrasi gagal",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat registrasi dengan Google",
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (confirmationSent) {
+    return (
+      <div className="max-w-md mx-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl text-center">Registrasi Berhasil!</CardTitle>
+            <p className="text-center text-muted-foreground">
+              Silakan cek email Anda dan konfirmasi akun sebelum login.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center">
+              <Link href="/login" className="text-primary hover:underline">
+                Kembali ke Login
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
