@@ -78,5 +78,5 @@ export async function createInvoice(invoiceData: {
   }
 
   return await response.json()
-}  
+}
 

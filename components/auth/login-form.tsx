@@ -54,7 +54,7 @@ export function LoginForm() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `https://c4bbd0b48e6b.ngrok-free.app/auth/callback?next=${encodeURIComponent('/')}`,
+          redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/auth/callback?next=${encodeURIComponent('/')}`,
         },
       })
       if (error) {

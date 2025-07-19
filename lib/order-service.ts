@@ -51,13 +51,13 @@ export class OrderService {
     try {
       // Validate that user is not trying to purchase their own products
       if (orderData.user_id) {
-        const productIds = orderData.items.map(item => item.product_id)
-        const { data: products, error: productsError } = await this.supabase
-          .from('products')
-          .select('id, seller_id, title')
-          .in('id', productIds)
+      const productIds = orderData.items.map(item => item.product_id)
+      const { data: products, error: productsError } = await this.supabase
+        .from('products')
+        .select('id, seller_id, title')
+        .in('id', productIds)
 
-        if (productsError) {
+      if (productsError) {
           console.error('Error fetching products for validation:', productsError)
           throw new Error('Failed to validate order items')
         }
@@ -172,10 +172,10 @@ export class OrderService {
         description: `Order ${order.order_number} - Digital Products`,
         items: invoiceItems,
         should_send_email: false,
-        success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://c4bbd0b48e6b.ngrok-free.app'}/payment/success?order_id=${order.id}`,
-        failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://c4bbd0b48e6b.ngrok-free.app'}/payment/failed?order_id=${order.id}`,
+        success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/payment/success?order_id=${order.id}`,
+        failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/payment/failed?order_id=${order.id}`,
         currency: 'IDR',
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://c4bbd0b48e6b.ngrok-free.app'}/api/payments/callback`,
+        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/api/payments/callback`,
       }
       console.log('[XENDIT INVOICE DEBUG] Invoice request:', invoiceData)
       console.log('[XENDIT INVOICE DEBUG] External ID being sent to Xendit:', order.id)
