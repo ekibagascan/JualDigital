@@ -14,6 +14,7 @@ import { useSupabaseWishlist } from "@/hooks/use-supabase-wishlist"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 interface Product {
   id: string
@@ -46,6 +47,7 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
   const { addItem } = useCart()
   const { user } = useAuth()
   const { isInWishlist, addToWishlist, removeFromWishlist } = useSupabaseWishlist()
+  const router = useRouter()
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -98,16 +100,14 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
     }
 
     try {
-      const cartItem = {
+      await addItem({
         product_id: product.id,
         title: product.title,
         price: product.price,
         image_url: product.image,
+        seller_id: product.seller_id,
         quantity: 1,
-        ...(product.seller_id && { seller_id: product.seller_id }),
-      }
-
-      await addItem(cartItem)
+      })
       toast({
         title: "Ditambahkan ke keranjang",
         description: `${product.title} telah ditambahkan ke keranjang.`,
@@ -136,17 +136,15 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
     }
 
     try {
-      const cartItem = {
+      await addItem({
         product_id: product.id,
         title: product.title,
         price: product.price,
         image_url: product.image,
+        seller_id: product.seller_id,
         quantity: 1,
-        ...(product.seller_id && { seller_id: product.seller_id }),
-      }
-
-      await addItem(cartItem)
-      window.location.href = "/checkout"
+      })
+      router.push("/cart")
     } catch (error) {
       console.error('Error adding to cart for buy now:', error)
       toast({

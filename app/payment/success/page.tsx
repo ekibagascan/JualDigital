@@ -1,37 +1,63 @@
 "use client"
 
 import { useEffect, useState, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
-import { CheckCircle, Download, Mail } from "lucide-react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { CheckCircle, Download, AlertCircle } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { OrderService } from "@/lib/order-service"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 
+interface Order {
+    id: string
+    order_number: string
+    total_amount: number
+    tax_amount: number
+    payment_method?: string
+    status: string
+    invoice_url?: string
+}
+
+interface OrderItem {
+    id: string
+    product_id: string
+    product_title: string
+    quantity: number
+    price: number
+}
+
 function PaymentSuccessContent() {
     const searchParams = useSearchParams()
+    const router = useRouter()
     const orderId = searchParams.get("order_id")
-    const paymentId = searchParams.get("payment_id")
-    const [order, setOrder] = useState<any>(null)
-    const [orderItems, setOrderItems] = useState<any[]>([])
+    const [order, setOrder] = useState<Order | null>(null)
+    const [orderItems, setOrderItems] = useState<OrderItem[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const fetchOrder = async () => {
             if (orderId) {
                 try {
-                    const supabase = createClientComponentClient()
-                    const orderService = new OrderService(supabase)
+                    console.log('[SUCCESS PAGE] Fetching order:', orderId)
 
-                    const orderData = await orderService.getOrder(orderId)
-                    const items = await orderService.getOrderItems(orderId)
+                    const response = await fetch(`/api/orders/${orderId}`)
+                    const data = await response.json()
 
-                    setOrder(orderData)
-                    setOrderItems(items)
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to fetch order')
+                    }
+
+                    console.log('[SUCCESS PAGE] Order data received:', data.order?.id, 'Status:', data.order?.status)
+
+                    setOrder(data.order)
+                    setOrderItems(data.items || [])
+
+                    // If order is still pending, start polling for status updates
+                    if (data.order && data.order.status === 'pending') {
+                        pollOrderStatus(orderId)
+                    }
                 } catch (error) {
                     console.error('Error fetching order:', error)
                     toast({
@@ -50,15 +76,64 @@ function PaymentSuccessContent() {
         fetchOrder()
     }, [orderId])
 
-    const handleDownload = async (productId: string) => {
+    const pollOrderStatus = async (orderId: string) => {
+        const maxAttempts = 30 // 5 minutes with 10-second intervals
+        let attempts = 0
+
+        const poll = async () => {
+            try {
+                const response = await fetch(`/api/orders/${orderId}`)
+                const data = await response.json()
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to fetch order')
+                }
+
+                if (data.order && data.order.status === 'paid') {
+                    setOrder(data.order)
+                    setOrderItems(data.items || [])
+                    toast({
+                        title: "Pembayaran Berhasil!",
+                        description: "Status pesanan telah diperbarui.",
+                    })
+                    return
+                }
+
+                attempts++
+                if (attempts < maxAttempts) {
+                    setTimeout(poll, 10000) // Poll every 10 seconds
+                } else {
+                    toast({
+                        title: "Menunggu Pembayaran",
+                        description: "Pembayaran sedang diproses. Silakan cek kembali dalam beberapa menit.",
+                    })
+                }
+            } catch (error) {
+                console.error('Error polling order status:', error)
+            }
+        }
+
+        poll()
+    }
+
+    const handleDownload = async (orderItemId: string, productTitle: string) => {
         try {
-            // Here you would implement the actual download logic
-            // For now, we'll just show a success message
-            toast({
-                title: "Download dimulai",
-                description: "File sedang diunduh...",
-            })
-        } catch (error) {
+            const res = await fetch(`/api/download/${orderItemId}`)
+            if (res.redirected) {
+                window.open(res.url, '_blank')
+                toast({
+                    title: "Download dimulai",
+                    description: `Mengunduh ${productTitle}...`,
+                })
+            } else {
+                const data = await res.json()
+                toast({
+                    title: "Download gagal",
+                    description: data.error || "Terjadi kesalahan saat mengunduh file.",
+                    variant: "destructive",
+                })
+            }
+        } catch {
             toast({
                 title: "Download gagal",
                 description: "Terjadi kesalahan saat mengunduh file.",
@@ -69,150 +144,143 @@ function PaymentSuccessContent() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background">
-                <Header />
-                <main className="container mx-auto px-4 py-8">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">Memuat data pesanan...</p>
-                    </div>
-                </main>
-                <Footer />
+            <div className="text-center">
+                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-4 text-muted-foreground">Memuat data pesanan...</p>
+            </div>
+        )
+    }
+
+    if (!order) {
+        return (
+            <div className="text-center">
+                <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h1 className="text-3xl font-bold mb-2">Pesanan Tidak Ditemukan</h1>
+                <p className="text-muted-foreground mb-8">
+                    Pesanan yang Anda cari tidak ditemukan atau telah dihapus.
+                </p>
+                <Button onClick={() => router.push('/dashboard')}>
+                    Kembali ke Dashboard
+                </Button>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            <Header />
-            <main className="container mx-auto px-4 py-8">
-                <div className="max-w-2xl mx-auto">
-                    {/* Success Header */}
-                    <div className="text-center mb-8">
+        <div className="max-w-2xl mx-auto">
+            {/* Success Header */}
+            <div className="text-center mb-8">
+                {order.status === 'paid' ? (
+                    <>
                         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
                         <h1 className="text-3xl font-bold mb-2">Pembayaran Berhasil!</h1>
                         <p className="text-muted-foreground">
                             Terima kasih atas pembelian Anda. Produk digital siap diunduh.
                         </p>
-                    </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+                        <h1 className="text-3xl font-bold mb-2">Menunggu Pembayaran</h1>
+                        <p className="text-muted-foreground">
+                            Pembayaran sedang diproses. Halaman ini akan diperbarui otomatis.
+                        </p>
+                    </>
+                )}
+            </div>
 
-                    {/* Order Details */}
-                    {order && (
-                        <Card className="mb-6">
-                            <CardHeader>
-                                <CardTitle>Detail Pesanan</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Order Number</p>
-                                        <p className="font-medium">{order.order_number}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Status</p>
-                                        <p className="font-medium text-green-600">Paid</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Total Amount</p>
-                                        <p className="font-medium">{formatCurrency(order.total_amount + order.tax_amount)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Payment Method</p>
-                                        <p className="font-medium capitalize">{order.payment_method.replace('_', ' ')}</p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Products to Download */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Produk Digital</CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                                Klik tombol download untuk mengunduh produk yang telah dibeli
+            {/* Order Details */}
+            <Card className="mb-6">
+                <CardHeader>
+                    <CardTitle>Detail Pesanan</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <p className="text-sm text-muted-foreground">Order Number</p>
+                            <p className="font-medium">{order.order_number}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Status</p>
+                            <p className={`font-medium ${order.status === 'paid' ? 'text-green-600' :
+                                order.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                {order.status === 'paid' ? 'Paid' :
+                                    order.status === 'pending' ? 'Pending' : 'Failed'}
                             </p>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                {orderItems.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                                        <div className="flex items-center space-x-4">
-                                            {item.image_url && (
-                                                <img
-                                                    src={item.image_url}
-                                                    alt={item.title}
-                                                    className="w-12 h-12 object-cover rounded"
-                                                />
-                                            )}
-                                            <div>
-                                                <h3 className="font-medium">{item.title}</h3>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {formatCurrency(item.price)} x {item.quantity}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <Button
-                                            onClick={() => handleDownload(item.product_id)}
-                                            className="flex items-center space-x-2"
-                                        >
-                                            <Download className="w-4 h-4" />
-                                            <span>Download</span>
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Additional Info */}
-                    <div className="mt-6 space-y-4">
-                        <Card>
-                            <CardContent className="pt-6">
-                                <div className="flex items-start space-x-3">
-                                    <Mail className="w-5 h-5 text-blue-500 mt-0.5" />
-                                    <div>
-                                        <h3 className="font-medium mb-1">Email Konfirmasi</h3>
-                                        <p className="text-sm text-muted-foreground">
-                                            Email konfirmasi telah dikirim ke {order?.guest_email || 'email Anda'}.
-                                            Link download juga tersedia di email tersebut.
-                                        </p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <div className="text-center space-y-4">
-                            <Button asChild>
-                                <a href="/dashboard">Lihat Pesanan Saya</a>
-                            </Button>
-                            <Button variant="outline" asChild>
-                                <a href="/categories">Lanjut Belanja</a>
-                            </Button>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Total Amount</p>
+                            <p className="font-medium">{formatCurrency(order.total_amount + order.tax_amount)}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Payment Method</p>
+                            <p className="font-medium capitalize">{order.payment_method?.replace('_', ' ')}</p>
                         </div>
                     </div>
-                </div>
-            </main>
-            <Footer />
+                </CardContent>
+            </Card>
+
+            {/* Products to Download - Only show if order is paid */}
+            {order.status === 'paid' && orderItems.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Produk Digital</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {orderItems.map((item: OrderItem) => (
+                                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+                                    <div className="flex-1">
+                                        <h3 className="font-medium">{item.product_title}</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            Quantity: {item.quantity}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleDownload(item.id, item.product_title)}
+                                        >
+                                            <Download className="w-4 h-4 mr-2" />
+                                            Download
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-4 justify-center mt-8">
+                <Button onClick={() => router.push('/dashboard')}>
+                    Kembali ke Dashboard
+                </Button>
+                <Button variant="outline" onClick={() => router.push('/')}>
+                    Lanjut Belanja
+                </Button>
+            </div>
         </div>
     )
 }
 
 export default function PaymentSuccessPage() {
     return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-background">
-                <Header />
-                <main className="container mx-auto px-4 py-8">
+        <div className="min-h-screen bg-background">
+            <Header />
+            <main className="container mx-auto px-4 py-8">
+                <Suspense fallback={
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">Loading...</p>
+                        <p className="mt-4 text-muted-foreground">Memuat...</p>
                     </div>
-                </main>
-                <Footer />
-            </div>
-        }>
-            <PaymentSuccessContent />
-        </Suspense>
+                }>
+                    <PaymentSuccessContent />
+                </Suspense>
+            </main>
+            <Footer />
+        </div>
     )
 } 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase-client'
 import { useAuth } from "@/hooks/use-auth"
 
@@ -8,11 +8,14 @@ export interface SupabaseCartItem {
   id: string
   cart_id: string
   product_id: string
-  seller_id?: string
-  title: string
-  price: number
-  image_url: string
+  variant_id?: string
   quantity: number
+  added_at: string
+  // Additional fields for display (not stored in DB)
+  title?: string
+  price?: number
+  image_url?: string
+  seller_id?: string
 }
 
 export function useSupabaseCart() {
@@ -21,7 +24,7 @@ export function useSupabaseCart() {
   const [items, setItems] = useState<SupabaseCartItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Fetch cart on login (do not create cart automatically)
+  // Fetch or create cart on login
   useEffect(() => {
     if (!user) {
       setCartId(null)
@@ -30,87 +33,151 @@ export function useSupabaseCart() {
       return
     }
     setLoading(true)
-    const fetchCart = async () => {
+    const fetchOrCreateCart = async () => {
       try {
-        // Only fetch cart, do not create
-        let { data: cart, error } = await supabase
+        // Try to fetch cart
+        const { data: cart, error } = await supabase
           .from("carts")
           .select("id")
           .eq("user_id", user.id)
           .single()
+        
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching cart:', error)
         }
-        setCartId(cart?.id || null)
-        // Fetch cart items if cart exists
-        if (cart?.id) {
+        
+        let currentCart = cart
+        if (!currentCart) {
+          // Create cart if not exists
+          const { data: newCart, error: createError } = await supabase
+            .from("carts")
+            .insert({ user_id: user.id })
+            .select("id")
+            .single()
+          
+          if (createError) {
+            console.error('Error creating cart:', createError)
+            setLoading(false)
+            return
+          }
+          
+          currentCart = newCart
+        }
+        
+        setCartId(currentCart?.id || null)
+        
+        // Fetch cart items
+        if (currentCart?.id) {
           const { data: cartItems, error: itemsError } = await supabase
             .from("cart_items")
             .select("*")
-            .eq("cart_id", cart.id)
+            .eq("cart_id", currentCart.id)
+          
           if (itemsError) {
             console.error('Error fetching cart items:', itemsError)
           }
-          setItems(cartItems || [])
+          
+          // Fetch product details for display
+          if (cartItems && cartItems.length > 0) {
+            const productIds = cartItems.map(item => item.product_id)
+            const { data: products, error: productsError } = await supabase
+              .from('products')
+              .select('id, title, price, image_url, seller_id')
+              .in('id', productIds)
+            
+            if (productsError) {
+              console.error('Error fetching product details:', productsError)
+            } else {
+              const productMap = Object.fromEntries(products.map(p => [p.id, p]))
+              const itemsWithProducts = cartItems.map(item => ({
+                ...item,
+                title: productMap[item.product_id]?.title,
+                price: productMap[item.product_id]?.price,
+                image_url: productMap[item.product_id]?.image_url,
+                seller_id: productMap[item.product_id]?.seller_id,
+              }))
+              setItems(itemsWithProducts)
+            }
+          } else {
+            setItems([])
+          }
         } else {
           setItems([])
         }
       } catch (error) {
-        console.error('Error in fetchCart:', error)
+        console.error('Error in fetchOrCreateCart:', error)
       } finally {
         setLoading(false)
       }
     }
-    fetchCart()
+    fetchOrCreateCart()
   }, [user])
 
   // Add item to cart
-  const addItem = useCallback(async (item: Omit<SupabaseCartItem, "id" | "cart_id"> & { seller_id?: string }) => {
-    if (!user) {
-      console.error('No user available')
+  const addItem = useCallback(async (item: { 
+    product_id: string; 
+    quantity?: number;
+    title?: string;
+    price?: number;
+    image_url?: string;
+    seller_id?: string;
+  }) => {
+    if (!cartId) {
+      console.error('No cart ID available')
       return
     }
-    let currentCartId = cartId
-    if (!currentCartId) {
-      // Create cart only when adding first item
-      const { data: newCart, error: createError } = await supabase
-        .from("carts")
-        .insert({ user_id: user.id })
-        .select("id")
-        .single()
-      if (createError) {
-        console.error('Error creating cart:', createError)
-        return
-      }
-      currentCartId = newCart.id
-      setCartId(currentCartId)
-    }
+    
     try {
       // Check if item already exists
       const existing = items.find(i => i.product_id === item.product_id)
       if (existing) {
-        await updateQuantity(existing.id, existing.quantity + 1)
+        await updateQuantity(existing.id, existing.quantity + (item.quantity || 1))
         return
       }
+      
       const cartItemData = {
-        cart_id: currentCartId,
+        cart_id: cartId,
         product_id: item.product_id,
+        seller_id: item.seller_id,
         title: item.title,
         price: item.price,
         image_url: item.image_url,
-        quantity: item.quantity,
+        quantity: item.quantity || 1,
+        // added_at will default to NOW() in the DB
       }
+      
+      console.log('Adding cart item:', cartItemData)
+      console.log('Cart ID:', cartId)
+      console.log('User ID:', user?.id)
+      
       const { data, error } = await supabase
         .from("cart_items")
         .insert(cartItemData)
         .select("*")
         .single()
+      
       if (error) {
         console.error('Error adding item to cart:', error)
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
         throw error
       }
+      
       if (data) {
-        setItems(prev => [...prev, data])
+        console.log('Successfully added item to cart:', data)
+        // Add product details for display
+        const newItem = {
+          ...data,
+          title: item.title,
+          price: item.price,
+          image_url: item.image_url,
+          seller_id: item.seller_id,
+        }
+        setItems(prev => [...prev, newItem])
       }
     } catch (error) {
       console.error('Error in addItem:', error)
@@ -134,64 +201,70 @@ export function useSupabaseCart() {
 
   // Update quantity
   const updateQuantity = useCallback(async (id: string, quantity: number) => {
-    if (quantity <= 0) {
-      await removeItem(id)
-      return
-    }
-    
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("cart_items")
         .update({ quantity })
         .eq("id", id)
-        .select("*")
-        .single()
-      
       if (error) {
         console.error('Error updating quantity:', error)
         return
       }
-      
-      if (data) {
-        setItems(prev => prev.map(item => item.id === id ? data : item))
-      }
+      setItems(prev => prev.map(i => i.id === id ? { ...i, quantity } : i))
     } catch (error) {
       console.error('Error in updateQuantity:', error)
     }
-  }, [removeItem, supabase])
+  }, [supabase])
 
   // Clear cart
   const clearCart = useCallback(async () => {
-    if (!cartId) return
-    
+    console.log('[DEBUG] clearCart called with cartId:', cartId)
     try {
-      const { error } = await supabase
-        .from("cart_items")
-        .delete()
-        .eq("cart_id", cartId)
-      
-      if (error) {
-        console.error('Error clearing cart:', error)
-        return
+      if (cartId) {
+        console.log('[DEBUG] Deleting cart items for cartId:', cartId)
+        const { error } = await supabase
+          .from("cart_items")
+          .delete()
+          .eq("cart_id", cartId)
+        if (error) {
+          console.error('Error clearing cart:', error)
+          // Don't return, still clear local state
+        }
+        console.log('[DEBUG] Cart items deleted, clearing local state')
+        setItems([])
+      } else {
+        console.log('[DEBUG] No cartId, just clearing local state')
+        setItems([])
       }
-      
-      setItems([])
+      console.log('[DEBUG] clearCart completed successfully')
     } catch (error) {
       console.error('Error in clearCart:', error)
+      // Still clear local state even if DB operation fails
+      setItems([])
     }
   }, [cartId, supabase])
 
-  const getTotalPrice = () => items.reduce((total, item) => total + item.price * item.quantity, 0)
-  const getTotalItems = () => items.reduce((total, item) => total + item.quantity, 0)
+  // Get total price
+  const getTotalPrice = useCallback(() => {
+    return items.reduce((total, item) => {
+      const price = item.price || 0
+      return total + (price * item.quantity)
+    }, 0)
+  }, [items])
+
+  // Get total items
+  const getTotalItems = useCallback(() => {
+    return items.reduce((total, item) => total + item.quantity, 0)
+  }, [items])
 
   return {
     items,
-    loading,
     addItem,
     removeItem,
     updateQuantity,
     clearCart,
     getTotalPrice,
     getTotalItems,
+        loading,
   }
 } 

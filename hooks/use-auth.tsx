@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase-client"
 import type { User } from "@supabase/supabase-js"
+import { User } from "lucide-react"
 
 // Extended User type with custom properties
 interface ExtendedUser extends User {
@@ -34,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<ExtendedUser | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Function to ensure user profile exists
+  // Function to ensure user profile exists and load avatar
   const ensureUserProfile = async (user: User) => {
     try {
       const { data: profile, error } = await supabase
@@ -44,17 +45,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (!profile) {
-        // Profile doesn't exist, create it
+        // Profile doesn't exist, create it with Google avatar if available
+        const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
         const { error: createError } = await supabase
           .from('profiles')
           .upsert({
             id: user.id,
-            name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+            name: user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+            avatar_url: googleAvatar, // Add Google avatar
             role: 'user'
           })
         if (createError) {
           console.error('Error creating profile:', createError)
         }
+
+        // Update user object with Google avatar and default role
+        if (googleAvatar) {
+          user.avatar = googleAvatar
+        }
+        user.role = 'user' // Set default role
+      } else {
+        // Profile exists, update user object with avatar AND role
+        if (profile.avatar_url) {
+          user.avatar = profile.avatar_url
+        } else if (user.user_metadata?.avatar_url || user.user_metadata?.picture) {
+          // If profile has no avatar but user has Google avatar, update profile
+          const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
+          user.avatar = googleAvatar
+
+          // Update profile with Google avatar
+          await supabase
+            .from('profiles')
+            .update({ avatar_url: googleAvatar })
+            .eq('id', user.id)
+        }
+
+        // IMPORTANT: Set the role from the profile
+        user.role = profile.role || 'user'
+        console.log('User role loaded from profile:', user.role)
       }
     } catch (error) {
       console.error('Error ensuring user profile:', error)
@@ -123,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             name,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `https://c4bbd0b48e6b.ngrok-free.app/auth/callback`,
         },
       })
       console.log("Signup response:", { error, data })

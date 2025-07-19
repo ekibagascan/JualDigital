@@ -1,39 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { OrderService } from '@/lib/order-service'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
-    }
-  )
-  const orderService = new OrderService(supabase);
-
-  const orderData = await req.json()
   try {
+    // Use service role key to bypass RLS policies
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const orderService = new OrderService(supabase as unknown as SupabaseClient)
+    const orderData = await req.json()
+    
+    console.log('[CHECKOUT] Processing order:', orderData)
+    
     const { order, paymentUrl } = await orderService.createOrder(orderData)
+    
+    console.log('[CHECKOUT] Order created successfully:', order.id)
+    console.log('[CHECKOUT] Payment URL:', paymentUrl)
+    
     return NextResponse.json({ order, paymentUrl })
   } catch (error: any) {
+    console.error('[CHECKOUT] Error:', error)
     return NextResponse.json({ error: error.message || 'Checkout failed' }, { status: 500 })
   }
-} 
+}

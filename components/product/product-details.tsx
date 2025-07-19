@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Star, Download, Calendar, FileText, Globe, Shield, Heart, Share2, Eye } from "lucide-react"
+import { Star, Download, FileText, Globe, Shield, Heart, Share2, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,7 +14,6 @@ import { useSupabaseWishlist } from "@/hooks/use-supabase-wishlist"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
-
 interface ProductDetailsProps {
   product: {
     id: string
@@ -71,24 +70,22 @@ export function ProductDetails({ product }: ProductDetailsProps) {
 
     console.log('Product data for cart:', {
       product_id: product.id,
-      seller_id: product.seller_id,
       title: product.title,
       price: product.price,
       image_url: product.image,
+      seller_id: product.seller_id,
       quantity: 1,
     })
 
     try {
-      const cartItem = {
+      await addItem({
         product_id: product.id,
         title: product.title,
         price: product.price,
         image_url: product.image,
+        seller_id: product.seller_id,
         quantity: 1,
-        ...(product.seller_id && { seller_id: product.seller_id }),
-      }
-
-      await addItem(cartItem)
+      })
       toast({
         title: "Ditambahkan ke keranjang",
         description: `${product.title} telah ditambahkan ke keranjang Anda.`,
@@ -114,17 +111,15 @@ export function ProductDetails({ product }: ProductDetailsProps) {
     }
 
     try {
-      const cartItem = {
+      await addItem({
         product_id: product.id,
         title: product.title,
         price: product.price,
         image_url: product.image,
+        seller_id: product.seller_id,
         quantity: 1,
-        ...(product.seller_id && { seller_id: product.seller_id }),
-      }
-
-      await addItem(cartItem)
-      window.location.href = "/checkout"
+      })
+      window.location.href = "/cart"
     } catch (error) {
       console.error('Error adding to cart for buy now:', error)
       toast({

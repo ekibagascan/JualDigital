@@ -1,53 +1,84 @@
 "use client"
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase-client'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useAuth } from '@/hooks/use-auth'
 
-function AuthCallbackContent() {
+export default function AuthCallbackPage() {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const { user } = useAuth()
     const [error, setError] = useState<string | null>(null)
 
+    // Listen for auth state changes and redirect when user is authenticated
     useEffect(() => {
-        const code = searchParams.get('code')
-        const next = searchParams.get('next') || '/'
-        console.log('[AUTH CALLBACK] code:', code)
-        if (!code) {
-            setError('No authentication code provided')
-            setTimeout(() => {
-                console.log('[AUTH CALLBACK] redirecting to /login (no code)')
-                router.replace('/login')
-            }, 1500)
-            return
+        if (user) {
+            const next = searchParams.get('next') || '/'
+            console.log('[AUTH CALLBACK] User authenticated, redirecting to:', next)
+            router.replace(next)
         }
-        console.log('[AUTH CALLBACK] calling exchangeCodeForSession...')
-        const promise = supabase.auth.exchangeCodeForSession(code)
-        promise.then(({ error: exchangeError, data }) => {
-            console.log('[AUTH CALLBACK] exchangeCodeForSession resolved:', { exchangeError, data })
-            if (exchangeError) {
-                setError('Authentication failed: ' + exchangeError.message)
+    }, [user, router, searchParams])
+
+    useEffect(() => {
+        const handleAuthCallback = async () => {
+            const code = searchParams.get('code')
+            const next = searchParams.get('next') || '/'
+
+            console.log('[AUTH CALLBACK] code:', code)
+
+            if (!code) {
+                setError('No authentication code provided')
                 setTimeout(() => {
-                    console.log('[AUTH CALLBACK] redirecting to /login (exchange error)')
                     router.replace('/login')
-                }, 1500)
-            } else {
-                console.log('[AUTH CALLBACK] redirecting to', next)
-                router.replace(next)
+                }, 2000)
+                return
             }
-        })
-            .catch((err) => {
-                console.log('[AUTH CALLBACK] exchangeCodeForSession rejected:', err)
-                setError('Authentication failed: ' + (err?.message || 'Unknown error'))
+
+            // Check if user is already authenticated
+            const supabase = createClientComponentClient()
+            const { data: { session } } = await supabase.auth.getSession()
+
+            if (session?.user) {
+                console.log('[AUTH CALLBACK] User already authenticated, redirecting immediately...')
+                router.replace(next)
+                return
+            }
+
+            // Add timeout to prevent hanging
+            const timeoutId = setTimeout(() => {
+                console.log('[AUTH CALLBACK] Timeout reached, forcing redirect...')
+                router.replace(next)
+            }, 5000)
+
+            try {
+                console.log('[AUTH CALLBACK] calling exchangeCodeForSession...')
+
+                const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+                clearTimeout(timeoutId)
+
+                if (exchangeError) {
+                    console.error('[AUTH CALLBACK] Exchange error:', exchangeError)
+                    setError('Authentication failed: ' + exchangeError.message)
+                    setTimeout(() => {
+                        router.replace('/login')
+                    }, 2000)
+                } else {
+                    console.log('[AUTH CALLBACK] Exchange successful, redirecting to:', next)
+                    router.replace(next)
+                }
+            } catch (err) {
+                clearTimeout(timeoutId)
+                console.error('[AUTH CALLBACK] Exchange exception:', err)
+                setError('Authentication failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
                 setTimeout(() => {
-                    console.log('[AUTH CALLBACK] redirecting to /login (catch)')
                     router.replace('/login')
-                }, 1500)
-            })
-        // Extra: log if the promise never resolves after 5 seconds
-        setTimeout(() => {
-            console.log('[AUTH CALLBACK] exchangeCodeForSession still pending after 5s')
-        }, 5000)
+                }, 2000)
+            }
+        }
+
+        handleAuthCallback()
     }, [router, searchParams])
 
     return (
@@ -71,19 +102,5 @@ function AuthCallbackContent() {
                 </div>
             </div>
         </div>
-    )
-}
-
-export default function AuthCallbackPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="text-center">
-                    <h2 className="text-xl font-semibold mb-2">Loading...</h2>
-                </div>
-            </div>
-        }>
-            <AuthCallbackContent />
-        </Suspense>
     )
 } 

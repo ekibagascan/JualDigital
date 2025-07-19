@@ -1,0 +1,7 @@
+{
+  "external_id": "invoice-va-test-001",
+  "amount": 40000,
+  "payer_email": "dabokainovasi@gmail.com",
+  "description": "Payment for order #va-test-001",
+  "currency": "IDR"
+}

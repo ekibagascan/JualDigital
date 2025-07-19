@@ -54,11 +54,8 @@ export function LoginForm() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/')}`,
-          queryParams: {
-            prompt: 'select_account'
-          }
-        }
+          redirectTo: `https://c4bbd0b48e6b.ngrok-free.app/auth/callback?next=${encodeURIComponent('/')}`,
+        },
       })
       if (error) {
         throw new Error(error.message)
@@ -243,18 +240,7 @@ export function LoginForm() {
               {isLoading ? "Memproses..." : "Masuk"}
             </Button>
 
-            {/* Demo Credentials */}
-            <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-              <h3 className="font-medium text-sm mb-2">Demo Credentials:</h3>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p>
-                  <strong>User:</strong> user@demo.com / password123
-                </p>
-                <p>
-                  <strong>Admin:</strong> admin@jualdigital.com / admin123
-                </p>
-              </div>
-            </div>
+
 
             {/* Google Login */}
             <div className="mt-4">

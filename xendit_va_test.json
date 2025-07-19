@@ -1,0 +1,25 @@
+{
+  "amount": 40000,
+  "currency": "IDR",
+  "country": "ID",
+  "reference_id": "va-test-001",
+  "payment_method": {
+    "type": "VIRTUAL_ACCOUNT",
+    "reusability": "ONE_TIME_USE",
+    "virtual_account": {
+      "channel_code": "MANDIRI",
+      "channel_properties": {
+        "customer_name": "NiceON!"
+      }
+    }
+  },
+  "customer": {
+    "reference_id": "customer-va-test-001",
+    "name": "NiceON!",
+    "email": "dabokainovasi@gmail.com",
+    "phone": "+6281234567890"
+  },
+  "metadata": {
+    "order_id": "va-test-001"
+  }
+}

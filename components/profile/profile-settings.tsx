@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Camera, Save, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase-client"
 
 export function ProfileSettings() {
   const { user } = useAuth()
@@ -43,6 +43,49 @@ export function ProfileSettings() {
     pushNotifications: false,
   })
 
+  // Load profile data on component mount
+  useEffect(() => {
+    if (user?.id) {
+      loadProfile()
+    }
+  }, [user?.id])
+
+  const loadProfile = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch('/api/profile', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (response.ok) {
+        const { profile } = await response.json()
+        console.log('Loaded profile:', profile)
+        setProfileData({
+          name: profile.name || "",
+          email: user.email || "",
+          phone: profile.phone || "",
+          bio: profile.bio || "",
+          website: profile.website || "",
+          location: profile.address || "",
+        })
+
+        // Update the user object with the avatar URL
+        if (profile.avatar_url) {
+          user.avatar = profile.avatar_url
+        } else if (user.user_metadata?.avatar_url || user.user_metadata?.picture) {
+          // Use Google avatar if profile doesn't have one
+          user.avatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
+        }
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error)
+    }
+  }
+
   const handleProfileChange = (field: string, value: string) => {
     setProfileData((prev) => ({ ...prev, [field]: value }))
   }
@@ -60,17 +103,34 @@ export function ProfileSettings() {
     setIsLoading(true)
 
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No session found')
+      }
 
-      toast({
-        title: "Profil berhasil diperbarui",
-        description: "Informasi profil Anda telah disimpan.",
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(profileData)
       })
+
+      if (response.ok) {
+        toast({
+          title: "Profil berhasil diperbarui",
+          description: "Informasi profil Anda telah disimpan.",
+        })
+      } else {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update profile')
+      }
     } catch (error) {
+      console.error('Profile update error:', error)
       toast({
         title: "Gagal memperbarui profil",
-        description: "Terjadi kesalahan. Silakan coba lagi.",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan. Silakan coba lagi.",
         variant: "destructive",
       })
     } finally {
@@ -102,8 +162,13 @@ export function ProfileSettings() {
     setIsLoading(true)
 
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      })
+
+      if (error) {
+        throw error
+      }
 
       toast({
         title: "Password berhasil diubah",
@@ -116,9 +181,10 @@ export function ProfileSettings() {
         confirmPassword: "",
       })
     } catch (error) {
+      console.error('Password change error:', error)
       toast({
         title: "Gagal mengubah password",
-        description: "Password lama tidak sesuai.",
+        description: error instanceof Error ? error.message : "Password lama tidak sesuai.",
         variant: "destructive",
       })
     } finally {
@@ -130,7 +196,7 @@ export function ProfileSettings() {
     setIsLoading(true)
 
     try {
-      // Mock API call
+      // Mock API call for notifications (you can implement real notification settings later)
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       toast({
@@ -141,6 +207,113 @@ export function ProfileSettings() {
       toast({
         title: "Gagal menyimpan pengaturan",
         description: "Terjadi kesalahan. Silakan coba lagi.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleImageUpload = async (file: File) => {
+    try {
+      console.log('Starting image upload for file:', file.name, file.size)
+      setIsLoading(true)
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error('No session found')
+        throw new Error('No session found')
+      }
+
+      console.log('Session found, user ID:', user?.id)
+
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('File size must be less than 5MB')
+      }
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        throw new Error('File must be an image')
+      }
+
+      // Create unique filename
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${user?.id}-${Date.now()}.${fileExt}`
+
+      console.log('Uploading file to storage:', fileName)
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) {
+        console.error('Storage upload error:', error)
+        throw new Error(`Upload failed: ${error.message}`)
+      }
+
+      console.log('Upload successful:', data)
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName)
+
+      console.log('Public URL generated:', publicUrl)
+
+      // Update profile with new avatar URL
+      console.log('Updating profile with avatar URL:', publicUrl)
+
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          ...profileData,
+          avatar_url: publicUrl
+        })
+      })
+
+      console.log('Profile update response status:', response.status)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Profile update successful:', result)
+
+        // Update the user object with new avatar
+        if (user) {
+          user.avatar = publicUrl
+        }
+
+        toast({
+          title: "Foto profil berhasil diperbarui",
+          description: "Foto profil Anda telah disimpan.",
+        })
+
+        // Force a re-render by updating state
+        setProfileData(prev => ({
+          ...prev,
+          avatar_url: publicUrl
+        }))
+
+        // Reload profile data
+        await loadProfile()
+      } else {
+        const errorData = await response.json()
+        console.error('Profile update failed:', errorData)
+        throw new Error(errorData.error || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Image upload error:', error)
+      toast({
+        title: "Gagal mengunggah foto",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat mengunggah foto.",
         variant: "destructive",
       })
     } finally {
@@ -179,11 +352,30 @@ export function ProfileSettings() {
               {/* Avatar */}
               <div className="flex items-center gap-6">
                 <Avatar className="w-24 h-24">
-                  <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                  <AvatarFallback className="text-2xl">{user.name?.charAt(0) ?? "U"}</AvatarFallback>
+                  <AvatarImage
+                    src={user.avatar || user.user_metadata?.avatar_url || user.user_metadata?.picture || "/placeholder.svg"}
+                    alt={user.name}
+                  />
+                  <AvatarFallback className="text-2xl">
+                    {user.name?.charAt(0) ?? "U"}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
-                  <Button type="button" variant="outline">
+                  <input
+                    type="file"
+                    id="avatar-upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImageUpload(file)
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('avatar-upload')?.click()}
+                  >
                     <Camera className="w-4 h-4 mr-2" />
                     Ubah Foto
                   </Button>
@@ -209,6 +401,7 @@ export function ProfileSettings() {
                     value={profileData.email}
                     onChange={(e) => handleProfileChange("email", e.target.value)}
                     placeholder="Masukkan email"
+                    disabled
                   />
                 </div>
                 <div>

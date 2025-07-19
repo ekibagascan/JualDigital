@@ -141,7 +141,7 @@ export function RegisterForm() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/')}`
+          redirectTo: `https://c4bbd0b48e6b.ngrok-free.app/auth/callback?next=${encodeURIComponent('/')}`,
         }
       })
       if (error) {
