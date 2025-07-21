@@ -3,7 +3,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase-client"
 import type { User } from "@supabase/supabase-js"
-import { User } from "lucide-react"
 
 // Extended User type with custom properties
 interface ExtendedUser extends User {
@@ -38,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Function to ensure user profile exists and load avatar
   const ensureUserProfile = async (user: User) => {
     try {
-      const { data: profile, error } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
@@ -60,18 +59,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Update user object with Google avatar and default role
+        const extUser = user as ExtendedUser
         if (googleAvatar) {
-          user.avatar = googleAvatar
+          extUser.avatar = googleAvatar
         }
-        user.role = 'user' // Set default role
+        extUser.role = 'user' // Set default role
       } else {
         // Profile exists, update user object with avatar AND role
+        const extUser = user as ExtendedUser
         if (profile.avatar_url) {
-          user.avatar = profile.avatar_url
+          extUser.avatar = profile.avatar_url
         } else if (user.user_metadata?.avatar_url || user.user_metadata?.picture) {
           // If profile has no avatar but user has Google avatar, update profile
           const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
-          user.avatar = googleAvatar
+          extUser.avatar = googleAvatar
 
           // Update profile with Google avatar
           await supabase
@@ -81,8 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // IMPORTANT: Set the role from the profile
-        user.role = profile.role || 'user'
-        console.log('User role loaded from profile:', user.role)
+        extUser.role = profile.role || 'user'
+        console.log('User role loaded from profile:', extUser.role)
       }
     } catch (error) {
       console.error('Error ensuring user profile:', error)
@@ -92,15 +93,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Get initial session
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log('[useAuth] getSession:', session)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('[useAuth] getSession:', session)
 
-      if (session?.user) {
-        await ensureUserProfile(session.user)
+        if (session?.user) {
+          try {
+            await ensureUserProfile(session.user)
+          } catch (profileError) {
+            console.error('[useAuth] Error in ensureUserProfile (getSession):', profileError)
+          }
+        }
+        setUser(session?.user ?? null)
+      } catch (err) {
+        console.error('[useAuth] Error in getSession:', err)
+        setUser(null)
+      } finally {
+        setLoading(false)
       }
-
-      setUser(session?.user ?? null)
-      setLoading(false)
     }
 
     getSession()
@@ -109,13 +119,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('[useAuth] onAuthStateChange:', event, session)
-
-        if (session?.user) {
-          await ensureUserProfile(session.user)
+        try {
+          if (session?.user) {
+            try {
+              await ensureUserProfile(session.user)
+            } catch (profileError) {
+              console.error('[useAuth] Error in ensureUserProfile (onAuthStateChange):', profileError)
+            }
+          }
+          setUser(session?.user ?? null)
+        } catch (err) {
+          console.error('[useAuth] Error in onAuthStateChange:', err)
+          setUser(null)
+        } finally {
+          setLoading(false)
         }
-
-        setUser(session?.user ?? null)
-        setLoading(false)
       }
     )
 
