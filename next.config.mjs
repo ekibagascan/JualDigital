@@ -6,11 +6,10 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  output: "export",
   trailingSlash: true,
   images: {
     unoptimized: true,
-    domains: ["your-supabase-project.supabase.co", "lh3.googleusercontent.com"],
+    domains: ["vovqicbfzjgxeizmkxuf.supabase.co", "lh3.googleusercontent.com"],
   },
   headers: async () => [
     {
