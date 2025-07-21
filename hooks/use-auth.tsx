@@ -254,11 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  if (loading) {
-    console.log('[AuthProvider] Still loading, not rendering children')
-    return <div style={{ textAlign: 'center', marginTop: '2rem' }}>Loading authentication...</div>
-  }
-
+  // Remove the loading message and always render children
   return (
     <AuthContext.Provider value={{ user, login, register, signOut, logout: signOut, loading }}>
       {children}
