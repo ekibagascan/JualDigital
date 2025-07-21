@@ -34,6 +34,21 @@ export function AuthProvider({ children, initialUser }: { children: ReactNode, i
   const [user, setUser] = useState<ExtendedUser | null>(initialUser ?? null)
   const [loading, setLoading] = useState(true)
 
+  // Hydrate client session from server on first load
+  useEffect(() => {
+    if (initialUser && typeof window !== 'undefined') {
+      // Try to get the session from the cookie (if available)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          supabase.auth.setSession({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          })
+        }
+      })
+    }
+  }, [initialUser])
+
   // Function to ensure user profile exists and load avatar
   const ensureUserProfile = async (user: User) => {
     try {
