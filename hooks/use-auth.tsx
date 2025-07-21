@@ -91,6 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    let didFinish = false;
+    // Timeout fallback
+    const timeoutId = setTimeout(() => {
+      if (!didFinish) {
+        console.log('[AuthProvider] Timeout reached, forcing setLoading(false)')
+        setLoading(false)
+      }
+    }, 3000)
+
     // Get initial session
     const getSession = async () => {
       try {
@@ -109,8 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[useAuth] Error in getSession:', err)
         setUser(null)
       } finally {
-        console.log('[AuthProvider] setLoading(false) called after getSession')
-        setLoading(false)
+        if (!didFinish) {
+          didFinish = true;
+          clearTimeout(timeoutId)
+          console.log('[AuthProvider] setLoading(false) called after getSession')
+          setLoading(false)
+        }
       }
     }
 
@@ -133,13 +146,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('[useAuth] Error in onAuthStateChange:', err)
           setUser(null)
         } finally {
-          console.log('[AuthProvider] setLoading(false) called after onAuthStateChange')
-          setLoading(false)
+          if (!didFinish) {
+            didFinish = true;
+            clearTimeout(timeoutId)
+            console.log('[AuthProvider] setLoading(false) called after onAuthStateChange')
+            setLoading(false)
+          }
         }
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [supabase.auth])
 
   const login = async (email: string, password: string) => {
