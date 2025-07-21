@@ -10,18 +10,13 @@ function AuthCallbackContent() {
     const searchParams = useSearchParams()
     const { user } = useAuth()
     const [error, setError] = useState<string | null>(null)
-
-    // Listen for auth state changes and redirect when user is authenticated
-    useEffect(() => {
-        if (user) {
-            const next = searchParams.get('next') || '/'
-            console.log('[AUTH CALLBACK] User authenticated, redirecting to:', next)
-            router.replace(next)
-        }
-    }, [user, router, searchParams])
+    const [isProcessing, setIsProcessing] = useState(false)
 
     useEffect(() => {
         const handleAuthCallback = async () => {
+            if (isProcessing) return
+            setIsProcessing(true)
+
             const code = searchParams.get('code')
             const next = searchParams.get('next') || '/'
 
@@ -35,20 +30,11 @@ function AuthCallbackContent() {
                 return
             }
 
-            // Check if user is already authenticated
-            const { data: { session } } = await supabase.auth.getSession()
-
-            if (session?.user) {
-                console.log('[AUTH CALLBACK] User already authenticated, redirecting immediately...')
-                router.replace(next)
-                return
-            }
-
             // Add timeout to prevent hanging
             const timeoutId = setTimeout(() => {
                 console.log('[AUTH CALLBACK] Timeout reached, forcing redirect...')
                 router.replace(next)
-            }, 5000)
+            }, 10000)
 
             try {
                 console.log('[AUTH CALLBACK] calling exchangeCodeForSession...')
@@ -77,8 +63,16 @@ function AuthCallbackContent() {
             }
         }
 
-        handleAuthCallback()
-    }, [router, searchParams])
+        // Only process if we have a code and user is not already authenticated
+        if (searchParams.get('code') && !user) {
+            handleAuthCallback()
+        } else if (user) {
+            // User is already authenticated, redirect immediately
+            const next = searchParams.get('next') || '/'
+            console.log('[AUTH CALLBACK] User already authenticated, redirecting to:', next)
+            router.replace(next)
+        }
+    }, [searchParams, user, router, isProcessing])
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-background">
