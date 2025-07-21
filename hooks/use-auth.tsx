@@ -222,7 +222,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const logout = signOut // Alias for backward compatibility
+  if (loading) {
+    // You can replace this with a spinner if you want
+    return null
+  }
 
-  return <AuthContext.Provider value={{ user, login, register, signOut, logout, loading }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, login, register, signOut, logout: signOut, loading }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
