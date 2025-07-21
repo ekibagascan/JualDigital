@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             name,
           },
-          emailRedirectTo: `https://jualdigital.id/auth/callback`,
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/auth/callback`,
         },
       })
       console.log("Signup response:", { error, data })
