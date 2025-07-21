@@ -35,6 +35,10 @@ export function Header() {
   const { user, signOut, loading } = useAuth()
   const { items } = useCart()
 
+  // Debug log for user and loading state
+  console.log('[Header] user:', user)
+  console.log('[Header] loading:', loading)
+
   const handleSignOut = async () => {
     try {
       await signOut()
