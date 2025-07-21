@@ -29,9 +29,18 @@ export function RegisterForm() {
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [confirmationSent, setConfirmationSent] = useState(false)
 
-  const { register } = useAuth()
+  const { register, user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (user) {
+      const next = searchParams.get('next') || '/'
+      console.log('[RegisterForm] User already authenticated, redirecting to:', next)
+      router.replace(next)
+    }
+  }, [user, router, searchParams])
 
   // Handle errors from auth callback
   useEffect(() => {

@@ -23,9 +23,18 @@ export function LoginForm() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState("")
 
-  const { login } = useAuth()
+  const { login, user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (user) {
+      const next = searchParams.get('next') || '/'
+      console.log('[LoginForm] User already authenticated, redirecting to:', next)
+      router.replace(next)
+    }
+  }, [user, router, searchParams])
 
   // Handle errors from auth callback
   useEffect(() => {
