@@ -2,8 +2,8 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useAuth } from '@/hooks/use-auth'
+import { supabase } from '@/lib/supabase-client'
 
 function AuthCallbackContent() {
     const router = useRouter()
@@ -36,7 +36,6 @@ function AuthCallbackContent() {
             }
 
             // Check if user is already authenticated
-            const supabase = createClientComponentClient()
             const { data: { session } } = await supabase.auth.getSession()
 
             if (session?.user) {

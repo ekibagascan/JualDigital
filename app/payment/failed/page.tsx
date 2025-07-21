@@ -7,7 +7,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabase-client'
 import { OrderService } from "@/lib/order-service"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -32,7 +32,6 @@ function PaymentFailedContent() {
         const fetchOrder = async () => {
             if (orderId) {
                 try {
-                    const supabase = createClientComponentClient()
                     const orderService = new OrderService(supabase)
                     const orderData = await orderService.getOrder(orderId)
                     setOrder(orderData)
