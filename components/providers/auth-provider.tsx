@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth"
 
 interface AuthProviderProps {
   children: React.ReactNode
+  initialUser?: any
 }
 
 function AuthProviderWrapper({ children }: AuthProviderProps) {
@@ -23,9 +24,9 @@ function AuthProviderWrapper({ children }: AuthProviderProps) {
   return <>{children}</>
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children, initialUser }: AuthProviderProps) {
   return (
-    <AuthContextProvider>
+    <AuthContextProvider initialUser={initialUser}>
       <AuthProviderWrapper>
         {children}
       </AuthProviderWrapper>

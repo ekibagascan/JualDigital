@@ -30,8 +30,8 @@ export function useAuth() {
   return context as AuthContextType
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<ExtendedUser | null>(null)
+export function AuthProvider({ children, initialUser }: { children: ReactNode, initialUser?: any }) {
+  const [user, setUser] = useState<ExtendedUser | null>(initialUser ?? null)
   const [loading, setLoading] = useState(true)
 
   // Function to ensure user profile exists and load avatar
