@@ -100,6 +100,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 3000)
 
+    // Immediately get user from local storage
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        console.log('[AuthProvider] getUser() found user:', user)
+        setUser(user)
+      }
+    })
+
     // Get initial session
     const getSession = async () => {
       try {
