@@ -109,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[useAuth] Error in getSession:', err)
         setUser(null)
       } finally {
+        console.log('[AuthProvider] setLoading(false) called after getSession')
         setLoading(false)
       }
     }
@@ -132,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('[useAuth] Error in onAuthStateChange:', err)
           setUser(null)
         } finally {
+          console.log('[AuthProvider] setLoading(false) called after onAuthStateChange')
           setLoading(false)
         }
       }
@@ -155,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Login error:", error)
       throw new Error("Login failed")
     } finally {
+      console.log('[AuthProvider] setLoading(false) called in finally')
       setLoading(false)
     }
   }
@@ -184,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Signup error:", error)
       throw new Error("Registration failed")
     } finally {
+      console.log('[AuthProvider] setLoading(false) called in finally')
       setLoading(false)
     }
   }
@@ -223,8 +227,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   if (loading) {
-    // You can replace this with a spinner if you want
-    return null
+    console.log('[AuthProvider] Still loading, not rendering children')
+    return <div style={{ textAlign: 'center', marginTop: '2rem' }}>Loading authentication...</div>
   }
 
   return (
