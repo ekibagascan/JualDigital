@@ -6,10 +6,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  output: "standalone",
-  experimental: {
-    serverComponentsExternalPackages: ["@supabase/supabase-js"],
-  },
+  output: "export",
+  trailingSlash: true,
   images: {
     unoptimized: true,
     domains: ["your-supabase-project.supabase.co", "lh3.googleusercontent.com"],
