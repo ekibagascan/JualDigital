@@ -106,15 +106,7 @@ export function AuthProvider({ children, initialUser }: { children: ReactNode, i
   }
 
   useEffect(() => {
-    let didFinish = false;
-    // Timeout fallback
-    const timeoutId = setTimeout(() => {
-      if (!didFinish) {
-        console.log('[AuthProvider] Timeout reached, forcing setLoading(false)')
-        setLoading(false)
-      }
-    }, 3000)
-
+    // Remove timeout fallback
     // Immediately get user from local storage
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
@@ -141,12 +133,8 @@ export function AuthProvider({ children, initialUser }: { children: ReactNode, i
         console.error('[useAuth] Error in getSession:', err)
         setUser(null)
       } finally {
-        if (!didFinish) {
-          didFinish = true;
-          clearTimeout(timeoutId)
-          console.log('[AuthProvider] setLoading(false) called after getSession')
-          setLoading(false)
-        }
+        console.log('[AuthProvider] setLoading(false) called after getSession')
+        setLoading(false)
       }
     }
 
@@ -169,18 +157,13 @@ export function AuthProvider({ children, initialUser }: { children: ReactNode, i
           console.error('[useAuth] Error in onAuthStateChange:', err)
           setUser(null)
         } finally {
-          if (!didFinish) {
-            didFinish = true;
-            clearTimeout(timeoutId)
-            console.log('[AuthProvider] setLoading(false) called after onAuthStateChange')
-            setLoading(false)
-          }
+          console.log('[AuthProvider] setLoading(false) called after onAuthStateChange')
+          setLoading(false)
         }
       }
     )
 
     return () => {
-      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [supabase.auth])
