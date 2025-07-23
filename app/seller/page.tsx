@@ -30,6 +30,27 @@ export default function SellerDashboard() {
     })
     const [recentProducts, setRecentProducts] = useState([])
     const [isLoading, setIsLoading] = useState(true)
+    const [profileRole, setProfileRole] = useState<string | null>(null)
+
+    useEffect(() => {
+        const fetchProfileRole = async () => {
+            if (user?.id) {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', user.id)
+                    .single()
+                if (!error && data?.role) {
+                    setProfileRole(data.role)
+                } else {
+                    setProfileRole(null)
+                }
+            } else {
+                setProfileRole(null)
+            }
+        }
+        fetchProfileRole()
+    }, [user?.id])
 
     useEffect(() => {
         if (!loading) {
@@ -38,14 +59,14 @@ export default function SellerDashboard() {
                 return
             }
 
-            if (user.role !== 'seller') {
+            if (profileRole !== 'seller') {
                 router.push('/')
                 return
             }
 
             loadSellerData()
         }
-    }, [user, loading, router])
+    }, [user, loading, profileRole, router])
 
     const loadSellerData = async () => {
         try {
@@ -86,7 +107,7 @@ export default function SellerDashboard() {
         )
     }
 
-    if (!user || user.role !== 'seller') {
+    if (!user || profileRole !== 'seller') {
         return null
     }
 
