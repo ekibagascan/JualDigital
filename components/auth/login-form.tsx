@@ -105,8 +105,7 @@ export function LoginForm() {
         title: "Login berhasil!",
         description: "Selamat datang kembali di Jual Digital.",
       })
-      const next = searchParams.get('next') || '/'
-      router.push(next)
+      // Do NOT redirect here. Let the useEffect on 'user' handle it.
     } catch (error) {
       console.error("Login error (form):", error)
       toast({
