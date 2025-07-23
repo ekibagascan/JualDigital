@@ -22,9 +22,8 @@ function AuthCallbackContent() {
             if (isProcessing) return
             setIsProcessing(true)
 
-            const code = searchParams.get('code')
             const next = searchParams.get('next') || '/'
-
+            const code = searchParams.get('code')
             console.log('[AUTH CALLBACK] code:', code)
 
             if (!code) {
@@ -43,11 +42,9 @@ function AuthCallbackContent() {
 
             try {
                 console.log('[AUTH CALLBACK] calling exchangeCodeForSession...')
-
-                const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-
+                // Fix: Pass window.location.href for PKCE flow
+                const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(window.location.href)
                 clearTimeout(timeoutId)
-
                 if (exchangeError) {
                     console.error('[AUTH CALLBACK] Exchange error:', exchangeError)
                     setError('Authentication failed: ' + exchangeError.message)
