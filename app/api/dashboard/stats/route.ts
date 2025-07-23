@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-
-    if (!userId) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => request.cookies.getAll(),
+          setAll: () => {},
+        },
+      }
+    )
+    // Get user from session/cookies
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const userId = user.id
 
     console.log('[DASHBOARD API] Fetching stats for user:', userId)
 
@@ -30,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     const totalPurchases = orders?.length || 0
-    const totalSpent = orders?.reduce((sum: number, order: any) => sum + order.total_amount, 0) || 0
+    const totalSpent = orders?.reduce((sum: number, order: { total_amount: number }) => sum + order.total_amount, 0) || 0
 
     // Get wishlist items
     const { data: wishlistItems } = await supabase
@@ -82,7 +87,7 @@ export async function GET(request: NextRequest) {
     }
 
     const totalSales = orderItems?.length || 0
-    const totalEarnings = orderItems?.reduce((sum: number, item: any) => sum + (item.seller_earnings || 0), 0) || 0
+    const totalEarnings = orderItems?.reduce((sum: number, item: { seller_earnings: number }) => sum + (item.seller_earnings || 0), 0) || 0
 
     // Get pending withdrawals
     const { data: withdrawals } = await supabase
@@ -91,7 +96,7 @@ export async function GET(request: NextRequest) {
       .eq('seller_id', userId)
       .in('status', ['pending', 'approved'])
 
-    const pendingWithdrawal = withdrawals?.reduce((sum: number, w: any) => sum + w.amount, 0) || 0
+    const pendingWithdrawal = withdrawals?.reduce((sum: number, w: { amount: number }) => sum + w.amount, 0) || 0
 
     const sellerStats = {
       totalProducts,
@@ -135,9 +140,21 @@ export async function GET(request: NextRequest) {
       .select('id, name, business_name')
       .in('id', sellerIds)
 
-    const recentPurchases = recentOrderItems?.map((item: any) => {
+    type RecentOrderItem = {
+      id: string;
+      product_title: string;
+      price: number;
+      seller_id: string;
+      created_at: string;
+      products: { image_url?: string } | { image_url?: string }[];
+      orders: { created_at: string } | { created_at: string }[];
+    };
+    type Seller = { id: string; name?: string; business_name?: string };
+
+    const recentPurchases = recentOrderItems?.map((item: RecentOrderItem) => {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
-      const seller = sellers?.find(s => s.id === item.seller_id)
+      const product = Array.isArray(item.products) ? item.products[0] : item.products
+      const seller = (sellers as Seller[] | undefined)?.find((s) => s.id === item.seller_id)
 
       return {
         id: item.id,
@@ -146,7 +163,7 @@ export async function GET(request: NextRequest) {
         price: item.price,
         date: new Date(order.created_at).toLocaleDateString('id-ID'),
         status: 'completed',
-        image_url: item.products?.image_url,
+        image_url: product?.image_url,
       }
     }) || []
 
@@ -169,7 +186,7 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching recent products:', productsRecentError)
     }
 
-    const recentProductsList = recentProducts?.map((product: any) => ({
+    const recentProductsList = recentProducts?.map((product: { id: string, title: string, price: number, total_sales?: number, seller_earnings?: number }) => ({
       id: product.id,
       title: product.title,
       price: product.price,

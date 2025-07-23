@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient(
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => req.cookies.getAll(),
+          setAll: () => {},
+        },
+      }
     )
 
-    // Get user from auth header
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const token = authHeader.split(' ')[1]
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
+    // Get user from session/cookies
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -76,8 +75,12 @@ export async function GET(req: NextRequest) {
     let totalRevenue = 0
     
     if (ordersResult.data) {
-      ordersResult.data.forEach((item: any) => {
-        uniqueOrders.add(item.orders.id)
+      ordersResult.data.forEach((item: { orders: { id: string } | { id: string }[]; price: number; quantity: number }) => {
+        // Handle both array and object for orders
+        const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
+        if (order && order.id) {
+          uniqueOrders.add(order.id)
+        }
         totalRevenue += (item.price * item.quantity) || 0
       })
     }
