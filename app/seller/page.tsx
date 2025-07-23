@@ -28,7 +28,7 @@ export default function SellerDashboard() {
         totalOrders: 0,
         totalRevenue: 0
     })
-    const [recentProducts, setRecentProducts] = useState([])
+    const [recentProducts, setRecentProducts] = useState<Array<{ id: string; title: string; price: number; image_url?: string; status?: string; created_at?: string }>>([])
     const [isLoading, setIsLoading] = useState(true)
     const [profileRole, setProfileRole] = useState<string | null>(null)
 
@@ -68,27 +68,26 @@ export default function SellerDashboard() {
         }
     }, [user, loading, profileRole, router])
 
+    type SellerDashboardResponse = {
+        stats: {
+            totalProducts: number;
+            totalSales: number;
+            totalOrders: number;
+            totalRevenue: number;
+        };
+        recentProducts: Array<{ id: string; title: string; price: number; image_url?: string; status?: string; created_at?: string }>;
+    };
     const loadSellerData = async () => {
         try {
-            const { data: { session } } = await supabase.auth.getSession()
-            if (!session) {
-                console.error('No session found')
-                return
-            }
-
-            const response = await fetch('/api/seller/dashboard', {
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`
-                }
-            })
+            const response = await fetch('/api/seller/dashboard')
 
             if (response.ok) {
-                const data = await response.json()
+                const data: SellerDashboardResponse = await response.json()
                 setStats(data.stats)
                 setRecentProducts(data.recentProducts || [])
             }
-        } catch (error) {
-            console.error('Error loading seller data:', error)
+        } catch (error: unknown) {
+            console.error('Error loading seller data:', error instanceof Error ? error.message : error)
         } finally {
             setIsLoading(false)
         }
@@ -255,7 +254,7 @@ export default function SellerDashboard() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {recentProducts.map((product: any) => (
+                            {recentProducts.map((product: { id: string; title: string; price: number; image_url?: string; status?: string; created_at?: string }) => (
                                 <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
                                     <div className="flex items-center gap-4">
                                         {product.image_url && (

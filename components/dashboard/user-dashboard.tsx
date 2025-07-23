@@ -74,7 +74,7 @@ export function UserDashboard() {
     if (user?.id) {
       try {
         setDashboardLoading(true)
-        const response = await fetch(`/api/dashboard/stats?userId=${user.id}`)
+        const response = await fetch(`/api/dashboard/stats`)
         const data = await response.json()
 
         if (data.success) {
