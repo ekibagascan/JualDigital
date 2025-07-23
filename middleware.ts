@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
+  // Debug: Log all cookies received
+  console.log('[MIDDLEWARE] Cookies:', request.cookies.getAll());
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -16,7 +18,9 @@ export async function middleware(request: NextRequest) {
       },
     }
   );
-  await supabase.auth.getUser();
+  const { data: { user }, error } = await supabase.auth.getUser();
+  // Debug: Log user and error
+  console.log('[MIDDLEWARE] supabase.auth.getUser:', { user, error });
   return response;
 }
 
