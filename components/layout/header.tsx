@@ -83,7 +83,7 @@ export function Header() {
             <Link href="/categories" className="text-sm font-medium transition-colors hover:text-primary">
               Kategori
             </Link>
-            <Link href="/seller" className="text-sm font-medium transition-colors hover:text-primary">
+            <Link href="/mulai-jualan" className="text-sm font-medium transition-colors hover:text-primary">
               Mulai Jualan
             </Link>
             <Link href="/help" className="text-sm font-medium transition-colors hover:text-primary">
@@ -199,21 +199,21 @@ export function Header() {
                   {/* Shopping & Account */}
                   <div className="space-y-1">
                     <DropdownMenuItem asChild className="gap-3 py-2.5">
-                      <Link href="/purchases">
+                      <Link href="/history">
                         <Package className="h-4 w-4" />
                         <span>Pembelian Saya</span>
                       </Link>
                     </DropdownMenuItem>
 
                     <DropdownMenuItem asChild className="gap-3 py-2.5">
-                      <Link href="/wishlist">
+                      <Link href="/favorites">
                         <Heart className="h-4 w-4" />
                         <span>Wishlist</span>
                       </Link>
                     </DropdownMenuItem>
 
                     <DropdownMenuItem asChild className="gap-3 py-2.5">
-                      <Link href="/orders">
+                      <Link href="/history">
                         <CreditCard className="h-4 w-4" />
                         <span>Riwayat Pesanan</span>
                       </Link>

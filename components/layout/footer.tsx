@@ -81,7 +81,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/become-author" className="text-muted-foreground hover:text-primary">
+                <Link href="/mulai-jualan" className="text-muted-foreground hover:text-primary">
                   Jadi Penjual
                 </Link>
               </li>
@@ -108,7 +108,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-muted-foreground hover:text-primary">
+                <Link href="/about-us" className="text-muted-foreground hover:text-primary">
                   Tentang Kami
                 </Link>
               </li>

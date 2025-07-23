@@ -53,6 +53,7 @@ interface RecentProduct {
 
 export function UserDashboard() {
   const { user, loading } = useAuth();
+  const [dashboardLoading, setDashboardLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
   const [userStats, setUserStats] = useState<DashboardStats>({
     totalPurchases: 0,
@@ -72,7 +73,7 @@ export function UserDashboard() {
   const fetchDashboardData = async () => {
     if (user?.id) {
       try {
-        setLoading(true)
+        setDashboardLoading(true)
         const response = await fetch(`/api/dashboard/stats?userId=${user.id}`)
         const data = await response.json()
 
@@ -97,10 +98,10 @@ export function UserDashboard() {
           variant: "destructive",
         })
       } finally {
-        setLoading(false)
+        setDashboardLoading(false)
       }
     } else {
-      setLoading(false)
+      setDashboardLoading(false)
     }
   }
 
@@ -124,7 +125,7 @@ export function UserDashboard() {
 
   const isSeller = user.role === "author" || user.role === "admin"
 
-  if (loading) {
+  if (dashboardLoading) {
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
@@ -155,8 +156,8 @@ export function UserDashboard() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Selamat datang kembali, {user.name}!</p>
+          <h1 className="text-3xl font-bold">Halo, {user.user_metadata?.name || user.email || "Pengguna"}</h1>
+          <p className="text-muted-foreground">Selamat datang kembali, {user.user_metadata?.name || user.email || "Pengguna"}!</p>
         </div>
         <Button asChild>
           <Link href="/profile">
