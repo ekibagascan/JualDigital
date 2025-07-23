@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Search,
   ShoppingCart,
@@ -29,11 +29,33 @@ import {
 import { useAuth } from "@/hooks/use-auth"
 import { useCart } from "@/components/providers/cart-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { supabase } from "@/lib/supabase-client"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { user, signOut, loading } = useAuth()
   const { items } = useCart()
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchProfileAvatar = async () => {
+      if (user?.id) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .single()
+        if (!error && data?.avatar_url) {
+          setProfileAvatar(data.avatar_url)
+        } else {
+          setProfileAvatar(null)
+        }
+      } else {
+        setProfileAvatar(null)
+      }
+    }
+    fetchProfileAvatar()
+  }, [user?.id])
 
   const handleSignOut = async () => {
     try {
@@ -97,10 +119,10 @@ export function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative">
-                    {user.avatar || user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
+                    {profileAvatar || user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
                       <Avatar className="h-8 w-8">
                         <AvatarImage
-                          src={user.avatar || user.user_metadata?.avatar_url || user.user_metadata?.picture}
+                          src={profileAvatar ? profileAvatar : (user.user_metadata?.avatar_url ? user.user_metadata.avatar_url : user.user_metadata?.picture)}
                           alt={user.name}
                         />
                         <AvatarFallback>{user.name?.charAt(0) ?? "U"}</AvatarFallback>
@@ -113,10 +135,10 @@ export function Header() {
                 <DropdownMenuContent align="end" className="w-64 p-2">
                   {/* User Info Section */}
                   <div className="flex items-center gap-3 p-3 mb-2 rounded-lg bg-muted/50">
-                    {user.avatar || user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
+                    {profileAvatar || user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
                       <Avatar className="h-10 w-10">
                         <AvatarImage
-                          src={user.avatar || user.user_metadata?.avatar_url || user.user_metadata?.picture}
+                          src={profileAvatar ? profileAvatar : (user.user_metadata?.avatar_url ? user.user_metadata.avatar_url : user.user_metadata?.picture)}
                           alt={user.name}
                         />
                         <AvatarFallback className="text-sm font-medium">

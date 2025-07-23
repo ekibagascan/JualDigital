@@ -1,8 +1,28 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Download, Users, Star } from "lucide-react"
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase-client"
 
 export function HeroSection() {
+  const [popularProducts, setPopularProducts] = useState<
+    { id: string; title: string; price: number; total_sales: number }[]
+  >([])
+
+  useEffect(() => {
+    const fetchPopularProducts = async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, title, price, total_sales")
+        .order("total_sales", { ascending: false })
+        .limit(3)
+      if (!error && data) {
+        setPopularProducts(data)
+      }
+    }
+    fetchPopularProducts()
+  }, [])
+
   return (
     <section className="relative bg-gradient-to-br from-primary/10 via-background to-secondary/10 py-20 lg:py-32">
       <div className="container mx-auto px-4">
@@ -35,15 +55,15 @@ export function HeroSection() {
             <div className="flex items-center gap-8 pt-4">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
-                <span className="text-sm text-muted-foreground">10,000+ Pengguna</span>
+                <span className="text-sm text-muted-foreground">1000+ Pengguna</span>
               </div>
               <div className="flex items-center gap-2">
                 <Download className="h-5 w-5 text-primary" />
-                <span className="text-sm text-muted-foreground">50,000+ Download</span>
+                <span className="text-sm text-muted-foreground">100+ Download</span>
               </div>
               <div className="flex items-center gap-2">
                 <Star className="h-5 w-5 text-primary" />
-                <span className="text-sm text-muted-foreground">4.8 Rating</span>
+                <span className="text-sm text-muted-foreground">5 Rating</span>
               </div>
             </div>
           </div>
@@ -57,19 +77,21 @@ export function HeroSection() {
                 </div>
 
                 <div className="space-y-4">
-                  {[
-                    { title: "E-book Panduan Bisnis Online", price: "Rp 99,000", sales: "1,234 terjual" },
-                    { title: "Template Website Modern", price: "Rp 149,000", sales: "856 terjual" },
-                    { title: "Kursus Digital Marketing", price: "Rp 299,000", sales: "642 terjual" },
-                  ].map((product, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-sm">{product.title}</p>
-                        <p className="text-xs text-muted-foreground">{product.sales}</p>
+                  {popularProducts.length > 0 ? (
+                    popularProducts.map((product) => (
+                      <div key={product.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-sm">{product.title}</p>
+                          <p className="text-xs text-muted-foreground">{product.total_sales} terjual</p>
+                        </div>
+                        <p className="font-semibold text-primary">
+                          {product.price.toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 })}
+                        </p>
                       </div>
-                      <p className="font-semibold text-primary">{product.price}</p>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Memuat produk terpopuler...</p>
+                  )}
                 </div>
               </div>
             </div>

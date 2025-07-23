@@ -23,7 +23,7 @@ export function LoginForm() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState("")
 
-  const { login, user } = useAuth()
+  const { signIn, user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -64,6 +64,9 @@ export function LoginForm() {
         provider: 'google',
         options: {
           redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.jualdigital.id'}/auth/callback?next=${encodeURIComponent('/')}`,
+          queryParams: {
+            prompt: 'select_account',
+          },
         },
       })
       if (error) {
@@ -97,7 +100,7 @@ export function LoginForm() {
     setIsLoading(true)
 
     try {
-      await login(email, password)
+      await signIn(email, password)
       toast({
         title: "Login berhasil!",
         description: "Selamat datang kembali di Jual Digital.",
