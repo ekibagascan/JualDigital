@@ -36,25 +36,29 @@ export function Header() {
   const { user, signOut, loading } = useAuth()
   const { items } = useCart()
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
+  const [profileRole, setProfileRole] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchProfileAvatar = async () => {
+    const fetchProfile = async () => {
       if (user?.id) {
         const { data, error } = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, role')
           .eq('id', user.id)
           .single()
-        if (!error && data?.avatar_url) {
-          setProfileAvatar(data.avatar_url)
+        if (!error && data) {
+          setProfileAvatar(data.avatar_url || null)
+          setProfileRole(data.role || null)
         } else {
           setProfileAvatar(null)
+          setProfileRole(null)
         }
       } else {
         setProfileAvatar(null)
+        setProfileRole(null)
       }
     }
-    fetchProfileAvatar()
+    fetchProfile()
   }, [user?.id])
 
   const handleSignOut = async () => {
@@ -171,7 +175,7 @@ export function Header() {
                       </Link>
                     </DropdownMenuItem>
 
-                    {user.role === "seller" && (
+                    {(profileRole === "seller" || user.role === "seller") && (
                       <DropdownMenuItem asChild className="gap-3 py-2.5">
                         <Link href="/seller">
                           <Store className="h-4 w-4" />
