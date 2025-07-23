@@ -31,9 +31,11 @@ export default function SellerDashboard() {
     const [recentProducts, setRecentProducts] = useState<Array<{ id: string; title: string; price: number; image_url?: string; status?: string; created_at?: string }>>([])
     const [isLoading, setIsLoading] = useState(true)
     const [profileRole, setProfileRole] = useState<string | null>(null)
+    const [profileLoading, setProfileLoading] = useState(true)
 
     useEffect(() => {
         const fetchProfileRole = async () => {
+            setProfileLoading(true)
             if (user?.id) {
                 const { data, error } = await supabase
                     .from('profiles')
@@ -48,12 +50,13 @@ export default function SellerDashboard() {
             } else {
                 setProfileRole(null)
             }
+            setProfileLoading(false)
         }
         fetchProfileRole()
     }, [user?.id])
 
     useEffect(() => {
-        if (!loading) {
+        if (!loading && !profileLoading) {
             if (!user) {
                 router.push('/login')
                 return
@@ -66,7 +69,7 @@ export default function SellerDashboard() {
 
             loadSellerData()
         }
-    }, [user, loading, profileRole, router])
+    }, [user, loading, profileRole, profileLoading, router])
 
     type SellerDashboardResponse = {
         stats: {
@@ -93,7 +96,7 @@ export default function SellerDashboard() {
         }
     }
 
-    if (loading || isLoading) {
+    if (loading || isLoading || profileLoading) {
         return (
             <div className="container mx-auto px-4 py-8">
                 <div className="flex items-center justify-center min-h-[400px]">
