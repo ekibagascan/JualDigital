@@ -14,6 +14,7 @@ import { useSupabaseWishlist } from "@/hooks/use-supabase-wishlist"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
+import { ProductReviews } from "@/components/product/product-reviews"
 interface ProductDetailsProps {
   product: {
     id: string
@@ -373,8 +374,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           <TabsContent value="reviews" className="mt-6">
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Ulasan ({product.totalReviews})</h3>
-                <p className="text-muted-foreground">Belum ada ulasan untuk produk ini.</p>
+                <ProductReviews productId={product.id} />
               </CardContent>
             </Card>
           </TabsContent>

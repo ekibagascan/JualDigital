@@ -218,10 +218,8 @@ export function useSupabaseCart() {
 
   // Clear cart
   const clearCart = useCallback(async () => {
-    console.log('[DEBUG] clearCart called with cartId:', cartId)
     try {
       if (cartId) {
-        console.log('[DEBUG] Deleting cart items for cartId:', cartId)
         const { error } = await supabase
           .from("cart_items")
           .delete()
@@ -230,13 +228,10 @@ export function useSupabaseCart() {
           console.error('Error clearing cart:', error)
           // Don't return, still clear local state
         }
-        console.log('[DEBUG] Cart items deleted, clearing local state')
         setItems([])
       } else {
-        console.log('[DEBUG] No cartId, just clearing local state')
         setItems([])
       }
-      console.log('[DEBUG] clearCart completed successfully')
     } catch (error) {
       console.error('Error in clearCart:', error)
       // Still clear local state even if DB operation fails

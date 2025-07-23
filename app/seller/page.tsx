@@ -62,7 +62,6 @@ export default function SellerDashboard() {
                 return
             }
 
-            console.log('[SELLER DASHBOARD] profileRole:', profileRole)
             if (!profileRole || profileRole.toLowerCase() !== 'seller') {
                 // Do not redirect, just show a message
                 return

@@ -10,7 +10,7 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, metadata?: any) => Promise<void>
+  signUp: (email: string, password: string, metadata?: object | undefined) => Promise<void>
   signOut: () => Promise<void>
   signInWithProvider: (provider: "github" | "google") => Promise<void>
 }
@@ -25,9 +25,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setUser(data.session?.user ?? null)
       setLoading(false)
     })
 
@@ -37,9 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
-        if (event === "SIGNED_IN") {
-          router.push("/")
-        } else if (event === "SIGNED_OUT") {
+        // Only redirect on SIGNED_OUT
+        if (event === "SIGNED_OUT") {
           router.push("/login")
         }
       }
@@ -48,15 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router])
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
     if (error) throw error
   }
 
-  const signUp = async (email: string, password: string, metadata?: any) => {
-    const { data, error } = await supabase.auth.signUp({
+  const signUp = async (email: string, password: string, metadata?: object | undefined) => {
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: metadata },
@@ -70,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signInWithProvider = async (provider: "github" | "google") => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
