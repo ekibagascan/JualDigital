@@ -62,8 +62,9 @@ export default function SellerDashboard() {
                 return
             }
 
-            if (profileRole !== 'seller') {
-                router.push('/')
+            console.log('[SELLER DASHBOARD] profileRole:', profileRole)
+            if (!profileRole || profileRole.toLowerCase() !== 'seller') {
+                // Do not redirect, just show a message
                 return
             }
 
@@ -109,8 +110,20 @@ export default function SellerDashboard() {
         )
     }
 
-    if (!user || profileRole !== 'seller') {
+    if (!user) {
         return null
+    }
+
+    if (!profileRole || profileRole.toLowerCase() !== 'seller') {
+        return (
+            <div className="container mx-auto px-4 py-8 text-center">
+                <h2 className="text-2xl font-bold mb-4">Akses Terbatas</h2>
+                <p className="text-muted-foreground mb-8">Anda perlu menjadi penjual untuk mengakses halaman ini.</p>
+                <Button asChild>
+                    <Link href="/mulai-jualan">Daftar Sebagai Penjual</Link>
+                </Button>
+            </div>
+        )
     }
 
     return (
