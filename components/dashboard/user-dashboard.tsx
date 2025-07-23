@@ -52,9 +52,8 @@ interface RecentProduct {
 }
 
 export function UserDashboard() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState("overview")
-  const [loading, setLoading] = useState(true)
   const [userStats, setUserStats] = useState<DashboardStats>({
     totalPurchases: 0,
     totalSpent: 0,
@@ -70,44 +69,46 @@ export function UserDashboard() {
   const [recentPurchases, setRecentPurchases] = useState<RecentPurchase[]>([])
   const [recentProducts, setRecentProducts] = useState<RecentProduct[]>([])
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (user?.id) {
-        try {
-          setLoading(true)
-          const response = await fetch(`/api/dashboard/stats?userId=${user.id}`)
-          const data = await response.json()
+  const fetchDashboardData = async () => {
+    if (user?.id) {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/dashboard/stats?userId=${user.id}`)
+        const data = await response.json()
 
-          if (data.success) {
-            setUserStats(data.userStats)
-            setSellerStats(data.sellerStats)
-            setRecentPurchases(data.recentPurchases)
-            setRecentProducts(data.recentProducts)
-          } else {
-            console.error('Failed to fetch dashboard data:', data.error)
-            toast({
-              title: "Error",
-              description: "Gagal memuat data dashboard.",
-              variant: "destructive",
-            })
-          }
-        } catch (error) {
-          console.error('Error fetching dashboard data:', error)
+        if (data.success) {
+          setUserStats(data.userStats)
+          setSellerStats(data.sellerStats)
+          setRecentPurchases(data.recentPurchases)
+          setRecentProducts(data.recentProducts)
+        } else {
+          console.error('Failed to fetch dashboard data:', data.error)
           toast({
             title: "Error",
             description: "Gagal memuat data dashboard.",
             variant: "destructive",
           })
-        } finally {
-          setLoading(false)
         }
-      } else {
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+        toast({
+          title: "Error",
+          description: "Gagal memuat data dashboard.",
+          variant: "destructive",
+        })
+      } finally {
         setLoading(false)
       }
+    } else {
+      setLoading(false)
     }
+  }
 
-    fetchDashboardData()
-  }, [user?.id])
+  useEffect(() => {
+    if (!loading && user) {
+      fetchDashboardData();
+    }
+  }, [user, loading]);
 
   if (!user) {
     return (
