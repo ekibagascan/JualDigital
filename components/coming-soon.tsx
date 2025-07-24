@@ -13,10 +13,8 @@ export function ComingSoon() {
 
     const handleEmailSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        console.log("Form submitted with email:", email)
 
         if (!email.trim()) {
-            console.log("Email is empty")
             toast({
                 title: "Email diperlukan",
                 description: "Silakan masukkan email Anda.",
@@ -26,7 +24,6 @@ export function ComingSoon() {
         }
 
         setIsSubmitting(true)
-        console.log("Submitting email:", email.trim())
 
         try {
             const response = await fetch('/api/email-subscribe', {
@@ -37,9 +34,7 @@ export function ComingSoon() {
                 body: JSON.stringify({ email: email.trim() }),
             })
 
-            console.log("Response status:", response.status)
             const data = await response.json()
-            console.log("Response data:", data)
 
             if (response.ok) {
                 toast({
@@ -153,10 +148,7 @@ export function ComingSoon() {
                                     type="email"
                                     placeholder="Masukkan email Anda"
                                     value={email}
-                                    onChange={(e) => {
-                                        console.log("Input changed:", e.target.value)
-                                        setEmail(e.target.value)
-                                    }}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     className="flex-1"
                                     disabled={isSubmitting}
                                     style={{ position: 'relative', zIndex: 20 }}
