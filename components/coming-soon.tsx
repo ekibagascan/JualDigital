@@ -13,8 +13,10 @@ export function ComingSoon() {
 
     const handleEmailSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        console.log("Form submitted with email:", email)
 
         if (!email.trim()) {
+            console.log("Email is empty")
             toast({
                 title: "Email diperlukan",
                 description: "Silakan masukkan email Anda.",
@@ -24,6 +26,7 @@ export function ComingSoon() {
         }
 
         setIsSubmitting(true)
+        console.log("Submitting email:", email.trim())
 
         try {
             const response = await fetch('/api/email-subscribe', {
@@ -34,7 +37,9 @@ export function ComingSoon() {
                 body: JSON.stringify({ email: email.trim() }),
             })
 
+            console.log("Response status:", response.status)
             const data = await response.json()
+            console.log("Response data:", data)
 
             if (response.ok) {
                 toast({
@@ -146,7 +151,10 @@ export function ComingSoon() {
                                     type="email"
                                     placeholder="Masukkan email Anda"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        console.log("Input changed:", e.target.value)
+                                        setEmail(e.target.value)
+                                    }}
                                     className="flex-1"
                                     disabled={isSubmitting}
                                 />
@@ -204,27 +212,7 @@ export function ComingSoon() {
             </section>
 
             {/* CTA Section */}
-            <section className="py-16">
-                <div className="container mx-auto px-4">
-                    <div className="max-w-2xl mx-auto text-center">
-                        <h3 className="text-2xl md:text-3xl font-bold mb-4">
-                            Siap Bergabung?
-                        </h3>
-                        <p className="text-lg text-muted-foreground mb-8">
-                            Jangan lewatkan peluncuran platform marketplace digital terbaik di Indonesia
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                            <Button size="lg" className="group">
-                                Daftar Sekarang
-                                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                            </Button>
-                            <Button size="lg" variant="outline">
-                                Pelajari Lebih Lanjut
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </section>
+
         </>
     )
 }
