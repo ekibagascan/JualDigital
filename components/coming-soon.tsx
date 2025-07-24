@@ -1,11 +1,66 @@
 "use client"
 
+import { useState } from "react"
 import { Clock, Mail, MapPin, Phone, Globe, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
+import { toast } from "@/hooks/use-toast"
 
 export function ComingSoon() {
+    const [email, setEmail] = useState("")
+    const [isSubmitting, setIsSubmitting] = useState(false)
+
+    const handleEmailSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+
+        if (!email.trim()) {
+            toast({
+                title: "Email diperlukan",
+                description: "Silakan masukkan email Anda.",
+                variant: "destructive",
+            })
+            return
+        }
+
+        setIsSubmitting(true)
+
+        try {
+            const response = await fetch('/api/email-subscribe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email: email.trim() }),
+            })
+
+            const data = await response.json()
+
+            if (response.ok) {
+                toast({
+                    title: "Berhasil!",
+                    description: "Email Anda telah didaftarkan. Kami akan mengirimkan notifikasi saat platform siap diluncurkan.",
+                })
+                setEmail("")
+            } else {
+                toast({
+                    title: "Gagal mendaftar",
+                    description: data.error || "Terjadi kesalahan saat mendaftar email.",
+                    variant: "destructive",
+                })
+            }
+        } catch (error) {
+            console.error('Email subscribe error:', error)
+            toast({
+                title: "Gagal mendaftar",
+                description: "Terjadi kesalahan saat mendaftar email.",
+                variant: "destructive",
+            })
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
     return (
         <>
             {/* Hero Section */}
@@ -14,9 +69,11 @@ export function ComingSoon() {
                     <div className="text-center max-w-4xl mx-auto">
                         {/* Logo/Brand */}
                         <div className="mb-8">
-                            <h1 className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-4">
-                                JD
-                            </h1>
+                            <div className="inline-flex items-center justify-center w-32 h-32 md:w-40 md:h-40 bg-black rounded-3xl shadow-2xl mb-6 transform hover:scale-105 transition-transform duration-300">
+                                <h1 className="text-4xl md:text-6xl font-bold text-white">
+                                    JD
+                                </h1>
+                            </div>
                             <h2 className="text-3xl md:text-5xl font-bold text-foreground mb-4">
                                 Jual Digital
                             </h2>
@@ -84,17 +141,20 @@ export function ComingSoon() {
                         {/* Email Signup */}
                         <div className="max-w-md mx-auto">
                             <h4 className="text-lg font-semibold mb-4">Dapatkan Notifikasi Peluncuran</h4>
-                            <div className="flex gap-2">
+                            <form onSubmit={handleEmailSubmit} className="flex gap-2">
                                 <Input
                                     type="email"
                                     placeholder="Masukkan email Anda"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     className="flex-1"
+                                    disabled={isSubmitting}
                                 />
-                                <Button>
+                                <Button type="submit" disabled={isSubmitting}>
                                     <Mail className="w-4 h-4 mr-2" />
-                                    Daftar
+                                    {isSubmitting ? "Mendaftar..." : "Daftar"}
                                 </Button>
-                            </div>
+                            </form>
                             <p className="text-xs text-muted-foreground mt-2">
                                 Kami akan mengirimkan notifikasi saat platform siap diluncurkan
                             </p>
@@ -167,4 +227,4 @@ export function ComingSoon() {
             </section>
         </>
     )
-} 
+}
