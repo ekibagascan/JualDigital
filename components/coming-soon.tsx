@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Clock, Mail, MapPin, Phone, Globe, ArrowRight } from "lucide-react"
+import { Clock, Mail, MapPin, Phone, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -144,8 +144,18 @@ export function ComingSoon() {
                         </div>
 
                         {/* Email Signup */}
-                        <div className="max-w-md mx-auto">
+                        <div className="max-w-md mx-auto relative z-10">
                             <h4 className="text-lg font-semibold mb-4">Dapatkan Notifikasi Peluncuran</h4>
+
+                            {/* Test button to check if area is interactive */}
+                            <button
+                                type="button"
+                                onClick={() => console.log("Test button clicked!")}
+                                className="mb-4 px-4 py-2 bg-red-500 text-white rounded"
+                            >
+                                Test Click
+                            </button>
+
                             <form onSubmit={handleEmailSubmit} className="flex gap-2">
                                 <Input
                                     type="email"
@@ -157,8 +167,13 @@ export function ComingSoon() {
                                     }}
                                     className="flex-1"
                                     disabled={isSubmitting}
+                                    style={{ position: 'relative', zIndex: 20 }}
                                 />
-                                <Button type="submit" disabled={isSubmitting}>
+                                <Button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    style={{ position: 'relative', zIndex: 20 }}
+                                >
                                     <Mail className="w-4 h-4 mr-2" />
                                     {isSubmitting ? "Mendaftar..." : "Daftar"}
                                 </Button>
@@ -171,7 +186,7 @@ export function ComingSoon() {
                 </div>
 
                 {/* Background Pattern */}
-                <div className="absolute inset-0 opacity-5">
+                <div className="absolute inset-0 opacity-5 pointer-events-none">
                     <div className="absolute inset-0" style={{
                         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
                     }} />
