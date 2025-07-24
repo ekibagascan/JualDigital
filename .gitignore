@@ -26,3 +26,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+create_demo_users.mjs
+demo_marketing_data.sql
+product_variants_update_marketing.sql
+product_update_marketing.sql
