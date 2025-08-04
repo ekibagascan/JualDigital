@@ -130,7 +130,7 @@ export class OrderService {
           product_image: item.image_url,
           price: item.price,
           quantity: item.quantity,
-          seller_earnings: item.price * item.quantity * 0.97 - 5000, // 3% commission + Rp 5,000 fixed fee
+          seller_earnings: item.price * item.quantity * 0.97, // 3% commission
         }
       })
 

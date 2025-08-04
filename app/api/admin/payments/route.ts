@@ -76,10 +76,10 @@ export async function GET(req: NextRequest) {
     const paidOrders = orders?.filter(order => order.status === 'paid') || []
     const totalRevenue = paidOrders.reduce((sum, order) => sum + (parseFloat(order.total_amount) || 0), 0)
     
-    // Calculate platform fee (3% + Rp 5,000 per transaction like Gumroad)
+    // Calculate platform fee (3% per transaction)
     const platformRevenue = paidOrders.reduce((sum, order) => {
       const orderAmount = parseFloat(order.total_amount) || 0
-      return sum + (orderAmount * 0.03 + 5000) // 3% + Rp 5,000 fixed fee
+      return sum + (orderAmount * 0.03) // 3% commission
     }, 0)
     const authorRevenue = totalRevenue - platformRevenue
 
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
 
       // Calculate fees - 3% + Rp 5,000 fixed fee like Gumroad
       const orderAmount = parseFloat(order.total_amount) || 0
-      const platformFee = orderAmount * 0.03 + 5000 // 3% + Rp 5,000
+      const platformFee = orderAmount * 0.03 // 3% commission
       const authorEarnings = orderAmount - platformFee
 
       return {

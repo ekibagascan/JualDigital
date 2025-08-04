@@ -428,7 +428,7 @@ export function WithdrawalManagement() {
                       <div>
                         <div className="font-medium">{formatCurrency(withdrawal.amount)}</div>
                         <div className="text-sm text-muted-foreground">
-                          Biaya admin: Rp 0 (Komisi 3% + Rp 5.000 per transaksi penjualan)
+                          Biaya admin: Rp 0 (Komisi 3% per transaksi penjualan)
                         </div>
                       </div>
                     </TableCell>

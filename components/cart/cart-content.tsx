@@ -46,7 +46,7 @@ export function CartContent() {
         <h2 className="text-2xl font-bold mb-4">Keranjang Anda Kosong</h2>
         <p className="text-muted-foreground mb-8">Belum ada produk yang ditambahkan ke keranjang</p>
         <Button asChild>
-          <Link href="/categories">Mulai Belanja</Link>
+          <Link href="/produk">Mulai Belanja</Link>
         </Button>
       </div>
     )
@@ -235,7 +235,7 @@ export function CartContent() {
             </Button>
 
             <div className="mt-4 text-center">
-              <Link href="/categories" className="text-sm text-primary hover:underline">
+              <Link href="/produk" className="text-sm text-primary hover:underline">
                 Lanjut Belanja
               </Link>
             </div>

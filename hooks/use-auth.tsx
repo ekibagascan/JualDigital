@@ -65,12 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (typeof window !== 'undefined') {
             const currentPath = window.location.pathname
             // Don't redirect if already on login/register pages or public pages
-            if (!currentPath.includes('/login') && 
-                !currentPath.includes('/register') && 
-                !currentPath.includes('/auth') &&
-                !currentPath.includes('/cart') && // Allow cart access
-                !currentPath.includes('/produk') && // Allow product browsing
-                !currentPath.includes('/search')) { // Allow search
+            if (!currentPath.includes('/login') &&
+              !currentPath.includes('/register') &&
+              !currentPath.includes('/auth') &&
+              !currentPath.includes('/cart') && // Allow cart access
+              !currentPath.includes('/produk') && // Allow product browsing
+              !currentPath.includes('/search')) { // Allow search
               // Store the current path to redirect back after login
               sessionStorage.setItem('redirectAfterLogin', currentPath)
               router.push("/login")
@@ -93,19 +93,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (typeof window !== 'undefined') {
           const currentPath = window.location.pathname
           // Only redirect from protected pages, not public pages
-          if (!currentPath.includes('/login') && 
-              !currentPath.includes('/register') && 
-              !currentPath.includes('/auth') &&
-              !currentPath.includes('/cart') && // Allow cart access
-              !currentPath.includes('/produk') && // Allow product browsing
-              !currentPath.includes('/search') && // Allow search
-              !currentPath.includes('/toko') && // Allow store pages
-              !currentPath.includes('/categories') && // Allow category pages
-              (currentPath.includes('/dashboard') || 
-               currentPath.includes('/profile') || 
-               currentPath.includes('/purchases') || 
-               currentPath.includes('/wishlist') || 
-               currentPath.includes('/seller'))) { // Only redirect from protected pages
+          if (!currentPath.includes('/login') &&
+            !currentPath.includes('/register') &&
+            !currentPath.includes('/auth') &&
+            !currentPath.includes('/cart') && // Allow cart access
+            !currentPath.includes('/produk') && // Allow product browsing
+            !currentPath.includes('/search') && // Allow search
+            !currentPath.includes('/toko') && // Allow store pages
+            !currentPath.includes('/categories') && // Allow category pages
+            (currentPath.includes('/dashboard') ||
+              currentPath.includes('/profile') ||
+              currentPath.includes('/purchases') ||
+              currentPath.includes('/wishlist') ||
+              currentPath.includes('/seller'))) { // Only redirect from protected pages
             sessionStorage.setItem('redirectAfterLogin', currentPath)
             router.push("/login")
           }

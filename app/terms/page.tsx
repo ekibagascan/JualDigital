@@ -10,7 +10,9 @@ export default function TermsPage() {
           <h1 className="text-4xl font-bold mb-8">Syarat & Ketentuan</h1>
 
           <div className="prose prose-lg max-w-none">
-            <p className="text-muted-foreground mb-8">Terakhir diperbarui: 1 Januari 2024</p>
+            <p className="text-muted-foreground mb-4">
+              Platform mengenakan komisi 3% dari setiap penjualan yang berhasil.
+            </p>
 
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">1. Penerimaan Syarat</h2>

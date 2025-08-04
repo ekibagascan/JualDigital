@@ -460,7 +460,7 @@ export function WithdrawalManagementAdmin() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{formatCurrency(withdrawal.amount)}</div>
-                        <div className="text-sm text-muted-foreground">Fee: Rp 0 (Komisi 3% + Rp 5.000 per transaksi penjualan)</div>
+                        <div className="text-sm text-muted-foreground">Fee: Rp 0 (Komisi 3% per transaksi penjualan)</div>
                         <div className="text-sm font-medium text-green-600">
                           Net: {formatCurrency(withdrawal.amount)}
                         </div>
@@ -558,7 +558,7 @@ export function WithdrawalManagementAdmin() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Fee Admin:</span>
-                      <span className="font-medium">Rp 0 (Komisi 3% + Rp 5.000 per transaksi penjualan)</span>
+                      <span className="font-medium">Rp 0 (Komisi 3% per transaksi penjualan)</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Jumlah Net:</span>

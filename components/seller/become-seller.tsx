@@ -23,7 +23,7 @@ const benefits = [
   {
     icon: DollarSign,
     title: "Komisi Rendah",
-    description: "Hanya 3% + Rp 5.000 komisi untuk setiap penjualan yang berhasil",
+    description: "Hanya 3% komisi untuk setiap penjualan yang berhasil",
   },
   {
     icon: Users,

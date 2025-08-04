@@ -90,13 +90,16 @@ export function useSupabaseCart() {
               console.error('Error fetching product details:', productsError)
             } else {
               const productMap = Object.fromEntries(products.map(p => [p.id, p]))
-              const itemsWithProducts = cartItems.map(item => ({
-                ...item,
-                title: productMap[item.product_id]?.title,
-                price: productMap[item.product_id]?.price,
-                image_url: productMap[item.product_id]?.image_url,
-                seller_id: productMap[item.product_id]?.seller_id,
-              }))
+              const itemsWithProducts = cartItems.map(item => {
+                const product = productMap[item.product_id]
+                return {
+                  ...item,
+                  title: product?.title,
+                  price: product?.price,
+                  image_url: product?.image_url,
+                  seller_id: product?.seller_id, // Always get seller_id from products table
+                }
+              })
               setItems(itemsWithProducts)
             }
           } else {
@@ -141,15 +144,31 @@ export function useSupabaseCart() {
         return
       }
       
+      // Ensure we have the seller_id by fetching product details if not provided
+      let sellerId = item.seller_id
+      if (!sellerId) {
+        const { data: product, error: productError } = await supabase
+          .from('products')
+          .select('seller_id')
+          .eq('id', item.product_id)
+          .single()
+        
+        if (productError) {
+          console.error('Error fetching product seller_id:', productError)
+        } else {
+          sellerId = product.seller_id
+        }
+      }
+      
       const cartItemData = {
         cart_id: cartId,
         product_id: item.product_id,
         variant_id: item.variant_id,
-        seller_id: item.seller_id,
+        quantity: item.quantity || 1,
         title: item.title,
         price: item.price,
         image_url: item.image_url,
-        quantity: item.quantity || 1,
+        seller_id: sellerId, // Use the fetched seller_id
         // added_at will default to NOW() in the DB
       }
       
@@ -165,14 +184,14 @@ export function useSupabaseCart() {
       }
       
       if (data) {
-        // Add product details for display
+        // Add product details for display with proper seller_id
         const newItem = {
           ...data,
           title: item.title,
           variant_name: item.variant_name,
           price: item.price,
           image_url: item.image_url,
-          seller_id: item.seller_id,
+          seller_id: sellerId, // Use the fetched seller_id
         }
         setItems(prev => [...prev, newItem])
       }
