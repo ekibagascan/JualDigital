@@ -35,9 +35,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const cartContext: CartContextType = user ? supabaseCart : {
     items: [],
     addItem: async () => {
-      // Could show login prompt here
+      // Show login prompt instead of throwing error
       console.log("Please login to add items to cart")
-      throw new Error("Please login to add items to cart")
+      // Don't throw error, just return gracefully
+      return
     },
     removeItem: async () => { },
     updateQuantity: async () => { },

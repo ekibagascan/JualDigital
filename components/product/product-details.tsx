@@ -16,6 +16,7 @@ import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { HydrationSafe } from "@/components/ui/hydration-safe"
 import type { ProductVariant } from "@/lib/product-service"
+import { useRouter } from "next/navigation"
 
 // Function to format plain text description to HTML
 function formatDescription(text: string): string {
@@ -83,6 +84,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
   const { addItem } = useCart()
   const { user } = useAuth()
   const { isInWishlist, addToWishlist, removeFromWishlist } = useSupabaseWishlist()
+  const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
@@ -124,7 +126,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
     if (!user) {
       toast({
         title: "Login diperlukan",
-        description: "Silakan login terlebih dahulu untuk menambahkan ke keranjang.",
+        description: "Silakan login terlebih dahulu untuk menambahkan produk ke keranjang.",
         variant: "destructive",
       })
       return
@@ -139,17 +141,6 @@ export function ProductDetails({ product }: ProductDetailsProps) {
       return
     }
 
-    console.log('Product data for cart:', {
-      product_id: product.id,
-      variant_id: selectedVariant?.id,
-      title: product.title,
-      variant_name: selectedVariant?.name,
-      price: currentPrice,
-      image_url: product.image,
-      seller_id: product.seller_id,
-      quantity: 1,
-    })
-
     try {
       await addItem({
         product_id: product.id,
@@ -163,15 +154,24 @@ export function ProductDetails({ product }: ProductDetailsProps) {
       })
       toast({
         title: "Ditambahkan ke keranjang",
-        description: `${product.title}${selectedVariant ? ` - ${selectedVariant.name}` : ''} telah ditambahkan ke keranjang Anda.`,
+        description: `${product.title} telah ditambahkan ke keranjang Anda.`,
       })
     } catch (error) {
       console.error('Error adding to cart:', error)
-      toast({
-        title: "Gagal menambahkan ke keranjang",
-        description: "Terjadi kesalahan saat menambahkan produk ke keranjang.",
-        variant: "destructive",
-      })
+      // Don't show error toast if it's just a login requirement
+      if (error instanceof Error && error.message.includes('login')) {
+        toast({
+          title: "Login diperlukan",
+          description: "Silakan login terlebih dahulu untuk menambahkan produk ke keranjang.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Gagal menambahkan ke keranjang",
+          description: "Terjadi kesalahan saat menambahkan produk ke keranjang.",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -205,14 +205,24 @@ export function ProductDetails({ product }: ProductDetailsProps) {
         seller_id: product.seller_id,
         quantity: 1,
       })
-      window.location.href = "/cart"
+      // Use router.push instead of window.location for better navigation
+      router.push("/cart")
     } catch (error) {
       console.error('Error adding to cart for buy now:', error)
-      toast({
-        title: "Gagal menambahkan ke keranjang",
-        description: "Terjadi kesalahan saat menambahkan produk ke keranjang.",
-        variant: "destructive",
-      })
+      // Don't show error toast if it's just a login requirement
+      if (error instanceof Error && error.message.includes('login')) {
+        toast({
+          title: "Login diperlukan",
+          description: "Silakan login terlebih dahulu untuk melakukan pembelian.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Gagal menambahkan ke keranjang",
+          description: "Terjadi kesalahan saat menambahkan produk ke keranjang.",
+          variant: "destructive",
+        })
+      }
     }
   }
 

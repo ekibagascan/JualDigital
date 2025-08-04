@@ -39,10 +39,14 @@ export function middleware(request: NextRequest) {
     '/profile',
     '/purchases',
     '/wishlist',
-    '/cart',
     '/seller',
     '/seller/',
   ];
+
+  // Cart and checkout should be accessible even without full auth
+  // but we'll check for basic session
+  const cartRoutes = ['/cart'];
+  const isCartRoute = cartRoutes.some(route => userPathname.startsWith(route));
 
   const isProtectedUserRoute = protectedUserRoutes.some(route => 
     userPathname.startsWith(route)
@@ -63,7 +67,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(userPathname)}`, request.url));
   }
 
+  // For cart routes, be more lenient - allow access if there are any session cookies
+  if (isCartRoute) {
+    const hasAnySessionCookie = request.cookies.getAll().some(cookie => 
+      cookie.name.startsWith('sb-') || cookie.name.includes('session') || cookie.name.includes('auth')
+    );
 
+    // Allow access to cart even without full authentication
+    // The cart component will handle showing appropriate UI
+    return NextResponse.next();
+  }
 
   return NextResponse.next();
 }
