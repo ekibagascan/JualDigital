@@ -20,6 +20,7 @@ export interface Product {
   updated_at: string
   live_preview?: string
   delivery_method: string
+  featured?: boolean
 }
 
 export interface ProductVariant {
@@ -149,7 +150,59 @@ export class ProductService {
   }
 
   async getFeaturedProducts(limit: number = 4): Promise<Product[]> {
-    return this.getProducts({ limit })
+    try {
+      // First, try to get manually featured products
+      const { data: featuredProducts, error: featuredError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('status', 'active')
+        .eq('featured', true)
+        .order('total_sales', { ascending: false })
+        .order('rating', { ascending: false })
+        .limit(limit)
+
+      if (featuredError) {
+        console.error('Error fetching featured products:', featuredError)
+      }
+
+      // If we have enough manually featured products, return them
+      if (featuredProducts && featuredProducts.length >= limit) {
+        return featuredProducts.slice(0, limit)
+      }
+
+      // If we don't have enough featured products, fill with top performers
+      const remainingLimit = limit - (featuredProducts?.length || 0)
+      
+      if (remainingLimit > 0) {
+        const { data: topProducts, error: topError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('status', 'active')
+          .eq('featured', false) // Exclude already featured products
+          .gte('rating', 3.5) // Only products with decent rating
+          .order('total_sales', { ascending: false })
+          .order('rating', { ascending: false })
+          .order('total_revenue', { ascending: false })
+          .limit(remainingLimit)
+
+        if (topError) {
+          console.error('Error fetching top products:', topError)
+        }
+
+        // Combine featured and top products
+        const allProducts = [
+          ...(featuredProducts || []),
+          ...(topProducts || [])
+        ]
+
+        return allProducts.slice(0, limit)
+      }
+
+      return featuredProducts || []
+    } catch (error) {
+      console.error('Error in getFeaturedProducts:', error)
+      return []
+    }
   }
 
   async getNewestProducts(limit: number = 4): Promise<Product[]> {

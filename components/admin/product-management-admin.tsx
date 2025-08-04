@@ -48,6 +48,7 @@ interface Product {
   rating: number
   reviews: number
   variants: Array<{ name: string; price: number }>
+  featured?: boolean
 }
 
 interface ProductStats {
@@ -255,6 +256,52 @@ export function ProductManagementAdmin() {
       }))
     } catch (error) {
       console.error('Failed to update product status:', error);
+      toast({
+        title: "Gagal mengubah status",
+        description: "Terjadi kesalahan saat mengubah status produk.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleToggleFeatured = async (product: Product) => {
+    try {
+      const newFeaturedStatus = !product.featured
+
+      // Make API call to update the featured status
+      const response = await fetch(`/api/admin/products/${product.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...product,
+          featured: newFeaturedStatus,
+          updated_at: new Date().toISOString()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update featured status');
+      }
+
+      toast({
+        title: "Status produk diubah",
+        description: `Produk berhasil diubah menjadi ${newFeaturedStatus ? "diperjualbelikan" : "tidak diperjualbelikan"}.`,
+      })
+
+      // Update the featured status in local state
+      setProducts(products.map(p =>
+        p.id === product.id ? { ...p, featured: newFeaturedStatus } : p
+      ))
+
+      // Update stats if needed, e.g., if a product is featured, it's active
+      setStats(prev => ({
+        ...prev,
+        activeProducts: newFeaturedStatus ? prev.activeProducts + 1 : prev.activeProducts - 1,
+      }))
+    } catch (error) {
+      console.error('Failed to update featured status:', error);
       toast({
         title: "Gagal mengubah status",
         description: "Terjadi kesalahan saat mengubah status produk.",
@@ -589,6 +636,14 @@ export function ProductManagementAdmin() {
                             Aktifkan Produk
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => handleToggleFeatured(product)}>
+                          {product.featured ? (
+                            <XCircle className="w-4 h-4 mr-2 text-red-600" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                          )}
+                          {product.featured ? "Tidak Diperjualbelikan" : "Diperjualbelikan"}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEditProduct(product)}>
                           <Edit className="w-4 h-4 mr-2" />
                           Edit Produk

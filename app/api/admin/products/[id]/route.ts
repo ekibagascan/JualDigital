@@ -93,6 +93,7 @@ export async function PUT(
         category: body.category,
         status: body.status,
         image_url: body.image_url,
+        featured: body.featured,
         updated_at: new Date().toISOString()
       })
       .eq('id', params.id)
