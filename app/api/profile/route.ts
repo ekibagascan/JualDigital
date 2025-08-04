@@ -75,6 +75,7 @@ export async function PUT(req: NextRequest) {
     if (updateData.location !== undefined) updateObject.address = updateData.location
     if (updateData.website !== undefined) updateObject.website = updateData.website
     if (updateData.avatar_url !== undefined) updateObject.avatar_url = updateData.avatar_url
+    if (updateData.shop_logo !== undefined) updateObject.shop_logo = updateData.shop_logo
 
     console.log('Updating profile with:', updateObject)
 

@@ -91,7 +91,7 @@ export function FeaturedProducts() {
 
         <div className="text-center">
           <Button size="lg" variant="outline" asChild>
-            <Link href="/categories">Lihat Semua Produk</Link>
+            <Link href="/produk">Lihat Semua Produk</Link>
           </Button>
         </div>
       </div>

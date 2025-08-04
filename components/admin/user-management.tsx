@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Users, Search, MoreHorizontal, Edit, Trash2, Ban, CheckCircle, Mail, Shield, User } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Users, Search, MoreHorizontal, Edit, Trash2, Ban, CheckCircle, Mail, Shield, User, Clock, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -15,69 +15,95 @@ import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 
-// Mock data
-const mockUsers = [
-  {
-    id: "1",
-    name: "Ahmad Rizki",
-    email: "ahmad.rizki@email.com",
-    role: "user",
-    status: "active",
-    joinDate: "2024-01-15",
-    lastLogin: "2024-01-25",
-    totalPurchases: 5,
-    totalSpent: 1245000,
-    productsCount: 0,
-    avatar: "/placeholder.svg?height=40&width=40&text=AR",
-  },
-  {
-    id: "2",
-    name: "Sarah Design",
-    email: "sarah.design@email.com",
-    role: "author",
-    status: "active",
-    joinDate: "2023-12-10",
-    lastLogin: "2024-01-24",
-    totalPurchases: 2,
-    totalSpent: 398000,
-    productsCount: 15,
-    totalEarnings: 12450000,
-    avatar: "/placeholder.svg?height=40&width=40&text=SD",
-  },
-  {
-    id: "3",
-    name: "Budi Santoso",
-    email: "budi.santoso@email.com",
-    role: "user",
-    status: "suspended",
-    joinDate: "2024-01-20",
-    lastLogin: "2024-01-22",
-    totalPurchases: 1,
-    totalSpent: 99000,
-    productsCount: 0,
-    suspensionReason: "Melanggar terms of service",
-    avatar: "/placeholder.svg?height=40&width=40&text=BS",
-  },
-]
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+  status: string
+  joinDate: string
+  lastLogin: string
+  totalPurchases: number
+  totalSpent: number
+  productsCount: number
+  totalEarnings: number
+  avatar: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  business_name: string | null
+  business_category: string | null
+  business_description: string | null
+  bank_name: string | null
+  account_number: string | null
+  account_name: string | null
+  total_sales: number
+  rating: number
+  total_reviews: number
+  followers: number
+  lastOrder: string | null
+}
 
-const mockStats = {
-  totalUsers: 12345,
-  activeUsers: 11890,
-  suspendedUsers: 455,
-  totalAuthors: 1234,
-  newUsersThisMonth: 234,
+interface UserStats {
+  totalUsers: number
+  activeUsers: number
+  suspendedUsers: number
+  totalAuthors: number
+  pendingSellers: number
+  newUsersThisMonth: number
+}
+
+interface UserData {
+  users: User[]
+  stats: UserStats
 }
 
 export function UserManagement() {
   const [searchQuery, setSearchQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [selectedUser, setSelectedUser] = useState<any>(null)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [showPendingSellers, setShowPendingSellers] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false)
   const [suspensionReason, setSuspensionReason] = useState("")
+  const [users, setUsers] = useState<User[]>([])
+  const [stats, setStats] = useState<UserStats>({
+    totalUsers: 0,
+    activeUsers: 0,
+    suspendedUsers: 0,
+    totalAuthors: 0,
+    pendingSellers: 0,
+    newUsersThisMonth: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filteredUsers = mockUsers.filter((user) => {
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch('/api/admin/users')
+      if (!response.ok) {
+        throw new Error('Failed to fetch users')
+      }
+
+      const data: UserData = await response.json()
+      setUsers(data.users)
+      setStats(data.stats)
+    } catch (error) {
+      console.error('Failed to fetch users:', error)
+      setError('Gagal memuat data pengguna')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -86,7 +112,7 @@ export function UserManagement() {
     return matchesSearch && matchesRole && matchesStatus
   })
 
-  const handleSuspendUser = (user: any) => {
+  const handleSuspendUser = (user: User) => {
     setSelectedUser(user)
     setIsSuspendDialogOpen(true)
   }
@@ -111,14 +137,14 @@ export function UserManagement() {
     setSelectedUser(null)
   }
 
-  const handleActivateUser = (user: any) => {
+  const handleActivateUser = (user: User) => {
     toast({
       title: "Akun diaktifkan",
       description: `Akun ${user.name} berhasil diaktifkan kembali.`,
     })
   }
 
-  const handleDeleteUser = (user: any) => {
+  const handleDeleteUser = (user: User) => {
     toast({
       title: "Akun dihapus",
       description: `Akun ${user.name} berhasil dihapus dari sistem.`,
@@ -126,19 +152,101 @@ export function UserManagement() {
     })
   }
 
-  const handlePromoteToAuthor = (user: any) => {
-    toast({
-      title: "Role diubah",
-      description: `${user.name} berhasil dipromosikan menjadi author.`,
-    })
+  const handlePromoteToAuthor = async (user: User) => {
+    try {
+      // First update the role to seller
+      const roleResponse = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          action: 'updateRole',
+          role: 'seller'
+        })
+      })
+
+      if (!roleResponse.ok) {
+        throw new Error('Failed to update user role')
+      }
+
+      // Then update the status to active
+      const statusResponse = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          action: 'updateStatus',
+          status: 'active'
+        })
+      })
+
+      if (!statusResponse.ok) {
+        throw new Error('Failed to update user status')
+      }
+
+      toast({
+        title: "Aplikasi disetujui",
+        description: `${user.name} berhasil disetujui menjadi seller.`,
+      })
+
+      // Refresh the users list
+      fetchUsers()
+    } catch (error) {
+      console.error('Error approving seller application:', error)
+      toast({
+        title: "Error",
+        description: "Gagal menyetujui aplikasi seller",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleRejectSeller = async (user: User) => {
+    try {
+      // Update the status to rejected
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          action: 'updateStatus',
+          status: 'rejected'
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to reject seller application')
+      }
+
+      toast({
+        title: "Aplikasi ditolak",
+        description: `${user.name} tidak disetujui menjadi seller.`,
+      })
+
+      // Refresh the users list
+      fetchUsers()
+    } catch (error) {
+      console.error('Error rejecting seller application:', error)
+      toast({
+        title: "Error",
+        description: "Gagal menolak aplikasi seller",
+        variant: "destructive",
+      })
+    }
   }
 
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "admin":
         return <Badge className="bg-red-100 text-red-800">Admin</Badge>
-      case "author":
-        return <Badge className="bg-blue-100 text-blue-800">Author</Badge>
+      case "seller":
+        return <Badge className="bg-blue-100 text-blue-800">Seller</Badge>
       case "user":
         return <Badge className="bg-gray-100 text-gray-800">User</Badge>
       default:
@@ -159,6 +267,54 @@ export function UserManagement() {
     }
   }
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("id-ID")
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Manajemen Pengguna</h1>
+          <p className="text-muted-foreground">Kelola semua pengguna platform</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          {[...Array(5)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-20 bg-muted animate-pulse rounded mb-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Memuat data pengguna...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Manajemen Pengguna</h1>
+          <p className="text-muted-foreground">Kelola semua pengguna platform</p>
+        </div>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <p className="text-destructive text-sm">{error}</p>
+          <Button onClick={fetchUsers} className="mt-2">
+            Coba Lagi
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -167,14 +323,14 @@ export function UserManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Pengguna</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalUsers.toLocaleString("id-ID")}</div>
+            <div className="text-2xl font-bold">{stats.totalUsers.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
 
@@ -184,7 +340,7 @@ export function UserManagement() {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{mockStats.activeUsers.toLocaleString("id-ID")}</div>
+            <div className="text-2xl font-bold text-green-600">{stats.activeUsers.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
 
@@ -194,17 +350,17 @@ export function UserManagement() {
             <Ban className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{mockStats.suspendedUsers}</div>
+            <div className="text-2xl font-bold text-red-600">{stats.suspendedUsers}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Author</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Seller</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{mockStats.totalAuthors.toLocaleString("id-ID")}</div>
+            <div className="text-2xl font-bold text-blue-600">{stats.totalAuthors.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
 
@@ -214,11 +370,94 @@ export function UserManagement() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.newUsersThisMonth}</div>
+            <div className="text-2xl font-bold">{stats.newUsersThisMonth}</div>
             <p className="text-xs text-muted-foreground">bulan ini</p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Aplikasi Seller</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pendingSellers}</div>
+            <p className="text-xs text-muted-foreground">menunggu persetujuan</p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Pending Seller Applications */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">Aplikasi Seller Tertunda</h3>
+              <p className="text-sm text-muted-foreground">
+                Tinjau dan setujui aplikasi pengguna yang ingin menjadi seller
+              </p>
+            </div>
+            <Button
+              variant={showPendingSellers ? "default" : "outline"}
+              onClick={() => setShowPendingSellers(!showPendingSellers)}
+            >
+              {showPendingSellers ? "Sembunyikan" : "Tampilkan"} Aplikasi Tertunda
+            </Button>
+          </div>
+
+          {showPendingSellers && (
+            <div className="space-y-4">
+              {users.filter(user => user.role === 'seller' && user.status === 'pending').length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Tidak ada aplikasi seller tertunda
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {users
+                    .filter(user => user.role === 'seller' && user.status === 'pending')
+                    .map(user => (
+                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                            {user.avatar ? (
+                              <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full" />
+                            ) : (
+                              <User className="w-5 h-5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium">{user.name}</div>
+                            <div className="text-sm text-muted-foreground">{user.email}</div>
+                            {user.business_name && (
+                              <div className="text-sm text-muted-foreground">
+                                Bisnis: {user.business_name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handlePromoteToAuthor(user)}
+                          >
+                            Setujui
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSuspendUser(user)}
+                          >
+                            Tolak
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card>
@@ -242,7 +481,7 @@ export function UserManagement() {
               <SelectContent>
                 <SelectItem value="all">Semua Role</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="author">Author</SelectItem>
+                <SelectItem value="seller">Seller</SelectItem>
                 <SelectItem value="user">User</SelectItem>
               </SelectContent>
             </Select>
@@ -264,7 +503,7 @@ export function UserManagement() {
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Pengguna</CardTitle>
+          <CardTitle>Daftar Pengguna ({filteredUsers.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -283,7 +522,15 @@ export function UserManagement() {
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <img src={user.avatar || "/placeholder.svg"} alt={user.name} className="w-10 h-10 rounded-full" />
+                      <img
+                        src={user.avatar || "/placeholder.svg"}
+                        alt={user.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg"
+                        }}
+                      />
                       <div>
                         <div className="font-medium">{user.name}</div>
                         <div className="text-sm text-muted-foreground">{user.email}</div>
@@ -294,16 +541,16 @@ export function UserManagement() {
                   <TableCell>
                     <div>
                       {getStatusBadge(user.status)}
-                      {user.status === "suspended" && user.suspensionReason && (
-                        <div className="text-xs text-red-600 mt-1">{user.suspensionReason}</div>
+                      {user.status === "suspended" && (
+                        <div className="text-xs text-red-600 mt-1">Akun ditangguhkan</div>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">
-                      <div>Bergabung: {new Date(user.joinDate).toLocaleDateString("id-ID")}</div>
+                      <div>Bergabung: {formatDate(user.joinDate)}</div>
                       <div className="text-muted-foreground">
-                        Login terakhir: {new Date(user.lastLogin).toLocaleDateString("id-ID")}
+                        Update terakhir: {formatDate(user.lastLogin)}
                       </div>
                     </div>
                   </TableCell>
@@ -312,9 +559,9 @@ export function UserManagement() {
                       <div>
                         Pembelian: {user.totalPurchases} ({formatCurrency(user.totalSpent)})
                       </div>
-                      {user.role === "author" && (
+                      {user.role === "seller" && (
                         <div className="text-muted-foreground">
-                          Produk: {user.productsCount} | Penghasilan: {formatCurrency(user.totalEarnings || 0)}
+                          Produk: {user.productsCount} | Penghasilan: {formatCurrency(user.totalEarnings)}
                         </div>
                       )}
                     </div>
@@ -327,12 +574,7 @@ export function UserManagement() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedUser(user)
-                            setIsEditDialogOpen(true)
-                          }}
-                        >
+                        <DropdownMenuItem>
                           <Edit className="w-4 h-4 mr-2" />
                           Edit Pengguna
                         </DropdownMenuItem>
@@ -343,8 +585,20 @@ export function UserManagement() {
                         {user.role === "user" && (
                           <DropdownMenuItem onClick={() => handlePromoteToAuthor(user)}>
                             <Shield className="w-4 h-4 mr-2" />
-                            Jadikan Author
+                            Jadikan Seller
                           </DropdownMenuItem>
+                        )}
+                        {user.role === "seller" && user.status === "pending" && (
+                          <>
+                            <DropdownMenuItem onClick={() => handlePromoteToAuthor(user)}>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Setujui Aplikasi Seller
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleRejectSeller(user)}>
+                              <X className="w-4 h-4 mr-2" />
+                              Tolak Aplikasi Seller
+                            </DropdownMenuItem>
+                          </>
                         )}
                         {user.status === "active" ? (
                           <DropdownMenuItem onClick={() => handleSuspendUser(user)}>

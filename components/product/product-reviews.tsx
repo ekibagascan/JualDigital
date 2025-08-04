@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/hooks/use-auth"
-import { supabase } from "@/lib/supabase-client"
+import { toast } from "@/hooks/use-toast"
 
 interface ProductReviewsProps {
   productId: string
@@ -32,39 +32,51 @@ interface Review {
   profiles: ReviewProfile;
 }
 
-// Add type for raw review from Supabase
-interface RawReview extends Omit<Review, 'profiles'> {
-  profiles: ReviewProfile[] | ReviewProfile | null;
-}
+
 
 export function ProductReviews({ productId }: ProductReviewsProps) {
   const [newReview, setNewReview] = useState("")
   const [newRating, setNewRating] = useState(0)
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(1)
   const { user } = useAuth()
 
-  useEffect(() => {
-    const fetchReviews = async () => {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('reviews')
-        .select(`id, rating, content, created_at, helpful_count, not_helpful_count, user_id, profiles(name, avatar_url)`) // profiles is an array
-        .eq('product_id', productId)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-      if (!error && data) {
-        setReviews(
-          (data as RawReview[]).map((r) => ({
-            ...r,
-            profiles: Array.isArray(r.profiles) ? (r.profiles[0] || { name: 'User', avatar_url: null }) : (r.profiles || { name: 'User', avatar_url: null })
-          }))
-        )
+  const fetchReviews = async () => {
+    setLoading(true)
+
+    try {
+      const response = await fetch(`/api/reviews?productId=${productId}&page=${page}&t=${Date.now()}`)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return
       }
-      setLoading(false)
+
+      const result = await response.json()
+
+      if (result.success && result.reviews) {
+        if (page === 1) {
+          setReviews(result.reviews)
+        } else {
+          setReviews(prev => [...prev, ...result.reviews])
+        }
+        setHasMore(result.reviews.length === 10) // Assuming 10 reviews per page
+      } else {
+        console.error('Error fetching reviews:', result.error)
+      }
+    } catch (error) {
+      console.error('Error fetching reviews:', error)
     }
+
+    setLoading(false)
+  }
+
+  useEffect(() => {
     if (productId) fetchReviews()
-  }, [productId])
+  }, [productId, page])
 
   // Calculate rating distribution
   const ratingCounts = [0, 0, 0, 0, 0]
@@ -79,21 +91,93 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
     percentage: totalReviews > 0 ? Math.round((ratingCounts[5 - stars] / totalReviews) * 100) : 0
   }))
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
     if (!user) {
-      alert("Silakan login untuk memberikan ulasan")
+      toast({
+        title: "Login diperlukan",
+        description: "Silakan login terlebih dahulu untuk memberikan ulasan.",
+        variant: "destructive",
+      })
       return
     }
 
     if (newRating === 0 || newReview.trim() === "") {
-      alert("Mohon berikan rating dan ulasan")
+      toast({
+        title: "Data tidak lengkap",
+        description: "Mohon berikan rating dan ulasan.",
+        variant: "destructive",
+      })
       return
     }
 
-    // Submit review logic here
-    console.log("Submitting review:", { rating: newRating, content: newReview })
-    setNewReview("")
-    setNewRating(0)
+    try {
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId,
+          rating: newRating,
+          content: newReview.trim(),
+          userId: user.id
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast({
+          title: "Ulasan berhasil",
+          description: "Terima kasih atas ulasan Anda!",
+        })
+
+        // Reset form
+        setNewReview("")
+        setNewRating(0)
+
+        // Refresh reviews
+        setPage(1)
+        setReviews([])
+        setHasMore(true)
+        fetchReviews()
+      } else {
+        toast({
+          title: "Gagal mengirim ulasan",
+          description: result.error || "Terjadi kesalahan saat mengirim ulasan.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error)
+      toast({
+        title: "Gagal mengirim ulasan",
+        description: "Terjadi kesalahan saat mengirim ulasan.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return
+
+    setLoadingMore(true)
+    const nextPage = page + 1
+    setPage(nextPage)
+
+    try {
+      const response = await fetch(`/api/reviews?productId=${productId}&page=${nextPage}`)
+      const result = await response.json()
+
+      if (result.success && result.reviews) {
+        setReviews(prev => [...prev, ...result.reviews])
+        setHasMore(result.reviews.length === 10) // Assuming 10 reviews per page
+      }
+    } catch (error) {
+      console.error('Error loading more reviews:', error)
+    }
+
+    setLoadingMore(false)
   }
 
   return (
@@ -225,11 +309,11 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                       <div className="flex items-center gap-4">
                         <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
                           <ThumbsUp className="w-4 h-4" />
-                          Membantu ({review.helpful_count})
+                          Membantu
                         </button>
                         <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
                           <ThumbsDown className="w-4 h-4" />
-                          Tidak membantu ({review.not_helpful_count})
+                          Tidak membantu
                         </button>
                       </div>
                     </div>
@@ -240,9 +324,17 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
           )}
         </div>
 
-        <div className="text-center">
-          <Button variant="outline">Muat Lebih Banyak Ulasan</Button>
-        </div>
+        {hasMore && (
+          <div className="text-center">
+            <Button
+              variant="outline"
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Memuat..." : "Muat Lebih Banyak Ulasan"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

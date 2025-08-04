@@ -1,72 +1,355 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { TrendingUp, TrendingDown, DollarSign, Package, Eye, Star } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/utils"
+import { supabase } from "@/lib/supabase-client"
+import { toast } from "@/hooks/use-toast"
 
-// Mock data
-const mockAnalytics = {
+// Helper functions for time calculations
+const getTimeAgo = (date: Date): string => {
+  const now = new Date()
+  const diffInMs = now.getTime() - date.getTime()
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+
+  if (diffInMinutes < 1) return "Baru saja"
+  if (diffInMinutes < 60) return `${diffInMinutes} menit yang lalu`
+  if (diffInHours < 24) return `${diffInHours} jam yang lalu`
+  if (diffInDays < 7) return `${diffInDays} hari yang lalu`
+  return `${Math.floor(diffInDays / 7)} minggu yang lalu`
+}
+
+const getTimeInMinutes = (timeString: string): number => {
+  if (timeString.includes("Baru saja")) return 0
+  if (timeString.includes("menit")) {
+    const minutes = parseInt(timeString.match(/(\d+)/)?.[1] || "0")
+    return minutes
+  }
+  if (timeString.includes("jam")) {
+    const hours = parseInt(timeString.match(/(\d+)/)?.[1] || "0")
+    return hours * 60
+  }
+  if (timeString.includes("hari")) {
+    const days = parseInt(timeString.match(/(\d+)/)?.[1] || "0")
+    return days * 24 * 60
+  }
+  if (timeString.includes("minggu")) {
+    const weeks = parseInt(timeString.match(/(\d+)/)?.[1] || "0")
+    return weeks * 7 * 24 * 60
+  }
+  return 0
+}
+
+interface AnalyticsData {
   overview: {
-    totalRevenue: 12450000,
-    revenueChange: 23.5,
-    totalSales: 479,
-    salesChange: 18.2,
-    totalViews: 15420,
-    viewsChange: -5.3,
-    conversionRate: 3.1,
-    conversionChange: 12.8,
-  },
-  monthlyData: [
-    { month: "Jan", revenue: 2100000, sales: 67, views: 2150 },
-    { month: "Feb", revenue: 1850000, sales: 52, views: 1980 },
-    { month: "Mar", revenue: 2450000, sales: 78, views: 2340 },
-    { month: "Apr", revenue: 2200000, sales: 71, views: 2180 },
-    { month: "May", revenue: 1950000, sales: 58, views: 2050 },
-    { month: "Jun", revenue: 1900000, sales: 153, views: 2710 },
-  ],
-  topProducts: [
-    {
-      id: "1",
-      title: "E-book Panduan Digital Marketing",
-      sales: 234,
-      revenue: 23166000,
-      views: 5420,
-      conversionRate: 4.3,
-      rating: 4.8,
-    },
-    {
-      id: "2",
-      title: "Template Website Modern",
-      sales: 156,
-      revenue: 31044000,
-      views: 3890,
-      conversionRate: 4.0,
-      rating: 4.9,
-    },
-    {
-      id: "3",
-      title: "Kursus React & Next.js",
-      sales: 89,
-      revenue: 26611000,
-      views: 2340,
-      conversionRate: 3.8,
-      rating: 4.7,
-    },
-  ],
-  recentActivity: [
-    { type: "sale", message: "Penjualan baru: E-book Digital Marketing", time: "5 menit yang lalu" },
-    { type: "review", message: "Review 5 bintang untuk Template Website", time: "1 jam yang lalu" },
-    { type: "sale", message: "Penjualan baru: Kursus React & Next.js", time: "2 jam yang lalu" },
-    { type: "view", message: "100+ views untuk produk terbaru", time: "3 jam yang lalu" },
-  ],
+    totalRevenue: number
+    revenueChange: number
+    totalSales: number
+    salesChange: number
+    totalViews: number
+    viewsChange: number
+    conversionRate: number
+    conversionChange: number
+  }
+  topProducts: Array<{
+    id: string
+    title: string
+    sales: number
+    revenue: number
+    views: number
+    conversionRate: number
+    rating: number
+  }>
+  recentActivity: Array<{
+    type: "sale" | "review" | "view"
+    message: string
+    time: string
+  }>
 }
 
 export function SellerAnalytics() {
   const { user } = useAuth()
   const [timeRange, setTimeRange] = useState("30d")
+  const [loading, setLoading] = useState(true)
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    overview: {
+      totalRevenue: 0,
+      revenueChange: 0,
+      totalSales: 0,
+      salesChange: 0,
+      totalViews: 0,
+      viewsChange: 0,
+      conversionRate: 0,
+      conversionChange: 0,
+    },
+    topProducts: [],
+    recentActivity: [],
+  })
+
+  useEffect(() => {
+    if (!user) return
+    fetchAnalytics()
+  }, [user, timeRange])
+
+  const fetchAnalytics = async () => {
+    if (!user) return
+
+    setLoading(true)
+    try {
+      // Calculate date range based on timeRange
+      const now = new Date()
+      const daysAgo = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : timeRange === "90d" ? 90 : 365
+      const startDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000)
+      const previousStartDate = new Date(startDate.getTime() - daysAgo * 24 * 60 * 60 * 1000)
+
+      // Fetch current period data (paid orders only)
+      const { data: currentOrders, error: currentError } = await supabase
+        .from('order_items')
+        .select(`
+          id,
+          price,
+          quantity,
+          seller_earnings,
+          created_at,
+          orders!inner (
+            id,
+            status
+          ),
+          products!inner (
+            id,
+            title,
+            seller_id,
+            total_sales,
+            rating,
+            total_reviews
+          )
+        `)
+        .eq('products.seller_id', user.id)
+        .eq('orders.status', 'paid')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', now.toISOString())
+
+      if (currentError) {
+        console.error('[SELLER ANALYTICS] Error fetching current orders:', currentError)
+        toast({
+          title: "Error",
+          description: "Gagal memuat data analytics",
+          variant: "destructive",
+        })
+        return
+      }
+
+
+
+      // Fetch previous period data for comparison (paid orders only)
+      const { data: previousOrders, error: previousError } = await supabase
+        .from('order_items')
+        .select(`
+          id,
+          price,
+          quantity,
+          seller_earnings,
+          created_at,
+          orders!inner (
+            id,
+            status
+          ),
+          products!inner (
+            id,
+            title,
+            seller_id,
+            total_sales,
+            rating,
+            total_reviews
+          )
+        `)
+        .eq('products.seller_id', user.id)
+        .eq('orders.status', 'paid')
+        .gte('created_at', previousStartDate.toISOString())
+        .lt('created_at', startDate.toISOString())
+
+      if (previousError) {
+        console.error('[SELLER ANALYTICS] Error fetching previous orders:', previousError)
+      }
+
+
+
+      // Calculate current period metrics using seller_earnings
+      const currentRevenue = (currentOrders || []).reduce((sum, item) => sum + (item.seller_earnings || 0), 0)
+      const currentSales = (currentOrders || []).reduce((sum, item) => sum + item.quantity, 0)
+      // For views, we'll use a placeholder since we don't have real view tracking
+      const currentViews = Math.round(currentSales * 3) // Estimate: 3 views per sale
+
+      // Calculate previous period metrics
+      const previousRevenue = (previousOrders || []).reduce((sum, item) => sum + (item.seller_earnings || 0), 0)
+      const previousSales = (previousOrders || []).reduce((sum, item) => sum + item.quantity, 0)
+      const previousViews = Math.round(previousSales * 3) // Estimate: 3 views per sale
+
+
+
+      // Calculate changes
+      const revenueChange = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0
+      const salesChange = previousSales > 0 ? ((currentSales - previousSales) / previousSales) * 100 : 0
+      const viewsChange = previousViews > 0 ? ((currentViews - previousViews) / previousViews) * 100 : 0
+
+      // Calculate conversion rate
+      const conversionRate = currentViews > 0 ? (currentSales / currentViews) * 100 : 0
+      const previousConversionRate = previousViews > 0 ? (previousSales / previousViews) * 100 : 0
+      const conversionChange = previousConversionRate > 0 ? ((conversionRate - previousConversionRate) / previousConversionRate) * 100 : 0
+
+      // Fetch top products with actual sales data
+      const { data: topProductsData, error: topProductsError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('seller_id', user.id)
+        .eq('status', 'active')
+        .order('total_sales', { ascending: false })
+        .limit(3)
+
+      if (topProductsError) {
+        console.error('[SELLER ANALYTICS] Error fetching top products:', topProductsError)
+      }
+
+      // Process top products with real data
+      const topProducts = (topProductsData || []).map(product => ({
+        id: product.id,
+        title: product.title,
+        sales: product.total_sales || 0,
+        revenue: 0, // We'll calculate this from order_items
+        views: Math.round((product.total_sales || 0) * 3), // Estimate views
+        conversionRate: 33.3, // Estimate: 33.3% conversion rate
+        rating: product.rating || 0,
+      }))
+
+      // Calculate actual revenue for top products
+      for (const product of topProducts) {
+        const productOrders = (currentOrders || []).filter(item =>
+          (item.products as any)?.id === product.id
+        )
+        product.revenue = productOrders.reduce((sum, item) => sum + (item.seller_earnings || 0), 0)
+      }
+
+      // Fetch recent orders for activity feed (paid orders only)
+      const { data: recentOrders, error: recentOrdersError } = await supabase
+        .from('order_items')
+        .select(`
+           id,
+           product_title,
+           created_at,
+           orders!inner (
+             id,
+             status
+           ),
+           products!inner (
+             id,
+             title,
+             seller_id
+           )
+         `)
+        .eq('products.seller_id', user.id)
+        .eq('orders.status', 'paid')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (recentOrdersError) {
+        console.error('[SELLER ANALYTICS] Error fetching recent orders:', recentOrdersError)
+      }
+
+      // Fetch recent reviews for activity feed
+      const { data: recentReviews, error: recentReviewsError } = await supabase
+        .from('reviews')
+        .select(`
+           id,
+           rating,
+           content,
+           created_at,
+           products!inner (
+             id,
+             title,
+             seller_id
+           )
+         `)
+        .eq('products.seller_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(3)
+
+      if (recentReviewsError) {
+        console.error('[SELLER ANALYTICS] Error fetching recent reviews:', recentReviewsError)
+      }
+
+      // Generate real activity feed
+      const recentActivity: Array<{
+        type: "sale" | "review" | "view"
+        message: string
+        time: string
+      }> = []
+
+        // Add recent sales
+        ; (recentOrders || []).slice(0, 3).forEach(order => {
+          const timeAgo = getTimeAgo(new Date(order.created_at))
+          recentActivity.push({
+            type: "sale" as const,
+            message: `Penjualan baru: ${order.product_title}`,
+            time: timeAgo
+          })
+        })
+
+        // Add recent reviews
+        ; (recentReviews || []).slice(0, 2).forEach(review => {
+          const timeAgo = getTimeAgo(new Date(review.created_at))
+          recentActivity.push({
+            type: "review" as const,
+            message: `Review ${review.rating} bintang untuk ${(review.products as any)?.title || 'Produk'}`,
+            time: timeAgo
+          })
+        })
+
+      // Sort by time (most recent first)
+      recentActivity.sort((a, b) => {
+        const timeA = getTimeInMinutes(a.time)
+        const timeB = getTimeInMinutes(b.time)
+        return timeA - timeB
+      })
+
+      // Limit to 4 most recent activities
+      const finalRecentActivity = recentActivity.slice(0, 4)
+
+      const finalData = {
+        overview: {
+          totalRevenue: currentRevenue,
+          revenueChange,
+          totalSales: currentSales,
+          salesChange,
+          totalViews: currentViews,
+          viewsChange,
+          conversionRate,
+          conversionChange,
+        },
+        topProducts,
+        recentActivity: finalRecentActivity,
+      }
+
+
+
+      setAnalyticsData(finalData)
+
+    } catch (error) {
+      console.error('[SELLER ANALYTICS] Error fetching analytics:', error)
+      toast({
+        title: "Error",
+        description: "Gagal memuat data analytics",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (!user) {
     return (
@@ -77,7 +360,45 @@ export function SellerAnalytics() {
     )
   }
 
-  const { overview, topProducts, recentActivity } = mockAnalytics
+  const { overview, topProducts, recentActivity } = analyticsData
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Analytics</h1>
+            <p className="text-muted-foreground">Pantau performa penjualan dan produk Anda</p>
+          </div>
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Pilih periode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">7 Hari Terakhir</SelectItem>
+              <SelectItem value="30d">30 Hari Terakhir</SelectItem>
+              <SelectItem value="90d">90 Hari Terakhir</SelectItem>
+              <SelectItem value="1y">1 Tahun Terakhir</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                  <div className="h-8 bg-muted rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-muted rounded w-2/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
@@ -115,9 +436,9 @@ export function SellerAnalytics() {
                 <TrendingDown className="w-3 h-3 text-red-600 mr-1" />
               )}
               <span className={overview.revenueChange > 0 ? "text-green-600" : "text-red-600"}>
-                {Math.abs(overview.revenueChange)}%
+                {Math.abs(overview.revenueChange).toFixed(1)}%
               </span>
-              <span className="text-muted-foreground ml-1">dari bulan lalu</span>
+              <span className="text-muted-foreground ml-1">dari periode sebelumnya</span>
             </div>
           </CardContent>
         </Card>
@@ -136,9 +457,9 @@ export function SellerAnalytics() {
                 <TrendingDown className="w-3 h-3 text-red-600 mr-1" />
               )}
               <span className={overview.salesChange > 0 ? "text-green-600" : "text-red-600"}>
-                {Math.abs(overview.salesChange)}%
+                {Math.abs(overview.salesChange).toFixed(1)}%
               </span>
-              <span className="text-muted-foreground ml-1">dari bulan lalu</span>
+              <span className="text-muted-foreground ml-1">dari periode sebelumnya</span>
             </div>
           </CardContent>
         </Card>
@@ -157,9 +478,9 @@ export function SellerAnalytics() {
                 <TrendingDown className="w-3 h-3 text-red-600 mr-1" />
               )}
               <span className={overview.viewsChange > 0 ? "text-green-600" : "text-red-600"}>
-                {Math.abs(overview.viewsChange)}%
+                {Math.abs(overview.viewsChange).toFixed(1)}%
               </span>
-              <span className="text-muted-foreground ml-1">dari bulan lalu</span>
+              <span className="text-muted-foreground ml-1">dari periode sebelumnya</span>
             </div>
           </CardContent>
         </Card>
@@ -170,7 +491,7 @@ export function SellerAnalytics() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{overview.conversionRate}%</div>
+            <div className="text-2xl font-bold">{overview.conversionRate.toFixed(1)}%</div>
             <div className="flex items-center text-xs">
               {overview.conversionChange > 0 ? (
                 <TrendingUp className="w-3 h-3 text-green-600 mr-1" />
@@ -178,9 +499,9 @@ export function SellerAnalytics() {
                 <TrendingDown className="w-3 h-3 text-red-600 mr-1" />
               )}
               <span className={overview.conversionChange > 0 ? "text-green-600" : "text-red-600"}>
-                {Math.abs(overview.conversionChange)}%
+                {Math.abs(overview.conversionChange).toFixed(1)}%
               </span>
-              <span className="text-muted-foreground ml-1">dari bulan lalu</span>
+              <span className="text-muted-foreground ml-1">dari periode sebelumnya</span>
             </div>
           </CardContent>
         </Card>
@@ -194,36 +515,43 @@ export function SellerAnalytics() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {topProducts.map((product, index) => (
-                <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <h4 className="font-medium line-clamp-1">{product.title}</h4>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Package className="w-3 h-3" />
-                          {product.sales} terjual
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
-                          {product.views} views
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Star className="w-3 h-3" />
-                          {product.rating}
-                        </span>
+              {topProducts.length > 0 ? (
+                topProducts.map((product, index) => (
+                  <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <h4 className="font-medium line-clamp-1">{product.title}</h4>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Package className="w-3 h-3" />
+                            {product.sales} terjual
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            {product.views} views
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            {product.rating.toFixed(1)}
+                          </span>
+                        </div>
                       </div>
                     </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-primary">{formatCurrency(product.revenue)}</div>
+                      <div className="text-sm text-muted-foreground">{product.conversionRate.toFixed(1)}% conversion</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-primary">{formatCurrency(product.revenue)}</div>
-                    <div className="text-sm text-muted-foreground">{product.conversionRate}% conversion</div>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Belum ada produk terjual</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -238,13 +566,12 @@ export function SellerAnalytics() {
               {recentActivity.map((activity, index) => (
                 <div key={index} className="flex items-start gap-4">
                   <div
-                    className={`p-2 rounded-full ${
-                      activity.type === "sale"
-                        ? "bg-green-100 text-green-600"
-                        : activity.type === "review"
-                          ? "bg-blue-100 text-blue-600"
-                          : "bg-gray-100 text-gray-600"
-                    }`}
+                    className={`p-2 rounded-full ${activity.type === "sale"
+                      ? "bg-green-100 text-green-600"
+                      : activity.type === "review"
+                        ? "bg-blue-100 text-blue-600"
+                        : "bg-gray-100 text-gray-600"
+                      }`}
                   >
                     {activity.type === "sale" ? (
                       <DollarSign className="w-4 h-4" />

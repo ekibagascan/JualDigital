@@ -247,7 +247,16 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
               <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
                 {product.title}
               </h3>
-              <p className="text-xs text-muted-foreground mt-1">oleh {sellerName || product.author}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                oleh{" "}
+                <Link
+                  href={`/toko/${product.seller_id}`}
+                  className="hover:text-primary transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {sellerName || product.author}
+                </Link>
+              </p>
             </Link>
           </div>
 

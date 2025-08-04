@@ -36,6 +36,7 @@ export interface SellerProfile {
   avatar_url: string | null
   bio: string | null
   business_name?: string | null
+  shop_logo?: string | null
   total_products?: number
   total_sales?: number
   rating?: number
@@ -49,6 +50,10 @@ export class ProductService {
     limit?: number
     offset?: number
     search?: string
+    price_min?: number
+    price_max?: number
+    categories?: string[]
+    min_rating?: number
   }): Promise<Product[]> {
     try {
       let query = supabase
@@ -60,8 +65,25 @@ export class ProductService {
         query = query.eq('category', options.category)
       }
 
+      if (options?.categories && options.categories.length > 0) {
+        query = query.in('category', options.categories)
+      }
+
+      if (options?.price_min) {
+        query = query.gte('price', options.price_min)
+      }
+
+      if (options?.price_max) {
+        query = query.lte('price', options.price_max)
+      }
+
+      if (options?.min_rating) {
+        query = query.gte('rating', options.min_rating)
+      }
+
       if (options?.search) {
-        query = query.or(`title.ilike.%${options.search}%,description.ilike.%${options.search}%`)
+        const searchTerm = options.search.toLowerCase()
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`)
       }
 
       if (options?.limit) {
@@ -139,7 +161,33 @@ export class ProductService {
   }
 
   async searchProducts(query: string, limit?: number): Promise<Product[]> {
-    return this.getProducts({ search: query, limit })
+    try {
+      // First try the standard search
+      let results = await this.getProducts({ search: query, limit })
+
+      // If no results, try a more flexible search
+      if (results.length === 0 && query.length > 2) {
+        const { data: products, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('status', 'active')
+          .or(`title.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`)
+          .limit(limit || 20)
+          .order('created_at', { ascending: false })
+
+        if (error) {
+          console.error('Error in flexible search:', error)
+          return []
+        }
+
+        results = products || []
+      }
+
+      return results
+    } catch (error) {
+      console.error('Error in searchProducts:', error)
+      return []
+    }
   }
 
   async getRelatedProducts(category: string, currentProductId: string, limit: number = 4): Promise<Product[]> {
@@ -169,7 +217,7 @@ export class ProductService {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, avatar_url, bio, business_name, total_products, total_sales, rating, total_reviews')
+        .select('id, name, avatar_url, bio, business_name, shop_logo, total_products, total_sales, rating, total_reviews')
         .eq('id', sellerId)
         .single()
       if (error) {

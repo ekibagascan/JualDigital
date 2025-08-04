@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Search,
   ShoppingCart,
@@ -13,7 +14,6 @@ import {
   Settings,
   Heart,
   Package,
-  CreditCard,
   HelpCircle,
   LogOut
 } from "lucide-react"
@@ -32,7 +32,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { supabase } from "@/lib/supabase-client"
 
 export function Header() {
+  const router = useRouter()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const { user, signOut, loading } = useAuth()
   const { items } = useCart()
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null)
@@ -69,19 +71,29 @@ export function Header() {
     }
   }
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
+    }
+  }
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-xl font-bold">JD Jual Digital</span>
+            <div className="h-8 w-8 rounded bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">JD</span>
+            </div>
+            <span className="font-bold text-xl">Jual Digital</span>
           </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-6">
-            <Link href="/categories" className="text-sm font-medium transition-colors hover:text-primary">
-              Kategori
+            <Link href="/produk" className="text-sm font-medium transition-colors hover:text-primary">
+              Produk
             </Link>
             <Link href="/mulai-jualan" className="text-sm font-medium transition-colors hover:text-primary">
               Mulai Jualan
@@ -92,24 +104,26 @@ export function Header() {
           </nav>
 
           {/* Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
+          <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-8">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Cari produk digital..."
                 className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-          </div>
+          </form>
 
           {/* Right Side */}
           <div className="flex items-center space-x-4">
             {/* Cart */}
-            <Button variant="ghost" size="icon" asChild>
+            <Button variant="ghost" size="icon" asChild className="relative">
               <Link href="/cart">
                 <ShoppingCart className="h-5 w-5" />
                 {items.length > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-xs text-primary-foreground flex items-center justify-center">
+                  <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-primary text-xs text-primary-foreground flex items-center justify-center">
                     {items.length}
                   </span>
                 )}
@@ -127,9 +141,9 @@ export function Header() {
                       <Avatar className="h-8 w-8">
                         <AvatarImage
                           src={profileAvatar ? profileAvatar : (user.user_metadata?.avatar_url ? user.user_metadata.avatar_url : user.user_metadata?.picture)}
-                          alt={user.name}
+                          alt={user.user_metadata?.name || user.email || "User"}
                         />
-                        <AvatarFallback>{user.name?.charAt(0) ?? "U"}</AvatarFallback>
+                        <AvatarFallback>{(user.user_metadata?.name?.charAt(0) || user.email?.charAt(0)) ?? "U"}</AvatarFallback>
                       </Avatar>
                     ) : (
                       <User className="h-5 w-5" />
@@ -143,20 +157,20 @@ export function Header() {
                       <Avatar className="h-10 w-10">
                         <AvatarImage
                           src={profileAvatar ? profileAvatar : (user.user_metadata?.avatar_url ? user.user_metadata.avatar_url : user.user_metadata?.picture)}
-                          alt={user.name}
+                          alt={user.user_metadata?.name || user.email || "User"}
                         />
                         <AvatarFallback className="text-sm font-medium">
-                          {user.name?.charAt(0) ?? "U"}
+                          {(user.user_metadata?.name?.charAt(0) || user.email?.charAt(0)) ?? "U"}
                         </AvatarFallback>
                       </Avatar>
                     ) : (
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-sm font-medium">{user.name?.charAt(0) ?? "U"}</span>
+                        <span className="text-sm font-medium">{(user.user_metadata?.name?.charAt(0) || user.email?.charAt(0)) ?? "U"}</span>
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {user.name || user.email?.split('@')[0] || 'User'}
+                        {user.user_metadata?.name || user.email?.split('@')[0] || 'User'}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {user.email}
@@ -199,23 +213,16 @@ export function Header() {
                   {/* Shopping & Account */}
                   <div className="space-y-1">
                     <DropdownMenuItem asChild className="gap-3 py-2.5">
-                      <Link href="/history">
+                      <Link href="/purchases">
                         <Package className="h-4 w-4" />
                         <span>Pembelian Saya</span>
                       </Link>
                     </DropdownMenuItem>
 
                     <DropdownMenuItem asChild className="gap-3 py-2.5">
-                      <Link href="/favorites">
+                      <Link href="/wishlist">
                         <Heart className="h-4 w-4" />
                         <span>Wishlist</span>
-                      </Link>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem asChild className="gap-3 py-2.5">
-                      <Link href="/history">
-                        <CreditCard className="h-4 w-4" />
-                        <span>Riwayat Pesanan</span>
                       </Link>
                     </DropdownMenuItem>
                   </div>
@@ -279,9 +286,22 @@ export function Header() {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t">
+            {/* Mobile Search */}
+            <form onSubmit={handleSearch} className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari produk digital..."
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </form>
+
             <nav className="flex flex-col space-y-4">
-              <Link href="/categories" className="text-sm font-medium transition-colors hover:text-primary">
-                Kategori
+              <Link href="/produk" className="text-sm font-medium transition-colors hover:text-primary">
+                Produk
               </Link>
               <Link href="/seller" className="text-sm font-medium transition-colors hover:text-primary">
                 Mulai Jualan

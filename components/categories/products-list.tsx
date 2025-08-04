@@ -1,21 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Grid, List } from "lucide-react"
 import { ProductCard } from "@/components/product/product-card"
 import { productService, type Product, SellerProfile, ProductService } from "@/lib/product-service"
-
-// 👇 add near the top of the file, before `interface ProductsListProps`
-type SearchParams = {
-  sort?: string
-  price_min?: string
-  price_max?: string
-  rating?: string
-}
-
-const EMPTY_PARAMS: SearchParams = Object.freeze({})
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -34,13 +25,12 @@ const transformProduct = (product: Product) => ({
 
 interface ProductsListProps {
   category?: string
-  searchParams?: SearchParams
 }
 
-export function ProductsList({ category, searchParams = EMPTY_PARAMS }: ProductsListProps) {
-  const { sort, price_min, price_max, rating } = searchParams
+export function ProductsList({ category }: ProductsListProps) {
+  const searchParams = useSearchParams()
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [sortBy, setSortBy] = useState(sort || "popular")
+  const [sortBy, setSortBy] = useState("popular")
   const [products, setProducts] = useState<Product[]>([])
   const [sellerNameMap, setSellerNameMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -49,11 +39,42 @@ export function ProductsList({ category, searchParams = EMPTY_PARAMS }: Products
     const fetchProductsAndSellers = async () => {
       try {
         setLoading(true)
-        const fetchedProducts = await productService.getProducts({
+
+        // Get filter parameters from URL
+        const price_min = searchParams.get("price_min")
+        const price_max = searchParams.get("price_max")
+        const categories = searchParams.get("categories")
+        const ratings = searchParams.get("ratings")
+        const sort = searchParams.get("sort") || "popular"
+
+        setSortBy(sort)
+
+        // Build filter object
+        const filters: any = {
           category,
-          limit: 50, // Adjust as needed
-        })
+          limit: 50,
+        }
+
+        // Add price filters
+        if (price_min) filters.price_min = Number.parseInt(price_min)
+        if (price_max) filters.price_max = Number.parseInt(price_max)
+
+        // Add category filter
+        if (categories) {
+          const categoryList = categories.split(",")
+          filters.categories = categoryList
+        }
+
+        // Add rating filter
+        if (ratings) {
+          const ratingList = ratings.split(",")
+          const minRating = Math.min(...ratingList.map(r => Number.parseInt(r)))
+          filters.min_rating = minRating
+        }
+
+        const fetchedProducts = await productService.getProducts(filters)
         setProducts(fetchedProducts)
+
         // Batch fetch sellers
         const uniqueSellerIds = Array.from(new Set(fetchedProducts.map(p => p.seller_id)))
         const sellerNames = await ProductService.fetchSellerNames(uniqueSellerIds)
@@ -65,48 +86,7 @@ export function ProductsList({ category, searchParams = EMPTY_PARAMS }: Products
       }
     }
     fetchProductsAndSellers()
-  }, [category])
-
-  useEffect(() => {
-    let filteredProducts = [...products]
-
-    if (price_min) {
-      const min = Number.parseInt(price_min)
-      filteredProducts = filteredProducts.filter((p) => p.price >= min)
-    }
-
-    if (price_max) {
-      const max = Number.parseInt(price_max)
-      filteredProducts = filteredProducts.filter((p) => p.price <= max)
-    }
-
-    if (rating) {
-      const minRating = Number.parseFloat(rating)
-      filteredProducts = filteredProducts.filter((p) => (p.rating || 0) >= minRating)
-    }
-
-    // Apply sorting
-    switch (sortBy) {
-      case "newest":
-        filteredProducts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        break
-      case "price-low":
-        filteredProducts.sort((a, b) => a.price - b.price)
-        break
-      case "price-high":
-        filteredProducts.sort((a, b) => b.price - a.price)
-        break
-      case "rating":
-        filteredProducts.sort((a, b) => (b.rating || 0) - (a.rating || 0))
-        break
-      case "popular":
-      default:
-        filteredProducts.sort((a, b) => (b.total_sales || 0) - (a.total_sales || 0))
-        break
-    }
-
-    setProducts(filteredProducts)
-  }, [price_min, price_max, rating, sortBy])
+  }, [category, searchParams])
 
   if (loading) {
     return (
@@ -185,7 +165,7 @@ export function ProductsList({ category, searchParams = EMPTY_PARAMS }: Products
           <h3 className="text-xl font-semibold mb-2">Tidak ada produk ditemukan</h3>
           <p className="text-muted-foreground mb-6">Coba ubah filter atau jelajahi kategori lain</p>
           <Button asChild>
-            <a href="/categories">Lihat Semua Kategori</a>
+            <a href="/produk">Lihat Semua Produk</a>
           </Button>
         </div>
       ) : (

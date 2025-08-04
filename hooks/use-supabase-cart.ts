@@ -13,6 +13,7 @@ export interface SupabaseCartItem {
   added_at: string
   // Additional fields for display (not stored in DB)
   title?: string
+  variant_name?: string
   price?: number
   image_url?: string
   seller_id?: string
@@ -116,6 +117,8 @@ export function useSupabaseCart() {
   // Add item to cart
   const addItem = useCallback(async (item: { 
     product_id: string; 
+    variant_id?: string;
+    variant_name?: string;
     quantity?: number;
     title?: string;
     price?: number;
@@ -128,8 +131,11 @@ export function useSupabaseCart() {
     }
     
     try {
-      // Check if item already exists
-      const existing = items.find(i => i.product_id === item.product_id)
+      // Check if item already exists (considering variants)
+      const existing = items.find(i => 
+        i.product_id === item.product_id && 
+        i.variant_id === item.variant_id
+      )
       if (existing) {
         await updateQuantity(existing.id, existing.quantity + (item.quantity || 1))
         return
@@ -138,6 +144,7 @@ export function useSupabaseCart() {
       const cartItemData = {
         cart_id: cartId,
         product_id: item.product_id,
+        variant_id: item.variant_id,
         seller_id: item.seller_id,
         title: item.title,
         price: item.price,
@@ -145,10 +152,6 @@ export function useSupabaseCart() {
         quantity: item.quantity || 1,
         // added_at will default to NOW() in the DB
       }
-      
-      console.log('Adding cart item:', cartItemData)
-      console.log('Cart ID:', cartId)
-      console.log('User ID:', user?.id)
       
       const { data, error } = await supabase
         .from("cart_items")
@@ -158,21 +161,15 @@ export function useSupabaseCart() {
       
       if (error) {
         console.error('Error adding item to cart:', error)
-        console.error('Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
         throw error
       }
       
       if (data) {
-        console.log('Successfully added item to cart:', data)
         // Add product details for display
         const newItem = {
           ...data,
           title: item.title,
+          variant_name: item.variant_name,
           price: item.price,
           image_url: item.image_url,
           seller_id: item.seller_id,

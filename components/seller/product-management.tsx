@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
 import { Package, Plus, Edit, Eye, Trash2, MoreHorizontal, Star, TrendingUp, Search, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -15,9 +16,25 @@ import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { supabase } from '@/lib/supabase-client'
 
+interface Product {
+  id: string
+  title: string
+  description: string
+  price: number
+  category: string
+  status: string
+  image_url?: string
+  created_at: string
+  updated_at: string
+  total_sales: number
+  total_revenue: number
+  rating: number
+  total_reviews: number
+}
+
 export function ProductManagement() {
   const { user } = useAuth()
-  const [products, setProducts] = useState([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -35,22 +52,28 @@ export function ProductManagement() {
         .order("created_at", { ascending: false })
       if (error) {
         toast({ title: "Gagal memuat produk", description: error.message, variant: "destructive" })
+        setProducts([])
       } else {
-        setProducts(data)
+        setProducts(data || [])
       }
       setLoading(false)
     }
+
     fetchProducts()
   }, [user])
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || product.status === statusFilter
-    const matchesCategory = categoryFilter === "all" || product.category === categoryFilter
-    return matchesSearch && matchesStatus && matchesCategory
-  })
+  const filteredProducts = useMemo(() => {
+    return (products || []).filter((product) => {
+      const matchesSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesStatus = statusFilter === "all" || product.status === statusFilter
+      const matchesCategory = categoryFilter === "all" || product.category === categoryFilter
+      return matchesSearch && matchesStatus && matchesCategory
+    })
+  }, [products, searchQuery, statusFilter, categoryFilter])
 
-  const handleDeleteProduct = async (productId) => {
+  const handleDeleteProduct = async (productId: string) => {
+    if (!user?.id) return
+
     const { error } = await supabase
       .from("products")
       .delete()
@@ -59,35 +82,8 @@ export function ProductManagement() {
     if (error) {
       toast({ title: "Gagal menghapus produk", description: error.message, variant: "destructive" })
     } else {
-      setProducts((prev) => prev.filter((p) => p.id !== productId))
+      setProducts((prev) => (prev || []).filter((p) => p.id !== productId))
       toast({ title: "Produk dihapus", description: "Produk berhasil dihapus dari toko Anda." })
-    }
-  }
-
-  // Example create/edit handlers (to be used in forms)
-  const handleCreateProduct = async (formData) => {
-    const { error, data } = await supabase
-      .from("products")
-      .insert([{ ...formData, seller_id: user.id }])
-    if (error) {
-      toast({ title: "Gagal menambah produk", description: error.message, variant: "destructive" })
-    } else {
-      setProducts((prev) => [data[0], ...prev])
-      toast({ title: "Produk ditambahkan", description: "Produk berhasil ditambahkan." })
-    }
-  }
-
-  const handleEditProduct = async (productId, formData) => {
-    const { error } = await supabase
-      .from("products")
-      .update(formData)
-      .eq("id", productId)
-      .eq("seller_id", user.id)
-    if (error) {
-      toast({ title: "Gagal mengedit produk", description: error.message, variant: "destructive" })
-    } else {
-      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, ...formData } : p)))
-      toast({ title: "Produk diperbarui", description: "Produk berhasil diperbarui." })
     }
   }
 
@@ -103,7 +99,16 @@ export function ProductManagement() {
     )
   }
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading products...</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleToggleStatus = (productId: string, currentStatus: string) => {
     const newStatus = currentStatus === "active" ? "inactive" : "active"
@@ -136,9 +141,9 @@ export function ProductManagement() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{products.length}</div>
+            <div className="text-2xl font-bold">{products?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
-              {products.filter((p) => p.status === "active").length} aktif
+              {(products || []).filter((p) => p.status === "active").length} aktif
             </p>
           </CardContent>
         </Card>
@@ -149,7 +154,7 @@ export function ProductManagement() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{products.reduce((sum, p) => sum + p.sales, 0)}</div>
+            <div className="text-2xl font-bold">{(products || []).reduce((sum, p) => sum + p.total_sales, 0)}</div>
             <p className="text-xs text-muted-foreground">produk terjual</p>
           </CardContent>
         </Card>
@@ -161,7 +166,7 @@ export function ProductManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(products.reduce((sum, p) => sum + p.revenue, 0))}
+              {formatCurrency((products || []).reduce((sum, p) => sum + p.total_revenue, 0))}
             </div>
             <p className="text-xs text-muted-foreground">dari semua produk</p>
           </CardContent>
@@ -174,13 +179,15 @@ export function ProductManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(products.reduce((sum, p) => sum + p.rating, 0) / products.length).toFixed(1)}
+              {(products || []).length > 0 ? ((products || []).reduce((sum, p) => sum + p.rating, 0) / (products || []).length).toFixed(1) : "0.0"}
             </div>
             <p className="text-xs text-muted-foreground">
-              dari {products.reduce((sum, p) => sum + p.reviews, 0)} ulasan
+              dari {(products || []).reduce((sum, p) => sum + p.total_reviews, 0)} ulasan
             </p>
           </CardContent>
         </Card>
+
+
       </div>
 
       {/* Filters */}
@@ -248,7 +255,7 @@ export function ProductManagement() {
               <TableRow>
                 <TableHead>Produk</TableHead>
                 <TableHead>Kategori</TableHead>
-                <TableHead>Varian & Harga</TableHead>
+                <TableHead>Harga</TableHead>
                 <TableHead>Penjualan</TableHead>
                 <TableHead>Pendapatan</TableHead>
                 <TableHead>Rating</TableHead>
@@ -257,13 +264,26 @@ export function ProductManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProducts.map((product) => (
+              {(filteredProducts || []).map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>
-                    <div>
-                      <div className="font-medium">{product.title}</div>
-                      <div className="text-sm text-muted-foreground">
-                        Dibuat: {new Date(product.createdAt).toLocaleDateString("id-ID")}
+                    <div className="flex items-center gap-3">
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.title}
+                          className="w-12 h-12 object-cover rounded-md border"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center">
+                          <Package className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium">{product.title}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Dibuat: {new Date(product.created_at).toLocaleDateString("id-ID")}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
@@ -271,32 +291,28 @@ export function ProductManagement() {
                     <Badge variant="outline">{product.category}</Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-1">
-                      {product.variants.map((variant, index) => (
-                        <div key={index} className="text-sm">
-                          <span className="font-medium">{variant.name}:</span>{" "}
-                          <span className="text-primary">{formatCurrency(variant.price)}</span>
-                        </div>
-                      ))}
+                    <div className="text-sm">
+                      <span className="font-medium">Harga:</span>{" "}
+                      <span className="text-primary">{formatCurrency(product.price)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{product.sales}</div>
+                      <div className="font-medium">{product.total_sales}</div>
                       <div className="text-sm text-muted-foreground flex items-center gap-1">
                         <Download className="w-3 h-3" />
-                        {product.downloads} download
+                        {product.total_sales} terjual
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-green-600">{formatCurrency(product.revenue)}</div>
+                    <div className="font-medium text-green-600">{formatCurrency(product.total_revenue)}</div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                       <span>{product.rating}</span>
-                      <span className="text-sm text-muted-foreground">({product.reviews})</span>
+                      <span className="text-sm text-muted-foreground">({product.total_reviews})</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -347,7 +363,7 @@ export function ProductManagement() {
             </TableBody>
           </Table>
 
-          {filteredProducts.length === 0 && (
+          {(!filteredProducts || filteredProducts.length === 0) && (
             <div className="text-center py-16">
               <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-xl font-semibold mb-2">Tidak ada produk ditemukan</h3>

@@ -1,7 +1,39 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Facebook, Twitter, Instagram, Mail } from "lucide-react"
 
+interface Category {
+  id: string
+  uuid: string
+  name: string
+  slug: string
+  count: number
+}
+
 export function Footer() {
+  const [categories, setCategories] = useState<Category[]>([])
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories')
+        const data = await response.json()
+
+        if (data.success) {
+          // Take only the first 5 categories
+          setCategories(data.categories.slice(0, 5))
+        } else {
+          console.error('Failed to fetch categories:', data.error)
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error)
+      }
+    }
+
+    fetchCategories()
+  }, [])
   return (
     <footer className="bg-muted/50 border-t">
       <div className="container mx-auto px-4 py-12">
@@ -38,31 +70,13 @@ export function Footer() {
           <div className="space-y-4">
             <h3 className="font-semibold">Kategori</h3>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/categories/ebook" className="text-muted-foreground hover:text-primary">
-                  E-book
-                </Link>
-              </li>
-              <li>
-                <Link href="/categories/template" className="text-muted-foreground hover:text-primary">
-                  Template
-                </Link>
-              </li>
-              <li>
-                <Link href="/categories/music" className="text-muted-foreground hover:text-primary">
-                  Musik
-                </Link>
-              </li>
-              <li>
-                <Link href="/categories/software" className="text-muted-foreground hover:text-primary">
-                  Software
-                </Link>
-              </li>
-              <li>
-                <Link href="/categories/course" className="text-muted-foreground hover:text-primary">
-                  Kursus Online
-                </Link>
-              </li>
+              {categories.map((category) => (
+                <li key={category.slug}>
+                  <Link href={`/produk?categories=${category.slug}`} className="text-muted-foreground hover:text-primary">
+                    {category.name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 

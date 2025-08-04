@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth"
 
 interface CartContextType {
   items: any[]
-  addItem: (item: any & { seller_id?: string }) => Promise<void>
+  addItem: (item: any & { seller_id?: string; variant_id?: string; variant_name?: string }) => Promise<void>
   removeItem: (id: string) => Promise<void>
   updateQuantity: (id: string, quantity: number) => Promise<void>
   clearCart: () => Promise<void>

@@ -1,6 +1,7 @@
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { CreateProductForm } from "@/components/seller/create-product-form"
+import { AuthCheck } from "@/components/auth/auth-check"
 
 export default function CreateProductPage() {
   return (
@@ -12,7 +13,9 @@ export default function CreateProductPage() {
             <h1 className="text-3xl font-bold mb-4">Tambah Produk Baru</h1>
             <p className="text-muted-foreground">Lengkapi informasi produk digital Anda</p>
           </div>
-          <CreateProductForm />
+          <AuthCheck>
+            <CreateProductForm />
+          </AuthCheck>
         </div>
       </main>
       <Footer />

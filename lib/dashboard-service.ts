@@ -45,16 +45,11 @@ export class DashboardService {
 
   async getUserStats(userId: string): Promise<DashboardStats> {
     try {
-      console.log('[DASHBOARD SERVICE] Fetching user stats for:', userId)
-      
-      // Get total purchases (paid orders)
       const { data: orders, error: ordersError } = await this.supabase
         .from('orders')
         .select('total_amount, status')
         .eq('user_id', userId)
         .eq('status', 'paid')
-
-      console.log('[DASHBOARD SERVICE] Orders query result:', { orders, ordersError })
 
       if (ordersError) {
         console.error('Error fetching orders:', ordersError)
@@ -68,8 +63,6 @@ export class DashboardService {
 
       const totalPurchases = orders?.length || 0
       const totalSpent = orders?.reduce((sum: number, order: { total_amount: number }) => sum + order.total_amount, 0) || 0
-
-      console.log('[DASHBOARD SERVICE] Calculated stats:', { totalPurchases, totalSpent })
 
       // Get wishlist items (assuming there's a wishlist table)
       const { data: wishlistItems } = await this.supabase
@@ -173,8 +166,6 @@ export class DashboardService {
 
   async getRecentPurchases(userId: string): Promise<RecentPurchase[]> {
     try {
-      console.log('[DASHBOARD SERVICE] Fetching recent purchases for user:', userId)
-      
       // Get order items with order details (simplified query)
       const { data: orderItems, error: orderItemsError } = await this.supabase
         .from('order_items')
@@ -194,8 +185,6 @@ export class DashboardService {
         .eq('orders.status', 'paid')
         .order('created_at', { ascending: false })
         .limit(5)
-
-      console.log('[DASHBOARD SERVICE] Order items result:', { orderItems, orderItemsError })
 
       if (orderItemsError || !orderItems) {
         console.error('Error fetching order items:', orderItemsError)

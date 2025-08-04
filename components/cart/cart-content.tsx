@@ -91,6 +91,9 @@ export function CartContent() {
 
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold mb-1 line-clamp-2">{item.title}</h3>
+                  {item.variant_name && (
+                    <p className="text-sm text-primary font-medium mb-1">{item.variant_name}</p>
+                  )}
                   <p className="text-sm text-muted-foreground mb-2">oleh {item.seller_name || "Seller"}</p>
                   {item.seller_id === user?.id && (
                     <p className="text-sm text-orange-600 font-medium mb-2">⚠️ Your own product</p>
@@ -142,7 +145,8 @@ export function CartContent() {
               {items.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm">
                   <span className="line-clamp-1">
-                    {item.title} x{item.quantity}
+                    {item.title}
+                    {item.variant_name && ` - ${item.variant_name}`} x{item.quantity}
                   </span>
                   <span>{formatCurrency(item.price * item.quantity)}</span>
                 </div>

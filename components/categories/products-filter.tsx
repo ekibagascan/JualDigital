@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -8,6 +8,14 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+
+interface Category {
+  id: string
+  uuid: string
+  name: string
+  slug: string
+  count: number
+}
 
 export function ProductsFilter() {
   const router = useRouter()
@@ -23,21 +31,50 @@ export function ProductsFilter() {
   const [selectedRatings, setSelectedRatings] = useState<string[]>(
     searchParams.get("ratings")?.split(",").filter(Boolean) || [],
   )
+  const [categories, setCategories] = useState<Category[]>([])
+  const [ratings, setRatings] = useState<{ id: string; name: string; count: number }[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const categories = [
-    { id: "ebook", name: "E-book", count: 2543 },
-    { id: "template", name: "Template", count: 1876 },
-    { id: "music", name: "Musik & Audio", count: 1234 },
-    { id: "software", name: "Software", count: 856 },
-    { id: "course", name: "Kursus Online", count: 642 },
-    { id: "document", name: "Dokumen", count: 423 },
-  ]
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch categories
+        const categoriesResponse = await fetch('/api/categories')
+        const categoriesData = await categoriesResponse.json()
 
-  const ratings = [
-    { id: "5", name: "5 Bintang", count: 1234 },
-    { id: "4", name: "4+ Bintang", count: 2345 },
-    { id: "3", name: "3+ Bintang", count: 3456 },
-  ]
+        if (categoriesData.success) {
+          setCategories(categoriesData.categories)
+        } else {
+          console.error('Failed to fetch categories:', categoriesData.error)
+        }
+
+        // Fetch rating statistics
+        const statsResponse = await fetch('/api/products/stats')
+        const statsData = await statsResponse.json()
+
+        if (statsData.success) {
+          setRatings([
+            { id: "5", name: "5 Bintang", count: statsData.ratingCounts['5'] },
+            { id: "4", name: "4+ Bintang", count: statsData.ratingCounts['4'] },
+            { id: "3", name: "3+ Bintang", count: statsData.ratingCounts['3'] },
+          ])
+
+          // Update price range
+          if (statsData.priceRange) {
+            setPriceRange([statsData.priceRange.min, statsData.priceRange.max])
+          }
+        } else {
+          console.error('Failed to fetch stats:', statsData.error)
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const handleCategoryChange = (categoryId: string, checked: boolean) => {
     let newCategories
@@ -113,7 +150,14 @@ export function ProductsFilter() {
         <div>
           <Label className="text-sm font-medium mb-3 block">Rentang Harga</Label>
           <div className="px-2">
-            <Slider value={priceRange} onValueChange={setPriceRange} max={1000000} step={10000} className="mb-4" />
+            <Slider
+              value={priceRange}
+              onValueChange={setPriceRange}
+              max={priceRange[1]}
+              min={priceRange[0]}
+              step={10000}
+              className="mb-4"
+            />
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>Rp {priceRange[0].toLocaleString("id-ID")}</span>
               <span>Rp {priceRange[1].toLocaleString("id-ID")}</span>
@@ -127,22 +171,35 @@ export function ProductsFilter() {
         <div>
           <Label className="text-sm font-medium mb-3 block">Kategori</Label>
           <div className="space-y-3">
-            {categories.map((category) => (
-              <div key={category.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={category.id}
-                  checked={selectedCategories.includes(category.id)}
-                  onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
-                />
-                <Label
-                  htmlFor={category.id}
-                  className="text-sm flex-1 cursor-pointer flex items-center justify-between"
-                >
-                  <span>{category.name}</span>
-                  <span className="text-muted-foreground">({category.count.toLocaleString("id-ID")})</span>
-                </Label>
-              </div>
-            ))}
+            {loading ? (
+              // Loading skeleton for categories
+              [...Array(6)].map((_, i) => (
+                <div key={i} className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-muted rounded animate-pulse" />
+                  <div className="flex-1 flex items-center justify-between">
+                    <div className="h-4 bg-muted rounded w-20 animate-pulse" />
+                    <div className="h-4 bg-muted rounded w-8 animate-pulse" />
+                  </div>
+                </div>
+              ))
+            ) : (
+              categories.map((category) => (
+                <div key={category.slug} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={category.slug}
+                    checked={selectedCategories.includes(category.slug)}
+                    onCheckedChange={(checked) => handleCategoryChange(category.slug, checked as boolean)}
+                  />
+                  <Label
+                    htmlFor={category.slug}
+                    className="text-sm flex-1 cursor-pointer flex items-center justify-between"
+                  >
+                    <span>{category.name}</span>
+                    <span className="text-muted-foreground">({category.count.toLocaleString("id-ID")})</span>
+                  </Label>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -152,19 +209,32 @@ export function ProductsFilter() {
         <div>
           <Label className="text-sm font-medium mb-3 block">Rating</Label>
           <div className="space-y-3">
-            {ratings.map((rating) => (
-              <div key={rating.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={rating.id}
-                  checked={selectedRatings.includes(rating.id)}
-                  onCheckedChange={(checked) => handleRatingChange(rating.id, checked as boolean)}
-                />
-                <Label htmlFor={rating.id} className="text-sm flex-1 cursor-pointer flex items-center justify-between">
-                  <span>{rating.name}</span>
-                  <span className="text-muted-foreground">({rating.count.toLocaleString("id-ID")})</span>
-                </Label>
-              </div>
-            ))}
+            {loading ? (
+              // Loading skeleton for ratings
+              [...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-muted rounded animate-pulse" />
+                  <div className="flex-1 flex items-center justify-between">
+                    <div className="h-4 bg-muted rounded w-24 animate-pulse" />
+                    <div className="h-4 bg-muted rounded w-8 animate-pulse" />
+                  </div>
+                </div>
+              ))
+            ) : (
+              ratings.map((rating) => (
+                <div key={rating.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={rating.id}
+                    checked={selectedRatings.includes(rating.id)}
+                    onCheckedChange={(checked) => handleRatingChange(rating.id, checked as boolean)}
+                  />
+                  <Label htmlFor={rating.id} className="text-sm flex-1 cursor-pointer flex items-center justify-between">
+                    <span>{rating.name}</span>
+                    <span className="text-muted-foreground">({rating.count.toLocaleString("id-ID")})</span>
+                  </Label>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

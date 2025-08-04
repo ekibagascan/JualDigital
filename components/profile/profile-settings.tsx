@@ -20,9 +20,10 @@ export function ProfileSettings() {
   const [isLoading, setIsLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string>("")
 
   const [profileData, setProfileData] = useState({
-    name: user?.name || "",
+    name: user?.user_metadata?.name || "",
     email: user?.email || "",
     phone: "",
     bio: "",
@@ -63,10 +64,9 @@ export function ProfileSettings() {
 
       if (response.ok) {
         const { profile } = await response.json()
-        console.log('Loaded profile:', profile)
         setProfileData({
           name: profile.name || "",
-          email: user.email || "",
+          email: user?.email || "",
           phone: profile.phone || "",
           bio: profile.bio || "",
           website: profile.website || "",
@@ -75,10 +75,10 @@ export function ProfileSettings() {
 
         // Update the user object with the avatar URL
         if (profile.avatar_url) {
-          user.avatar = profile.avatar_url
-        } else if (user.user_metadata?.avatar_url || user.user_metadata?.picture) {
+          setAvatarUrl(profile.avatar_url)
+        } else if (user?.user_metadata?.avatar_url || user?.user_metadata?.picture) {
           // Use Google avatar if profile doesn't have one
-          user.avatar = user.user_metadata?.avatar_url || user.user_metadata?.picture
+          setAvatarUrl(user.user_metadata?.avatar_url || user.user_metadata?.picture || "")
         }
       }
     } catch (error) {
@@ -216,7 +216,6 @@ export function ProfileSettings() {
 
   const handleImageUpload = async (file: File) => {
     try {
-      console.log('Starting image upload for file:', file.name, file.size)
       setIsLoading(true)
 
       const { data: { session } } = await supabase.auth.getSession()
@@ -224,8 +223,6 @@ export function ProfileSettings() {
         console.error('No session found')
         throw new Error('No session found')
       }
-
-      console.log('Session found, user ID:', user?.id)
 
       // Validate file size (5MB limit)
       if (file.size > 5 * 1024 * 1024) {
@@ -241,8 +238,6 @@ export function ProfileSettings() {
       const fileExt = file.name.split('.').pop()
       const fileName = `${user?.id}-${Date.now()}.${fileExt}`
 
-      console.log('Uploading file to storage:', fileName)
-
       // Upload to Supabase Storage
       const { data, error } = await supabase.storage
         .from('avatars')
@@ -256,18 +251,12 @@ export function ProfileSettings() {
         throw new Error(`Upload failed: ${error.message}`)
       }
 
-      console.log('Upload successful:', data)
-
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName)
 
-      console.log('Public URL generated:', publicUrl)
-
       // Update profile with new avatar URL
-      console.log('Updating profile with avatar URL:', publicUrl)
-
       const response = await fetch('/api/profile', {
         method: 'PUT',
         headers: {
@@ -280,15 +269,12 @@ export function ProfileSettings() {
         })
       })
 
-      console.log('Profile update response status:', response.status)
-
       if (response.ok) {
         const result = await response.json()
-        console.log('Profile update successful:', result)
 
         // Update the user object with new avatar
         if (user) {
-          user.avatar = publicUrl
+          // Remove problematic user.avatar assignment
         }
 
         toast({
@@ -353,11 +339,11 @@ export function ProfileSettings() {
               <div className="flex items-center gap-6">
                 <Avatar className="w-24 h-24">
                   <AvatarImage
-                    src={user.avatar || user.user_metadata?.avatar_url || user.user_metadata?.picture || "/placeholder.svg"}
-                    alt={user.name}
+                    src={avatarUrl || user.user_metadata?.avatar_url || user.user_metadata?.picture || "/placeholder.svg"}
+                    alt={user.user_metadata?.name || "User"}
                   />
                   <AvatarFallback className="text-2xl">
-                    {user.name?.charAt(0) ?? "U"}
+                    {user.user_metadata?.name?.charAt(0) ?? "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div>

@@ -99,7 +99,6 @@ export function HelpCenter() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     // Implement search functionality
-    console.log("Search query:", searchQuery)
   }
 
   return (

@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase-client"
 
+
 const steps = [
   {
     id: 1,
@@ -39,7 +40,7 @@ const steps = [
 export function SellerRegistrationFlow() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
 
   // Form data state
@@ -56,6 +57,7 @@ export function SellerRegistrationFlow() {
     description: "",
     website: "",
     socialMedia: "",
+    shopLogo: "",
 
     // Step 3: Payment Info
     bankName: "",
@@ -134,6 +136,37 @@ export function SellerRegistrationFlow() {
     setIsLoading(true)
 
     try {
+      let shopLogoUrl = null
+
+      // Upload shop logo if provided
+      if (formData.shopLogo && formData.shopLogo.startsWith('data:')) {
+        try {
+          // Convert data URL to file
+          const response = await fetch(formData.shopLogo)
+          const blob = await response.blob()
+          const file = new File([blob], 'shop-logo.jpg', { type: 'image/jpeg' })
+
+          // Upload via API endpoint
+          const uploadFormData = new FormData()
+          uploadFormData.append('file', file)
+
+          const uploadResponse = await fetch('/api/seller/upload-shop-logo', {
+            method: 'POST',
+            body: uploadFormData,
+          })
+
+          const result = await uploadResponse.json()
+
+          if (uploadResponse.ok) {
+            shopLogoUrl = result.shopLogoUrl
+          } else {
+            console.error('Error uploading shop logo:', result.error)
+          }
+        } catch (uploadError) {
+          console.error('Error processing shop logo:', uploadError)
+        }
+      }
+
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -148,6 +181,7 @@ export function SellerRegistrationFlow() {
           business_description: formData.description,
           website: formData.website,
           social_media: formData.socialMedia,
+          shop_logo: shopLogoUrl,
           // Step 3: Payment Info
           bank_name: formData.bankName,
           account_number: formData.accountNumber,
@@ -166,6 +200,30 @@ export function SellerRegistrationFlow() {
         })
         setIsLoading(false)
         return
+      }
+
+      // Send confirmation email via API
+      try {
+        const emailResponse = await fetch('/api/seller/application-confirmation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            sellerName: formData.fullName,
+            businessName: formData.businessName,
+          }),
+        })
+
+        if (emailResponse.ok) {
+          console.log('[SELLER REGISTRATION] Confirmation email sent successfully')
+        } else {
+          console.error('[SELLER REGISTRATION] Failed to send confirmation email')
+        }
+      } catch (emailError) {
+        console.error('[SELLER REGISTRATION] Failed to send confirmation email:', emailError)
+        // Don't fail the application if email fails
       }
 
       toast({
@@ -187,6 +245,17 @@ export function SellerRegistrationFlow() {
 
   const progress = (currentStep / steps.length) * 100
 
+  // Show loading state while auth is being checked
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Memeriksa status login...</p>
+      </div>
+    )
+  }
+
+  // Show login required if user is not authenticated
   if (!user) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
@@ -314,18 +383,54 @@ export function SellerRegistrationFlow() {
                 />
               </div>
               <div>
+                <Label htmlFor="shopLogo">Logo Toko (Opsional)</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="shopLogo"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        // Create a preview URL
+                        const reader = new FileReader()
+                        reader.onload = (e) => {
+                          handleInputChange("shopLogo", e.target?.result as string)
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  {formData.shopLogo && (
+                    <div className="w-16 h-16 rounded-lg overflow-hidden border">
+                      <img
+                        src={formData.shopLogo}
+                        alt="Shop logo preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Upload logo toko Anda (JPG, PNG, maksimal 2MB)
+                </p>
+              </div>
+              <div>
                 <Label htmlFor="category">Kategori Produk Utama *</Label>
                 <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih kategori produk" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="grafis">Grafis</SelectItem>
                     <SelectItem value="ebook">E-book</SelectItem>
+                    <SelectItem value="akun">Akun</SelectItem>
+                    <SelectItem value="software">Software</SelectItem>
                     <SelectItem value="template">Template</SelectItem>
-                    <SelectItem value="music">Musik & Audio</SelectItem>
-                    <SelectItem value="software">Software & Tools</SelectItem>
-                    <SelectItem value="course">Kursus Online</SelectItem>
-                    <SelectItem value="document">Dokumen Bisnis</SelectItem>
+                    <SelectItem value="kursus">Kursus Online</SelectItem>
+                    <SelectItem value="video">Video</SelectItem>
+                    <SelectItem value="music">Musik</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -429,7 +534,7 @@ export function SellerRegistrationFlow() {
                     onCheckedChange={(checked) => handleInputChange("agreedToCommission", checked as boolean)}
                   />
                   <Label htmlFor="agreedToCommission" className="text-sm leading-relaxed">
-                    Saya memahami dan menyetujui komisi platform sebesar 5% dari setiap penjualan yang berhasil
+                    Saya memahami dan menyetujui komisi platform sebesar 3% + Rp 5.000 dari setiap penjualan yang berhasil
                   </Label>
                 </div>
               </div>

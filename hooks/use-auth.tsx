@@ -25,7 +25,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        console.error('Session error:', error)
+        // Clear any corrupted session data
+        setSession(null)
+        setUser(null)
+        setLoading(false)
+
+        // Clear corrupted cookies if they exist
+        if (typeof window !== 'undefined') {
+          try {
+            document.cookie.split(";").forEach(function (c) {
+              const eqPos = c.indexOf("=");
+              const name = eqPos > -1 ? c.substr(0, eqPos) : c;
+              document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+            });
+          } catch (e) {
+            console.error('Error clearing cookies:', e)
+          }
+        }
+        return
+      }
+
       setSession(data.session)
       setUser(data.session?.user ?? null)
       setLoading(false)
@@ -37,13 +59,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
-        // Only redirect on SIGNED_OUT
-        if (event === "SIGNED_OUT") {
-          router.push("/login")
+
+        // Handle session expiration and sign out
+        if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED" && !session) {
+          if (typeof window !== 'undefined') {
+            const currentPath = window.location.pathname
+            // Don't redirect if already on login/register pages
+            if (!currentPath.includes('/login') && !currentPath.includes('/register') && !currentPath.includes('/auth')) {
+              // Store the current path to redirect back after login
+              sessionStorage.setItem('redirectAfterLogin', currentPath)
+              router.push("/login")
+            }
+          }
         }
       }
     )
     return () => subscription.unsubscribe()
+  }, [router])
+
+  // Periodic session check to handle expired sessions
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error || !session) {
+        // Session expired or invalid
+        setSession(null)
+        setUser(null)
+        if (typeof window !== 'undefined') {
+          const currentPath = window.location.pathname
+          if (!currentPath.includes('/login') && !currentPath.includes('/register') && !currentPath.includes('/auth')) {
+            sessionStorage.setItem('redirectAfterLogin', currentPath)
+            router.push("/login")
+          }
+        }
+      }
+    }
+
+    // Check session every 5 minutes
+    const interval = setInterval(checkSession, 5 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [router])
 
   const signIn = async (email: string, password: string) => {

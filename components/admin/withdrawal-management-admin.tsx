@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   CreditCard,
   Search,
@@ -12,6 +12,7 @@ import {
   DollarSign,
   Calendar,
   Download,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,114 +26,123 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
+import { type Withdrawal, withdrawalService } from "@/lib/withdrawal-service"
 
-// Mock data
-const mockWithdrawals = [
-  {
-    id: "WD-001",
-    author: "Sarah Design",
-    authorEmail: "sarah.design@email.com",
-    amount: 2500000,
-    adminFee: 5000,
-    netAmount: 2495000,
-    method: "Bank Transfer",
-    bankName: "BCA",
-    accountNumber: "1234567890",
-    accountName: "Sarah Design",
-    status: "pending",
-    requestDate: "2024-01-25T10:30:00Z",
-    processedDate: null,
-    notes: "Penarikan rutin bulanan",
-    availableBalance: 3200000,
-  },
-  {
-    id: "WD-002",
-    author: "Tech Guru",
-    authorEmail: "tech.guru@email.com",
-    amount: 1800000,
-    adminFee: 5000,
-    netAmount: 1795000,
-    method: "Bank Transfer",
-    bankName: "Mandiri",
-    accountNumber: "0987654321",
-    accountName: "Tech Guru",
-    status: "approved",
-    requestDate: "2024-01-24T14:15:00Z",
-    processedDate: "2024-01-25T09:00:00Z",
-    processedBy: "Admin",
-    notes: "Penarikan untuk investasi",
-    availableBalance: 2100000,
-  },
-  {
-    id: "WD-003",
-    author: "Code Master",
-    authorEmail: "code.master@email.com",
-    amount: 5000000,
-    adminFee: 5000,
-    netAmount: 4995000,
-    method: "E-Wallet",
-    bankName: "GoPay",
-    accountNumber: "081234567890",
-    accountName: "Code Master",
-    status: "rejected",
-    requestDate: "2024-01-23T16:45:00Z",
-    processedDate: "2024-01-24T10:30:00Z",
-    processedBy: "Admin",
-    rejectionReason: "Jumlah penarikan melebihi batas maksimal bulanan",
-    notes: "Penarikan besar untuk pembelian peralatan",
-    availableBalance: 5200000,
-  },
-]
-
-const mockStats = {
-  totalWithdrawals: 245,
-  pendingWithdrawals: 23,
-  approvedWithdrawals: 198,
-  rejectedWithdrawals: 24,
-  totalAmount: 125450000,
-  pendingAmount: 12340000,
-  processedAmount: 113110000,
-  averageProcessingTime: 2.5, // days
+interface WithdrawalWithProfile extends Withdrawal {
+  profiles?: {
+    name?: string
+    business_name?: string
+    total_earnings?: number
+  }
 }
 
 export function WithdrawalManagementAdmin() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [methodFilter, setMethodFilter] = useState("all")
-  const [selectedWithdrawal, setSelectedWithdrawal] = useState<any>(null)
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalWithProfile | null>(null)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false)
   const [approvalAction, setApprovalAction] = useState<"approve" | "reject">("approve")
   const [rejectionReason, setRejectionReason] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [withdrawals, setWithdrawals] = useState<WithdrawalWithProfile[]>([])
+  const [mounted, setMounted] = useState(false)
 
-  const filteredWithdrawals = mockWithdrawals.filter((withdrawal) => {
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Debug: Log when withdrawals state changes
+  // Auto-refresh every 30 seconds to keep data fresh
+  useEffect(() => {
+    if (!mounted) return
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setWithdrawals(data.withdrawals || [])
+        }
+      } catch (error) {
+        console.error('Auto-refresh error:', error)
+      }
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(interval)
+  }, [mounted])
+
+  useEffect(() => {
+    if (mounted) {
+      const fetchWithdrawals = async () => {
+        setLoading(true)
+        try {
+          const response = await fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          })
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch withdrawals: ${response.status}`)
+          }
+
+          const data = await response.json()
+          setWithdrawals(data.withdrawals || [])
+        } catch (error) {
+          console.error('Error fetching withdrawals:', error)
+          toast({
+            title: "Error",
+            description: "Gagal memuat data penarikan",
+            variant: "destructive",
+          })
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      fetchWithdrawals()
+    }
+  }, [mounted])
+
+  const filteredWithdrawals = withdrawals.filter((withdrawal) => {
+    const authorName = withdrawal.profiles?.name || withdrawal.profiles?.business_name || "Unknown"
     const matchesSearch =
-      withdrawal.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      withdrawal.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      withdrawal.authorEmail.toLowerCase().includes(searchQuery.toLowerCase())
+      authorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      withdrawal.id.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "all" || withdrawal.status === statusFilter
-    const matchesMethod = methodFilter === "all" || withdrawal.method === methodFilter
-    return matchesSearch && matchesStatus && matchesMethod
+    return matchesSearch && matchesStatus
   })
 
-  const handleViewDetails = (withdrawal: any) => {
+  const handleViewDetails = (withdrawal: WithdrawalWithProfile) => {
     setSelectedWithdrawal(withdrawal)
     setIsDetailDialogOpen(true)
   }
 
-  const handleApproveWithdrawal = (withdrawal: any) => {
+  const handleApproveWithdrawal = (withdrawal: WithdrawalWithProfile) => {
     setSelectedWithdrawal(withdrawal)
     setApprovalAction("approve")
     setIsApprovalDialogOpen(true)
   }
 
-  const handleRejectWithdrawal = (withdrawal: any) => {
+  const handleRejectWithdrawal = (withdrawal: WithdrawalWithProfile) => {
     setSelectedWithdrawal(withdrawal)
     setApprovalAction("reject")
     setIsApprovalDialogOpen(true)
   }
 
-  const handleConfirmApproval = () => {
+  const handleConfirmApproval = async () => {
+    if (!selectedWithdrawal) return
+
     if (approvalAction === "reject" && !rejectionReason.trim()) {
       toast({
         title: "Alasan diperlukan",
@@ -142,15 +152,62 @@ export function WithdrawalManagementAdmin() {
       return
     }
 
-    const actionText = approvalAction === "approve" ? "disetujui" : "ditolak"
-    toast({
-      title: `Penarikan ${actionText}`,
-      description: `Penarikan ${selectedWithdrawal?.id} berhasil ${actionText}.`,
-    })
+    try {
+      const status = approvalAction === "approve" ? "approved" : "rejected"
+      const updateData: { status: string; rejection_reason?: string } = { status }
 
-    setIsApprovalDialogOpen(false)
-    setRejectionReason("")
-    setSelectedWithdrawal(null)
+      if (approvalAction === "reject" && rejectionReason) {
+        updateData.rejection_reason = rejectionReason
+      }
+
+      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update withdrawal status')
+      }
+
+      const actionText = approvalAction === "approve" ? "disetujui" : "ditolak"
+      toast({
+        title: `Penarikan ${actionText}`,
+        description: `Penarikan ${selectedWithdrawal.id} berhasil ${actionText}.`,
+      })
+
+      // Refresh withdrawals with a small delay to ensure database is updated
+      setTimeout(async () => {
+        try {
+          const refreshResponse = await fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          })
+          if (refreshResponse.ok) {
+            const data = await refreshResponse.json()
+            setWithdrawals(data.withdrawals || [])
+          }
+        } catch (error) {
+          console.error('Error refreshing withdrawals:', error)
+        }
+      }, 500) // 500ms delay
+
+      setIsApprovalDialogOpen(false)
+      setRejectionReason("")
+      setSelectedWithdrawal(null)
+    } catch (error) {
+      console.error('Error updating withdrawal:', error)
+      toast({
+        title: "Error",
+        description: "Gagal memperbarui status penarikan",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleExportData = () => {
@@ -210,6 +267,27 @@ export function WithdrawalManagementAdmin() {
     return <Badge className="bg-green-100 text-green-800">Normal</Badge>
   }
 
+  if (!mounted) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Memuat...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Memuat data penarikan...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -217,10 +295,38 @@ export function WithdrawalManagementAdmin() {
           <h1 className="text-3xl font-bold">Manajemen Penarikan Dana</h1>
           <p className="text-muted-foreground">Kelola permintaan penarikan dana dari author</p>
         </div>
-        <Button onClick={handleExportData}>
-          <Download className="w-4 h-4 mr-2" />
-          Export Data
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setLoading(true)
+              fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
+                headers: {
+                  'Cache-Control': 'no-cache, no-store, must-revalidate',
+                  'Pragma': 'no-cache',
+                  'Expires': '0'
+                }
+              })
+                .then(res => res.json())
+                .then(data => {
+                  setWithdrawals(data.withdrawals || [])
+                  setLoading(false)
+                })
+                .catch(error => {
+                  console.error('Error refreshing:', error)
+                  setLoading(false)
+                })
+            }}
+            disabled={loading}
+          >
+            <Loader2 className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button onClick={handleExportData}>
+            <Download className="w-4 h-4 mr-2" />
+            Export Data
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -231,10 +337,10 @@ export function WithdrawalManagementAdmin() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalWithdrawals}</div>
+            <div className="text-2xl font-bold">{withdrawals.length}</div>
             <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-              <span className="text-yellow-600">{mockStats.pendingWithdrawals} pending</span>
-              <span className="text-green-600">{mockStats.approvedWithdrawals} approved</span>
+              <span className="text-yellow-600">{withdrawals.filter(w => w.status === 'pending').length} pending</span>
+              <span className="text-green-600">{withdrawals.filter(w => w.status === 'approved').length} approved</span>
             </div>
           </CardContent>
         </Card>
@@ -245,8 +351,8 @@ export function WithdrawalManagementAdmin() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{mockStats.pendingWithdrawals}</div>
-            <p className="text-xs text-muted-foreground">{formatCurrency(mockStats.pendingAmount)}</p>
+            <div className="text-2xl font-bold text-yellow-600">{withdrawals.filter(w => w.status === 'pending').length}</div>
+            <p className="text-xs text-muted-foreground">{formatCurrency(withdrawals.filter(w => w.status === 'pending').reduce((sum, w) => sum + w.amount, 0))}</p>
           </CardContent>
         </Card>
 
@@ -256,7 +362,7 @@ export function WithdrawalManagementAdmin() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockStats.processedAmount)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(withdrawals.filter(w => w.status === 'approved' || w.status === 'completed').reduce((sum, w) => sum + w.amount, 0))}</div>
             <p className="text-xs text-muted-foreground">Dana yang telah ditransfer</p>
           </CardContent>
         </Card>
@@ -267,7 +373,7 @@ export function WithdrawalManagementAdmin() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.averageProcessingTime} hari</div>
+            <div className="text-2xl font-bold">2.5 hari</div>
             <p className="text-xs text-muted-foreground">Waktu pemrosesan rata-rata</p>
           </CardContent>
         </Card>
@@ -333,82 +439,92 @@ export function WithdrawalManagementAdmin() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredWithdrawals.map((withdrawal) => (
-                <TableRow key={withdrawal.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{withdrawal.id}</div>
-                      <div className="text-sm text-muted-foreground">{withdrawal.author}</div>
-                      <div className="text-xs text-muted-foreground">{withdrawal.authorEmail}</div>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2"></div>
+                      Loading...
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{formatCurrency(withdrawal.amount)}</div>
-                      <div className="text-sm text-muted-foreground">Fee: {formatCurrency(withdrawal.adminFee)}</div>
-                      <div className="text-sm font-medium text-green-600">
-                        Net: {formatCurrency(withdrawal.netAmount)}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      {getMethodBadge(withdrawal.method)}
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {withdrawal.bankName} - {withdrawal.accountNumber}
-                      </div>
-                      <div className="text-xs text-muted-foreground">a/n {withdrawal.accountName}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(withdrawal.status)}
-                      {getStatusBadge(withdrawal.status)}
-                    </div>
-                    {withdrawal.status === "rejected" && withdrawal.rejectionReason && (
-                      <div className="text-xs text-red-600 mt-1 max-w-48">{withdrawal.rejectionReason}</div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      <div>Request: {new Date(withdrawal.requestDate).toLocaleDateString("id-ID")}</div>
-                      {withdrawal.processedDate && (
-                        <div className="text-muted-foreground">
-                          Processed: {new Date(withdrawal.processedDate).toLocaleDateString("id-ID")}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{getPriorityBadge(withdrawal.amount)}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewDetails(withdrawal)}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          Lihat Detail
-                        </DropdownMenuItem>
-                        {withdrawal.status === "pending" && (
-                          <>
-                            <DropdownMenuItem onClick={() => handleApproveWithdrawal(withdrawal)}>
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Setujui Penarikan
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleRejectWithdrawal(withdrawal)}>
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Tolak Penarikan
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredWithdrawals.map((withdrawal) => (
+                  <TableRow key={withdrawal.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{withdrawal.id}</div>
+                        <div className="text-sm text-muted-foreground">{withdrawal.profiles?.name || withdrawal.profiles?.business_name || "Unknown"}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{formatCurrency(withdrawal.amount)}</div>
+                        <div className="text-sm text-muted-foreground">Fee: Rp 0 (Komisi 3% + Rp 5.000 per transaksi penjualan)</div>
+                        <div className="text-sm font-medium text-green-600">
+                          Net: {formatCurrency(withdrawal.amount)}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        {getMethodBadge("Bank Transfer")}
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {withdrawal.bank_name} - {withdrawal.account_number}
+                        </div>
+                        <div className="text-xs text-muted-foreground">a/n {withdrawal.account_name}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(withdrawal.status)}
+                        {getStatusBadge(withdrawal.status)}
+                      </div>
+                      {withdrawal.status === "rejected" && withdrawal.rejection_reason && (
+                        <div className="text-xs text-red-600 mt-1 max-w-48">{withdrawal.rejection_reason}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div>Request: {new Date(withdrawal.created_at).toLocaleDateString("id-ID")}</div>
+                        {withdrawal.processed_at && (
+                          <div className="text-muted-foreground">
+                            Processed: {new Date(withdrawal.processed_at).toLocaleDateString("id-ID")}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{getPriorityBadge(withdrawal.amount)}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewDetails(withdrawal)}>
+                            <Eye className="w-4 h-4 mr-2" />
+                            Lihat Detail
+                          </DropdownMenuItem>
+                          {withdrawal.status === "pending" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleApproveWithdrawal(withdrawal)}>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Setujui Penarikan
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleRejectWithdrawal(withdrawal)}>
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Tolak Penarikan
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -429,15 +545,7 @@ export function WithdrawalManagementAdmin() {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Nama:</span>
-                      <span className="font-medium">{selectedWithdrawal.author}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Email:</span>
-                      <span className="font-medium">{selectedWithdrawal.authorEmail}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Saldo Tersedia:</span>
-                      <span className="font-medium">{formatCurrency(selectedWithdrawal.availableBalance)}</span>
+                      <span className="font-medium">{selectedWithdrawal.profiles?.name || selectedWithdrawal.profiles?.business_name || "Unknown"}</span>
                     </div>
                   </div>
                 </div>
@@ -450,27 +558,27 @@ export function WithdrawalManagementAdmin() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Fee Admin:</span>
-                      <span className="font-medium">{formatCurrency(selectedWithdrawal.adminFee)}</span>
+                      <span className="font-medium">Rp 0 (Komisi 3% + Rp 5.000 per transaksi penjualan)</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Jumlah Net:</span>
-                      <span className="font-medium">{formatCurrency(selectedWithdrawal.netAmount)}</span>
+                      <span className="font-medium">{formatCurrency(selectedWithdrawal.amount)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Metode:</span>
-                      <span className="font-medium">{selectedWithdrawal.method}</span>
+                      <span className="font-medium">Bank Transfer</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Bank:</span>
-                      <span className="font-medium">{selectedWithdrawal.bankName}</span>
+                      <span className="font-medium">{selectedWithdrawal.bank_name}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">No. Rekening:</span>
-                      <span className="font-medium">{selectedWithdrawal.accountNumber}</span>
+                      <span className="font-medium">{selectedWithdrawal.account_number}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Atas Nama:</span>
-                      <span className="font-medium">{selectedWithdrawal.accountName}</span>
+                      <span className="font-medium">{selectedWithdrawal.account_name}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Status:</span>
@@ -479,33 +587,21 @@ export function WithdrawalManagementAdmin() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Tanggal Request:</span>
                       <span className="font-medium">
-                        {new Date(selectedWithdrawal.requestDate).toLocaleDateString("id-ID")}
+                        {new Date(selectedWithdrawal.created_at).toLocaleDateString("id-ID")}
                       </span>
                     </div>
-                    {selectedWithdrawal.processedDate && (
+                    {selectedWithdrawal.processed_at && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Tanggal Diproses:</span>
                         <span className="font-medium">
-                          {new Date(selectedWithdrawal.processedDate).toLocaleDateString("id-ID")}
+                          {new Date(selectedWithdrawal.processed_at).toLocaleDateString("id-ID")}
                         </span>
                       </div>
                     )}
-                    {selectedWithdrawal.processedBy && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Diproses Oleh:</span>
-                        <span className="font-medium">{selectedWithdrawal.processedBy}</span>
-                      </div>
-                    )}
-                    {selectedWithdrawal.rejectionReason && (
+                    {selectedWithdrawal.rejection_reason && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Alasan Penolakan:</span>
-                        <span className="font-medium">{selectedWithdrawal.rejectionReason}</span>
-                      </div>
-                    )}
-                    {selectedWithdrawal.notes && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Catatan:</span>
-                        <span className="font-medium">{selectedWithdrawal.notes}</span>
+                        <span className="font-medium">{selectedWithdrawal.rejection_reason}</span>
                       </div>
                     )}
                   </div>

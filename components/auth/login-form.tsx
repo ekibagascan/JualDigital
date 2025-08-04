@@ -30,9 +30,34 @@ export function LoginForm() {
   // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
-      const next = searchParams.get('next') || '/'
-      console.log('[LoginForm] User already authenticated, redirecting to:', next)
-      router.replace(next)
+      // Check for stored redirect path first, then URL params, then default
+      const storedRedirect = sessionStorage.getItem('redirectAfterLogin')
+      const next = storedRedirect || searchParams.get('next') || '/'
+
+      // Prevent redirect loop by checking if we're already on the target page
+      if (window.location.pathname === next) {
+        return
+      }
+
+      // Clear stored redirect path
+      if (storedRedirect) {
+        sessionStorage.removeItem('redirectAfterLogin')
+      }
+
+      // If we're on login page and user is authenticated, redirect to intended destination
+      if (window.location.pathname === '/login' && user) {
+        const timeoutId = setTimeout(() => {
+          router.replace(next)
+        }, 100)
+        return () => clearTimeout(timeoutId)
+      }
+
+      // For other cases, add a small delay to prevent rapid redirects
+      const timeoutId = setTimeout(() => {
+        router.replace(next)
+      }, 100)
+
+      return () => clearTimeout(timeoutId)
     }
   }, [user, router, searchParams])
 
@@ -63,7 +88,7 @@ export function LoginForm() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.jualdigital.id'}/auth/callback?next=${encodeURIComponent('/')}`,
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/')}`,
           queryParams: {
             prompt: 'select_account',
           },

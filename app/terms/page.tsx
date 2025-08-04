@@ -60,7 +60,7 @@ export default function TermsPage() {
                 <li>Menjual hanya produk digital yang legal dan tidak melanggar hak cipta</li>
                 <li>Memberikan deskripsi produk yang akurat</li>
                 <li>Menyediakan dukungan pelanggan yang memadai</li>
-                <li>Membayar komisi platform sebesar 5% dari setiap penjualan</li>
+                <li>Membayar komisi platform sebesar 3% + Rp 5.000 dari setiap penjualan</li>
               </ul>
             </section>
 

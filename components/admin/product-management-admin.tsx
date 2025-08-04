@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
   Package,
   Search,
@@ -24,110 +25,116 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 
-// Mock data
-const mockProducts = [
-  {
-    id: "1",
-    title: "E-book Panduan Digital Marketing",
-    author: "Ahmad Rizki",
-    authorEmail: "ahmad.rizki@email.com",
-    category: "E-book",
-    price: 99000,
-    variants: [
-      { name: "Basic", price: 99000 },
-      { name: "Premium", price: 149000 },
-    ],
-    sales: 234,
-    revenue: 23166000,
-    rating: 4.8,
-    reviews: 45,
-    status: "active",
-    createdAt: "2024-01-15",
-    approvedAt: "2024-01-16",
-    image: "/placeholder.svg?height=100&width=150&text=E-book",
-  },
-  {
-    id: "2",
-    title: "Template Website Modern",
-    author: "Sarah Design",
-    authorEmail: "sarah.design@email.com",
-    category: "Template",
-    price: 199000,
-    variants: [
-      { name: "Single License", price: 199000 },
-      { name: "Commercial License", price: 399000 },
-    ],
-    sales: 156,
-    revenue: 31044000,
-    rating: 4.9,
-    reviews: 32,
-    status: "pending",
-    createdAt: "2024-01-20",
-    approvedAt: null,
-    image: "/placeholder.svg?height=100&width=150&text=Template",
-  },
-  {
-    id: "3",
-    title: "Kursus React & Next.js",
-    author: "Tech Guru",
-    authorEmail: "tech.guru@email.com",
-    category: "Kursus Online",
-    price: 299000,
-    variants: [
-      { name: "Basic Access", price: 299000 },
-      { name: "Premium + Certificate", price: 499000 },
-    ],
-    sales: 89,
-    revenue: 26611000,
-    rating: 4.7,
-    reviews: 28,
-    status: "rejected",
-    createdAt: "2024-01-18",
-    approvedAt: null,
-    rejectionReason: "Konten tidak sesuai dengan guidelines",
-    image: "/placeholder.svg?height=100&width=150&text=Course",
-  },
-]
+interface Product {
+  id: string
+  title: string
+  description: string
+  price: number
+  category: string
+  status: string
+  image_url: string | null
+  created_at: string
+  updated_at: string
+  seller_id: string
+  author: string
+  authorEmail: string
+  authorAvatar: string | null
+  totalSold: number
+  revenue: number
+  rating: number
+  reviews: number
+  variants: Array<{ name: string; price: number }>
+}
 
-const mockStats = {
-  totalProducts: 1245,
-  activeProducts: 1089,
-  pendingProducts: 89,
-  rejectedProducts: 67,
-  totalRevenue: 125450000,
-  totalSales: 15420,
+interface ProductStats {
+  totalProducts: number
+  activeProducts: number
+  pendingProducts: number
+  rejectedProducts: number
+  totalSales: number
+  totalRevenue: number
+}
+
+interface ProductData {
+  products: Product[]
+  stats: ProductStats
 }
 
 export function ProductManagementAdmin() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [authorFilter, setAuthorFilter] = useState("all")
-  const [selectedProduct, setSelectedProduct] = useState<any>(null)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false)
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve")
   const [rejectionReason, setRejectionReason] = useState("")
+  const [products, setProducts] = useState<Product[]>([])
+  const [stats, setStats] = useState<ProductStats>({
+    totalProducts: 0,
+    activeProducts: 0,
+    pendingProducts: 0,
+    rejectedProducts: 0,
+    totalSales: 0,
+    totalRevenue: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
 
-  const filteredProducts = mockProducts.filter((product) => {
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted) {
+      fetchProducts()
+    }
+  }, [mounted])
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch('/api/admin/products/')
+      if (!response.ok) {
+        throw new Error('Failed to fetch products')
+      }
+
+      const data: ProductData = await response.json()
+      setProducts(data.products)
+      setStats(data.stats)
+    } catch (error) {
+      console.error('Failed to fetch products:', error)
+      setError('Gagal memuat data produk')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.author.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = categoryFilter === "all" || product.category === categoryFilter
     const matchesStatus = statusFilter === "all" || product.status === statusFilter
-    const matchesAuthor = authorFilter === "all" || product.author.toLowerCase().includes(authorFilter.toLowerCase())
-    return matchesSearch && matchesCategory && matchesStatus && matchesAuthor
+    return matchesSearch && matchesCategory && matchesStatus
   })
 
-  const handleApproveProduct = (product: any) => {
+  const handleApproveProduct = (product: Product) => {
     setSelectedProduct(product)
     setReviewAction("approve")
     setIsReviewDialogOpen(true)
   }
 
-  const handleRejectProduct = (product: any) => {
+  const handleRejectProduct = (product: Product) => {
     setSelectedProduct(product)
     setReviewAction("reject")
     setIsReviewDialogOpen(true)
@@ -154,20 +161,106 @@ export function ProductManagementAdmin() {
     setSelectedProduct(null)
   }
 
-  const handleDeleteProduct = (product: any) => {
-    toast({
-      title: "Produk dihapus",
-      description: `Produk "${product.title}" berhasil dihapus dari platform.`,
-      variant: "destructive",
-    })
+  const handleViewDetail = (product: Product) => {
+    router.push(`/product/${product.id}`)
   }
 
-  const handleToggleStatus = (product: any) => {
-    const newStatus = product.status === "active" ? "inactive" : "active"
-    toast({
-      title: "Status produk diubah",
-      description: `Produk berhasil diubah menjadi ${newStatus === "active" ? "aktif" : "tidak aktif"}.`,
-    })
+  const handleEditProduct = (product: Product) => {
+    router.push(`/admin/products/edit/${product.id}`)
+  }
+
+  const handleDeleteProduct = (product: Product) => {
+    setProductToDelete(product)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return
+
+    try {
+      // Make API call to delete the product
+      const response = await fetch(`/api/admin/products/${productToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete product');
+      }
+
+      toast({
+        title: "Produk dihapus",
+        description: `Produk "${productToDelete.title}" berhasil dihapus dari platform.`,
+        variant: "destructive",
+      })
+
+      // Remove the product from the local state
+      setProducts(products.filter(p => p.id !== productToDelete.id))
+
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        totalProducts: prev.totalProducts - 1,
+        activeProducts: productToDelete.status === 'active' ? prev.activeProducts - 1 : prev.activeProducts,
+        pendingProducts: productToDelete.status === 'pending' ? prev.pendingProducts - 1 : prev.pendingProducts,
+        rejectedProducts: productToDelete.status === 'rejected' ? prev.rejectedProducts - 1 : prev.rejectedProducts,
+      }))
+
+      setIsDeleteDialogOpen(false)
+      setProductToDelete(null)
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      toast({
+        title: "Gagal menghapus produk",
+        description: "Terjadi kesalahan saat menghapus produk.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleToggleStatus = async (product: Product) => {
+    try {
+      const newStatus = product.status === "active" ? "inactive" : "active"
+
+      // Make API call to update the product status
+      const response = await fetch(`/api/admin/products/${product.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...product,
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update product status');
+      }
+
+      toast({
+        title: "Status produk diubah",
+        description: `Produk berhasil diubah menjadi ${newStatus === "active" ? "aktif" : "tidak aktif"}.`,
+      })
+
+      // Update the product status in local state
+      setProducts(products.map(p =>
+        p.id === product.id ? { ...p, status: newStatus } : p
+      ))
+
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        activeProducts: newStatus === 'active' ? prev.activeProducts + 1 : prev.activeProducts - 1,
+      }))
+    } catch (error) {
+      console.error('Failed to update product status:', error);
+      toast({
+        title: "Gagal mengubah status",
+        description: "Terjadi kesalahan saat mengubah status produk.",
+        variant: "destructive",
+      })
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -198,6 +291,81 @@ export function ProductManagementAdmin() {
     }
   }
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("id-ID")
+  }
+
+  if (!mounted) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Manajemen Produk</h1>
+          <p className="text-muted-foreground">Kelola semua produk di platform</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-20 bg-muted animate-pulse rounded mb-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Memuat...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Manajemen Produk</h1>
+          <p className="text-muted-foreground">Kelola semua produk di platform</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-20 bg-muted animate-pulse rounded mb-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Memuat data produk...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Manajemen Produk</h1>
+          <p className="text-muted-foreground">Kelola semua produk di platform</p>
+        </div>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <p className="text-destructive text-sm">{error}</p>
+          <Button onClick={fetchProducts} className="mt-2">
+            Coba Lagi
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -213,7 +381,7 @@ export function ProductManagementAdmin() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalProducts.toLocaleString("id-ID")}</div>
+            <div className="text-2xl font-bold">{stats.totalProducts.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
 
@@ -223,7 +391,7 @@ export function ProductManagementAdmin() {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{mockStats.activeProducts.toLocaleString("id-ID")}</div>
+            <div className="text-2xl font-bold text-green-600">{stats.activeProducts.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
 
@@ -233,7 +401,7 @@ export function ProductManagementAdmin() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{mockStats.pendingProducts}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pendingProducts}</div>
           </CardContent>
         </Card>
 
@@ -243,7 +411,7 @@ export function ProductManagementAdmin() {
             <XCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{mockStats.rejectedProducts}</div>
+            <div className="text-2xl font-bold text-red-600">{stats.rejectedProducts}</div>
           </CardContent>
         </Card>
 
@@ -253,7 +421,7 @@ export function ProductManagementAdmin() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalSales.toLocaleString("id-ID")}</div>
+            <div className="text-2xl font-bold">{stats.totalSales.toLocaleString("id-ID")}</div>
           </CardContent>
         </Card>
 
@@ -263,7 +431,7 @@ export function ProductManagementAdmin() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockStats.totalRevenue)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</div>
           </CardContent>
         </Card>
       </div>
@@ -314,7 +482,7 @@ export function ProductManagementAdmin() {
       {/* Products Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Produk</CardTitle>
+          <CardTitle>Daftar Produk ({filteredProducts.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -335,14 +503,18 @@ export function ProductManagementAdmin() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <img
-                        src={product.image || "/placeholder.svg"}
+                        src={product.image_url || "/placeholder.svg"}
                         alt={product.title}
                         className="w-16 h-12 object-cover rounded"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg"
+                        }}
                       />
                       <div>
                         <div className="font-medium line-clamp-2">{product.title}</div>
                         <div className="text-sm text-muted-foreground">
-                          Dibuat: {new Date(product.createdAt).toLocaleDateString("id-ID")}
+                          Dibuat: {formatDate(product.created_at)}
                         </div>
                       </div>
                     </div>
@@ -373,7 +545,7 @@ export function ProductManagementAdmin() {
                         <span>{product.rating}</span>
                         <span className="text-muted-foreground">({product.reviews})</span>
                       </div>
-                      <div>Terjual: {product.sales}</div>
+                      <div>Terjual: {product.totalSold}</div>
                       <div className="text-green-600 font-medium">{formatCurrency(product.revenue)}</div>
                     </div>
                   </TableCell>
@@ -382,9 +554,6 @@ export function ProductManagementAdmin() {
                       {getStatusIcon(product.status)}
                       {getStatusBadge(product.status)}
                     </div>
-                    {product.status === "rejected" && product.rejectionReason && (
-                      <div className="text-xs text-red-600 mt-1 max-w-48">{product.rejectionReason}</div>
-                    )}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -394,7 +563,7 @@ export function ProductManagementAdmin() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewDetail(product)}>
                           <Eye className="w-4 h-4 mr-2" />
                           Lihat Detail
                         </DropdownMenuItem>
@@ -420,7 +589,7 @@ export function ProductManagementAdmin() {
                             Aktifkan Produk
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditProduct(product)}>
                           <Edit className="w-4 h-4 mr-2" />
                           Edit Produk
                         </DropdownMenuItem>
@@ -477,6 +646,23 @@ export function ProductManagementAdmin() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apakah Anda Yakin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Produk &quot;{productToDelete?.title}&quot; akan dihapus dari platform.
+              Proses ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

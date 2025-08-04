@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Download, Users, Star } from "lucide-react"
+import { ArrowRight, Download, Users, Star, Sparkles, Zap, TrendingUp } from "lucide-react"
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase-client"
 
@@ -44,7 +44,7 @@ export function HeroSection() {
 
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" asChild>
-                <Link href="/categories">
+                <Link href="/produk">
                   Jelajahi Produk
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
@@ -54,7 +54,8 @@ export function HeroSection() {
               </Button>
             </div>
 
-            <div className="flex items-center gap-8 pt-4">
+            {/* Stats section - DISABLED */}
+            {/* <div className="flex items-center gap-8 pt-4">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
                 <span className="text-sm text-muted-foreground">1000+ Pengguna</span>
@@ -67,11 +68,12 @@ export function HeroSection() {
                 <Star className="h-5 w-5 text-primary" />
                 <span className="text-sm text-muted-foreground">5 Rating</span>
               </div>
-            </div>
+            </div> */}
           </div>
 
           <div className="relative">
-            <div className="relative z-10 bg-card rounded-2xl shadow-2xl p-8 border">
+            {/* Produk Terpopuler section - DISABLED and replaced with attractive animation */}
+            {/* <div className="relative z-10 bg-card rounded-2xl shadow-2xl p-8 border">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">Produk Terpopuler</h3>
@@ -96,6 +98,68 @@ export function HeroSection() {
                   )}
                 </div>
               </div>
+            </div> */}
+
+            {/* Attractive Animation Section */}
+            <div className="relative z-10 bg-card rounded-2xl shadow-2xl p-8 border overflow-hidden">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-lg">🚀 Platform Terpercaya</h3>
+                  <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-lg border border-primary/20">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/20 rounded-full">
+                        <Zap className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Transaksi Aman</p>
+                        <p className="text-xs text-muted-foreground">100% Terjamin</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">✓ Verified</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg border border-green-500/20">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-500/20 rounded-full">
+                        <TrendingUp className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Produk Berkualitas</p>
+                        <p className="text-xs text-muted-foreground">Curated Selection</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">⭐ Premium</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-lg border border-purple-500/20">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-500/20 rounded-full">
+                        <Sparkles className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Instant Download</p>
+                        <p className="text-xs text-muted-foreground">Langsung Dapat</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">⚡ Fast</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating animation elements */}
+              <div className="absolute top-4 right-4 w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+              <div className="absolute bottom-8 left-6 w-1 h-1 bg-secondary rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
+              <div className="absolute top-12 left-4 w-1 h-1 bg-primary/60 rounded-full animate-ping" style={{ animationDelay: '2s' }}></div>
             </div>
 
             {/* Background decoration */}

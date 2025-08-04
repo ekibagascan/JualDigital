@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   CreditCard,
   Search,
@@ -13,6 +13,7 @@ import {
   DollarSign,
   TrendingUp,
   Calendar,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,82 +26,95 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 
-// Mock data
-const mockPayments = [
-  {
-    id: "PAY-001",
-    orderId: "ORD-2024-001",
-    customer: "Ahmad Rizki",
-    customerEmail: "ahmad.rizki@email.com",
-    product: "E-book Panduan Digital Marketing",
-    author: "Sarah Design",
-    amount: 149000,
-    platformFee: 14900,
-    authorEarnings: 134100,
-    paymentMethod: "Credit Card",
-    paymentProvider: "Xendit",
-    status: "completed",
-    createdAt: "2024-01-25T10:30:00Z",
-    completedAt: "2024-01-25T10:31:00Z",
-    transactionId: "TXN-XEN-123456",
-  },
-  {
-    id: "PAY-002",
-    orderId: "ORD-2024-002",
-    customer: "Budi Santoso",
-    customerEmail: "budi.santoso@email.com",
-    product: "Template Website Modern",
-    author: "Tech Guru",
-    amount: 399000,
-    platformFee: 39900,
-    authorEarnings: 359100,
-    paymentMethod: "Bank Transfer",
-    paymentProvider: "Xendit",
-    status: "pending",
-    createdAt: "2024-01-25T14:15:00Z",
-    completedAt: null,
-    transactionId: "TXN-XEN-123457",
-  },
-  {
-    id: "PAY-003",
-    orderId: "ORD-2024-003",
-    customer: "Siti Nurhaliza",
-    customerEmail: "siti.nurhaliza@email.com",
-    product: "Kursus React & Next.js",
-    author: "Code Master",
-    amount: 499000,
-    platformFee: 49900,
-    authorEarnings: 449100,
-    paymentMethod: "E-Wallet",
-    paymentProvider: "Xendit",
-    status: "failed",
-    createdAt: "2024-01-25T16:45:00Z",
-    completedAt: null,
-    transactionId: "TXN-XEN-123458",
-    failureReason: "Insufficient balance",
-  },
-]
+interface Payment {
+  id: string
+  orderId: string
+  customer: string
+  customerEmail: string
+  product: string
+  author: string
+  amount: number
+  platformFee: number
+  authorEarnings: number
+  paymentMethod: string
+  paymentProvider: string
+  status: string
+  createdAt: string
+  completedAt: string | null
+  transactionId: string
+  failureReason?: string
+}
 
-const mockStats = {
-  totalTransactions: 15420,
-  completedTransactions: 14890,
-  pendingTransactions: 345,
-  failedTransactions: 185,
-  totalRevenue: 125450000,
-  platformRevenue: 12545000,
-  authorRevenue: 112905000,
-  todayRevenue: 2340000,
+interface PaymentStats {
+  totalTransactions: number
+  completedTransactions: number
+  pendingTransactions: number
+  failedTransactions: number
+  totalRevenue: number
+  platformRevenue: number
+  authorRevenue: number
+  todayRevenue: number
+}
+
+interface PaymentData {
+  payments: Payment[]
+  stats: PaymentStats
 }
 
 export function PaymentManagement() {
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [stats, setStats] = useState<PaymentStats>({
+    totalTransactions: 0,
+    completedTransactions: 0,
+    pendingTransactions: 0,
+    failedTransactions: 0,
+    totalRevenue: 0,
+    platformRevenue: 0,
+    authorRevenue: 0,
+    todayRevenue: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [methodFilter, setMethodFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
-  const [selectedPayment, setSelectedPayment] = useState<any>(null)
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
 
-  const filteredPayments = mockPayments.filter((payment) => {
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted) {
+      fetchPayments()
+    }
+  }, [mounted])
+
+  const fetchPayments = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch('/api/admin/payments/')
+      if (!response.ok) {
+        throw new Error('Failed to fetch payments')
+      }
+
+      const data: PaymentData = await response.json()
+      setPayments(data.payments)
+      setStats(data.stats)
+    } catch (error) {
+      console.error('Failed to fetch payments:', error)
+      setError('Gagal memuat data pembayaran')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredPayments = payments.filter((payment) => {
     const matchesSearch =
       payment.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
       payment.product.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -110,12 +124,12 @@ export function PaymentManagement() {
     return matchesSearch && matchesStatus && matchesMethod
   })
 
-  const handleViewDetails = (payment: any) => {
+  const handleViewDetails = (payment: Payment) => {
     setSelectedPayment(payment)
     setIsDetailDialogOpen(true)
   }
 
-  const handleRefundPayment = (payment: any) => {
+  const handleRefundPayment = (payment: Payment) => {
     toast({
       title: "Refund diproses",
       description: `Refund untuk pembayaran ${payment.id} sedang diproses.`,
@@ -170,6 +184,38 @@ export function PaymentManagement() {
     }
   }
 
+  if (!mounted) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Memuat...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Memuat data pembayaran...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <p className="text-destructive mb-4">{error}</p>
+          <Button onClick={fetchPayments}>Coba Lagi</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -191,11 +237,11 @@ export function PaymentManagement() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalTransactions.toLocaleString("id-ID")}</div>
+            <div className="text-2xl font-bold">{stats.totalTransactions.toLocaleString("id-ID")}</div>
             <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-              <span className="text-green-600">{mockStats.completedTransactions} berhasil</span>
-              <span className="text-yellow-600">{mockStats.pendingTransactions} pending</span>
-              <span className="text-red-600">{mockStats.failedTransactions} gagal</span>
+              <span className="text-green-600">{stats.completedTransactions} berhasil</span>
+              <span className="text-yellow-600">{stats.pendingTransactions} pending</span>
+              <span className="text-red-600">{stats.failedTransactions} gagal</span>
             </div>
           </CardContent>
         </Card>
@@ -206,7 +252,7 @@ export function PaymentManagement() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(mockStats.totalRevenue)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</div>
             <p className="text-xs text-muted-foreground">Semua waktu</p>
           </CardContent>
         </Card>
@@ -217,7 +263,7 @@ export function PaymentManagement() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{formatCurrency(mockStats.platformRevenue)}</div>
+            <div className="text-2xl font-bold text-blue-600">{formatCurrency(stats.platformRevenue)}</div>
             <p className="text-xs text-muted-foreground">10% dari total revenue</p>
           </CardContent>
         </Card>
@@ -228,7 +274,7 @@ export function PaymentManagement() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(mockStats.todayRevenue)}</div>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.todayRevenue)}</div>
             <p className="text-xs text-muted-foreground">Transaksi hari ini</p>
           </CardContent>
         </Card>

@@ -34,18 +34,30 @@ export function AdminLoginForm() {
     setIsLoading(true)
 
     try {
-      // Mock admin login - replace with actual API call
-      if (email === "admin@jualdigital.com" && password === "admin123") {
-        localStorage.setItem("adminAuth", "true")
+      // Use secure API for admin authentication
+      const response = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
         toast({
           title: "Login admin berhasil!",
           description: "Selamat datang di Admin Panel.",
         })
-        router.push("/admin")
+        // Add a small delay to ensure cookie is set
+        setTimeout(() => {
+          router.push("/admin")
+        }, 100)
       } else {
-        throw new Error("Invalid credentials")
+        throw new Error(data.error || 'Login gagal')
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Login gagal",
         description: "Email atau password admin salah.",
@@ -76,7 +88,7 @@ export function AdminLoginForm() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@jualdigital.com"
+                placeholder="Masukkan email admin"
                 className="pl-10"
                 required
               />
@@ -110,18 +122,6 @@ export function AdminLoginForm() {
             {isLoading ? "Memproses..." : "Masuk sebagai Admin"}
           </Button>
         </form>
-
-        <div className="mt-6 p-4 bg-muted/50 rounded-lg text-center">
-          <h3 className="font-medium text-sm mb-2">Demo Credentials</h3>
-          <div className="space-y-1 text-sm">
-            <p>
-              <strong>Email:</strong> admin@jualdigital.com
-            </p>
-            <p>
-              <strong>Password:</strong> admin123
-            </p>
-          </div>
-        </div>
       </CardContent>
     </Card>
   )

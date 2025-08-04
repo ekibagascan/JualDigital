@@ -42,11 +42,18 @@ function AuthCallbackContent() {
 
             try {
                 console.log('[AUTH CALLBACK] calling exchangeCodeForSession...')
-                // Fix: Pass window.location.href for PKCE flow
+                // Use the full URL for PKCE flow
                 const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(window.location.href)
                 clearTimeout(timeoutId)
+
                 if (exchangeError) {
                     console.error('[AUTH CALLBACK] Exchange error:', exchangeError)
+                    // Don't show error for common PKCE issues, just redirect
+                    if (exchangeError.message.includes('code verifier') || exchangeError.message.includes('auth code')) {
+                        console.log('[AUTH CALLBACK] PKCE issue detected, redirecting to:', next)
+                        redirectTo(next)
+                        return
+                    }
                     setError('Authentication failed: ' + exchangeError.message)
                     setTimeout(() => {
                         redirectTo('/login')
@@ -58,6 +65,12 @@ function AuthCallbackContent() {
             } catch (err) {
                 clearTimeout(timeoutId)
                 console.error('[AUTH CALLBACK] Exchange exception:', err)
+                // Don't show error for common PKCE issues, just redirect
+                if (err instanceof Error && (err.message.includes('code verifier') || err.message.includes('auth code'))) {
+                    console.log('[AUTH CALLBACK] PKCE issue detected, redirecting to:', next)
+                    redirectTo(next)
+                    return
+                }
                 setError('Authentication failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
                 setTimeout(() => {
                     redirectTo('/login')
@@ -72,7 +85,14 @@ function AuthCallbackContent() {
             // User is already authenticated, redirect immediately
             const next = searchParams.get('next') || '/'
             console.log('[AUTH CALLBACK] User already authenticated, redirecting to:', next)
-            redirectTo(next)
+            // Use a small delay to prevent flash
+            setTimeout(() => {
+                redirectTo(next)
+            }, 100)
+        } else if (!searchParams.get('code')) {
+            // No code provided, redirect to login
+            console.log('[AUTH CALLBACK] No code provided, redirecting to login')
+            redirectTo('/login')
         }
     }, [searchParams, user, isProcessing])
 

@@ -9,28 +9,24 @@ import {
   ShoppingCart,
   Download,
   Heart,
-  TrendingUp,
   Package,
   DollarSign,
   Users,
-  Settings
+  Settings,
+  RefreshCw,
+  Store,
+  Clock
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase-client"
 
 interface DashboardStats {
   totalPurchases: number
   totalSpent: number
   wishlistItems: number
   downloadedItems: number
-}
-
-interface SellerStats {
-  totalProducts: number
-  totalSales: number
-  totalEarnings: number
-  pendingWithdrawal: number
 }
 
 interface RecentPurchase {
@@ -40,76 +36,91 @@ interface RecentPurchase {
   price: number
   date: string
   status: string
-}
-
-interface RecentProduct {
-  id: string
-  title: string
-  price: number
-  sales: number
-  earnings: number
-  status: string
+  image_url?: string
 }
 
 export function UserDashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [dashboardLoading, setDashboardLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
+  const [userProfile, setUserProfile] = useState<{ role?: string } | null>(null)
   const [userStats, setUserStats] = useState<DashboardStats>({
     totalPurchases: 0,
     totalSpent: 0,
     wishlistItems: 0,
     downloadedItems: 0,
   })
-  const [sellerStats, setSellerStats] = useState<SellerStats>({
-    totalProducts: 0,
-    totalSales: 0,
-    totalEarnings: 0,
-    pendingWithdrawal: 0,
-  })
   const [recentPurchases, setRecentPurchases] = useState<RecentPurchase[]>([])
-  const [recentProducts, setRecentProducts] = useState<RecentProduct[]>([])
 
-  const fetchDashboardData = async () => {
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchUserProfile();
+      fetchDashboardData();
+    }
+  }, [user, authLoading]);
+
+  const fetchUserProfile = async () => {
     if (user?.id) {
       try {
-        setDashboardLoading(true)
-        const response = await fetch(`/api/dashboard/stats`)
-        const data = await response.json()
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
 
-        if (data.success) {
-          setUserStats(data.userStats)
-          setSellerStats(data.sellerStats)
-          setRecentPurchases(data.recentPurchases)
-          setRecentProducts(data.recentProducts)
-        } else {
-          console.error('Failed to fetch dashboard data:', data.error)
-          toast({
-            title: "Error",
-            description: "Gagal memuat data dashboard.",
-            variant: "destructive",
-          })
+        if (error) {
+          console.error('Error fetching user profile:', error)
+        } else if (profile) {
+          setUserProfile(profile)
         }
       } catch (error) {
-        console.error('Error fetching dashboard data:', error)
+        console.error('Error fetching user profile:', error)
+      }
+    }
+  }
+
+  const fetchDashboardData = async () => {
+    if (!user) return
+
+    setDashboardLoading(true)
+
+    try {
+      const response = await fetch(`/api/dashboard/stats?t=${Date.now()}&r=${Math.random()}`, {
+        headers: {
+          'x-user-id': user.id,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setUserStats(data.userStats)
+        setRecentPurchases(data.recentPurchases || [])
+      } else {
+        console.error('Failed to fetch dashboard data:', data.error)
         toast({
           title: "Error",
           description: "Gagal memuat data dashboard.",
           variant: "destructive",
         })
-      } finally {
-        setDashboardLoading(false)
       }
-    } else {
+    } catch (error) {
+      console.error('[DASHBOARD] Error fetching dashboard data:', error)
+      toast({
+        title: "Error",
+        description: "Gagal memuat data dashboard",
+        variant: "destructive",
+      })
+    } finally {
       setDashboardLoading(false)
     }
   }
-
-  useEffect(() => {
-    if (!loading && user) {
-      fetchDashboardData();
-    }
-  }, [user, loading]);
 
   if (!user) {
     return (
@@ -123,7 +134,8 @@ export function UserDashboard() {
     )
   }
 
-  const isSeller = user.role === "author" || user.role === "admin"
+  const isSeller = userProfile?.role === "seller"
+  const isPendingSeller = userProfile?.role === "pending"
 
   if (dashboardLoading) {
     return (
@@ -171,7 +183,6 @@ export function UserDashboard() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="purchases">Pembelian</TabsTrigger>
-          {isSeller && <TabsTrigger value="seller">Penjualan</TabsTrigger>}
         </TabsList>
 
         {/* Overview Tab */}
@@ -199,16 +210,18 @@ export function UserDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Wishlist</CardTitle>
-                <Heart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{userStats.wishlistItems}</div>
-                <p className="text-xs text-muted-foreground">produk disimpan</p>
-              </CardContent>
-            </Card>
+            <Link href="/wishlist" className="block">
+              <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Wishlist</CardTitle>
+                  <Heart className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{userStats.wishlistItems}</div>
+                  <p className="text-xs text-muted-foreground">produk disimpan</p>
+                </CardContent>
+              </Card>
+            </Link>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -247,11 +260,27 @@ export function UserDashboard() {
                     Edit Profil
                   </Link>
                 </Button>
-                {!isSeller && (
+                {!isSeller && !isPendingSeller && (
                   <Button asChild variant="outline" className="h-auto p-4 flex-col bg-transparent">
                     <Link href="/mulai-jualan">
                       <Package className="w-6 h-6 mb-2" />
                       Jadi Penjual
+                    </Link>
+                  </Button>
+                )}
+                {isSeller && (
+                  <Button asChild variant="outline" className="h-auto p-4 flex-col bg-transparent">
+                    <Link href="/seller">
+                      <Store className="w-6 h-6 mb-2" />
+                      Toko Saya
+                    </Link>
+                  </Button>
+                )}
+                {isPendingSeller && (
+                  <Button asChild variant="outline" className="h-auto p-4 flex-col bg-transparent" disabled>
+                    <Link href="/seller">
+                      <Clock className="w-6 h-6 mb-2" />
+                      Toko Pending
                     </Link>
                   </Button>
                 )}
@@ -273,15 +302,31 @@ export function UserDashboard() {
               {recentPurchases.length > 0 ? (
                 <div className="space-y-4">
                   {recentPurchases.map((purchase) => (
-                    <div key={purchase.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <h4 className="font-medium">{purchase.title}</h4>
-                        <p className="text-sm text-muted-foreground">oleh {purchase.author}</p>
+                    <div key={purchase.id} className="flex items-center gap-4 p-4 border rounded-lg">
+                      <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted">
+                        <img
+                          src={purchase.image_url || "/placeholder.svg"}
+                          alt={purchase.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
+                      <div className="flex-1">
+                        <h4 className="font-medium mb-1">{purchase.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-2">oleh {purchase.author}</p>
+                        <p className="font-semibold text-primary">{formatCurrency(purchase.price)}</p>
                         <p className="text-xs text-muted-foreground">{purchase.date}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatCurrency(purchase.price)}</p>
-                        <p className="text-xs text-green-600">Selesai</p>
+
+                      <div className="flex flex-col gap-2">
+                        <Button size="sm">
+                          <Download className="w-4 h-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button size="sm" variant="outline">
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Kirim Ulang
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -295,126 +340,6 @@ export function UserDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Seller Tab */}
-        {isSeller && (
-          <TabsContent value="seller" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Produk</CardTitle>
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{sellerStats.totalProducts}</div>
-                  <p className="text-xs text-muted-foreground">produk aktif</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Penjualan</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{sellerStats.totalSales}</div>
-                  <p className="text-xs text-muted-foreground">produk terjual</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Penghasilan</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrency(sellerStats.totalEarnings)}</div>
-                  <p className="text-xs text-muted-foreground">sepanjang masa</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Saldo Tertunda</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrency(sellerStats.pendingWithdrawal)}</div>
-                  <p className="text-xs text-muted-foreground">siap dicairkan</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Produk Terbaru</CardTitle>
-                  <Button asChild>
-                    <Link href="/seller/create-product">
-                      <Package className="w-4 h-4 mr-2" />
-                      Tambah Produk
-                    </Link>
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {recentProducts.length > 0 ? (
-                    <div className="space-y-4">
-                      {recentProducts.map((product) => (
-                        <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div>
-                            <h4 className="font-medium">{product.title}</h4>
-                            <p className="text-sm text-muted-foreground">{product.sales} terjual</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(product.earnings)}</p>
-                            <p className="text-xs text-green-600">Aktif</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">Belum ada produk</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Aksi Penjual</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <Button asChild className="w-full justify-start">
-                      <Link href="/seller/create-product">
-                        <Package className="w-4 h-4 mr-2" />
-                        Tambah Produk Baru
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="w-full justify-start bg-transparent">
-                      <Link href="/seller/products">
-                        <Package className="w-4 h-4 mr-2" />
-                        Kelola Produk
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="w-full justify-start bg-transparent">
-                      <Link href="/seller/analytics">
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Analytics
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="w-full justify-start bg-transparent">
-                      <Link href="/seller/withdrawals">
-                        <DollarSign className="w-4 h-4 mr-2" />
-                        Penarikan Dana
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   )

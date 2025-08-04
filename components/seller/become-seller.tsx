@@ -23,7 +23,7 @@ const benefits = [
   {
     icon: DollarSign,
     title: "Komisi Rendah",
-    description: "Hanya 5% komisi untuk setiap penjualan yang berhasil",
+    description: "Hanya 3% + Rp 5.000 komisi untuk setiap penjualan yang berhasil",
   },
   {
     icon: Users,
@@ -63,7 +63,7 @@ export function BecomeSeller() {
     experience: "",
     motivation: "",
   })
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -245,12 +245,14 @@ export function BecomeSeller() {
                         <SelectValue placeholder="Pilih kategori produk" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="grafis">Grafis</SelectItem>
                         <SelectItem value="ebook">E-book</SelectItem>
+                        <SelectItem value="akun">Akun</SelectItem>
+                        <SelectItem value="software">Software</SelectItem>
                         <SelectItem value="template">Template</SelectItem>
-                        <SelectItem value="music">Musik & Audio</SelectItem>
-                        <SelectItem value="software">Software & Tools</SelectItem>
-                        <SelectItem value="course">Kursus Online</SelectItem>
-                        <SelectItem value="document">Dokumen Bisnis</SelectItem>
+                        <SelectItem value="kursus">Kursus Online</SelectItem>
+                        <SelectItem value="video">Video</SelectItem>
+                        <SelectItem value="music">Musik</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -296,13 +298,18 @@ export function BecomeSeller() {
                     />
                   </div>
 
-                  {!user ? (
+                  {loading ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-muted-foreground">Memeriksa status login...</p>
+                    </div>
+                  ) : !user ? (
                     <div className="text-center py-4">
                       <p className="text-muted-foreground mb-4">
                         Silakan login terlebih dahulu untuk mendaftar sebagai penjual
                       </p>
                       <Button asChild>
-                        <Link href="/login?redirect=/seller/register">Login Sekarang</Link>
+                        <Link href="/login?next=/seller/register">Login Sekarang</Link>
                       </Button>
                     </div>
                   ) : (

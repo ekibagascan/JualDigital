@@ -8,11 +8,9 @@ export interface Withdrawal {
   bank_name: string
   account_number: string
   account_name: string
-  notes?: string
-  requested_at: string
+  rejection_reason?: string
   processed_at?: string
   created_at: string
-  updated_at: string
 }
 
 export interface CreateWithdrawalRequest {
@@ -21,13 +19,27 @@ export interface CreateWithdrawalRequest {
   bank_name: string
   account_number: string
   account_name: string
-  notes?: string
 }
 
 export class WithdrawalService {
+  // No commission on withdrawals - commission is charged on sales like Gumroad
+  calculateWithdrawalCommission(withdrawalAmount: number, totalEarnings: number): number {
+    return 0 // No withdrawal commission
+  }
+
+  // Calculate net withdrawal amount (no commission on withdrawals)
+  calculateNetWithdrawalAmount(withdrawalAmount: number, totalEarnings: number): number {
+    return withdrawalAmount // Full amount, no commission
+  }
+
+  // Calculate available balance (no commission deduction)
+  calculateAvailableBalance(totalEarnings: number): number {
+    return totalEarnings // Full amount available
+  }
+
   async createWithdrawal(withdrawalData: CreateWithdrawalRequest): Promise<Withdrawal> {
     try {
-      const { data: withdrawal, error } = await supabase
+      const { data: withdrawals, error } = await supabase
         .from('withdrawals')
         .insert({
           seller_id: withdrawalData.seller_id,
@@ -36,17 +48,19 @@ export class WithdrawalService {
           bank_name: withdrawalData.bank_name,
           account_number: withdrawalData.account_number,
           account_name: withdrawalData.account_name,
-          notes: withdrawalData.notes,
         })
         .select()
-        .single()
 
       if (error) {
         console.error('Create withdrawal error:', error)
         throw new Error('Failed to create withdrawal request')
       }
 
-      return withdrawal
+      if (!withdrawals || withdrawals.length === 0) {
+        throw new Error('Failed to create withdrawal request')
+      }
+
+      return withdrawals[0]
     } catch (error) {
       console.error('Withdrawal service error:', error)
       throw error
@@ -98,19 +112,18 @@ export class WithdrawalService {
     }
   }
 
-  async updateWithdrawalStatus(withdrawalId: string, status: string, notes?: string): Promise<void> {
+  async updateWithdrawalStatus(withdrawalId: string, status: string, rejectionReason?: string): Promise<void> {
     try {
-      const updateData: any = { 
-        status,
-        updated_at: new Date().toISOString()
+      const updateData: { status: string; processed_at?: string; rejection_reason?: string } = { 
+        status
       }
       
       if (status === 'approved' || status === 'rejected' || status === 'completed') {
         updateData.processed_at = new Date().toISOString()
       }
       
-      if (notes) {
-        updateData.notes = notes
+      if (rejectionReason) {
+        updateData.rejection_reason = rejectionReason
       }
 
       const { error } = await supabase
@@ -130,18 +143,21 @@ export class WithdrawalService {
 
   async getWithdrawal(withdrawalId: string): Promise<Withdrawal | null> {
     try {
-      const { data: withdrawal, error } = await supabase
+      const { data: withdrawals, error } = await supabase
         .from('withdrawals')
         .select('*')
         .eq('id', withdrawalId)
-        .single()
 
       if (error) {
         console.error('Get withdrawal error:', error)
         return null
       }
 
-      return withdrawal
+      if (!withdrawals || withdrawals.length === 0) {
+        return null
+      }
+
+      return withdrawals[0]
     } catch (error) {
       console.error('Get withdrawal error:', error)
       return null
@@ -162,21 +178,22 @@ export class WithdrawalService {
         return { total_earnings: 0, available_balance: 0 }
       }
 
-      // Get pending withdrawals
-      const { data: pendingWithdrawals, error: withdrawalError } = await supabase
+      // Get pending and approved withdrawals (both should be subtracted from available balance)
+      const { data: withdrawals, error: withdrawalError } = await supabase
         .from('withdrawals')
-        .select('amount')
+        .select('amount, status')
         .eq('seller_id', sellerId)
         .in('status', ['pending', 'approved'])
 
       if (withdrawalError) {
-        console.error('Get pending withdrawals error:', withdrawalError)
+        console.error('Get withdrawals error:', withdrawalError)
         return { total_earnings: profile.total_earnings || 0, available_balance: profile.total_earnings || 0 }
       }
 
-      const pendingAmount = pendingWithdrawals?.reduce((sum, w) => sum + w.amount, 0) || 0
+      const pendingAmount = withdrawals?.filter(w => w.status === 'pending').reduce((sum, w) => sum + w.amount, 0) || 0
+      const approvedAmount = withdrawals?.filter(w => w.status === 'approved').reduce((sum, w) => sum + w.amount, 0) || 0
       const totalEarnings = profile.total_earnings || 0
-      const availableBalance = totalEarnings - pendingAmount
+      const availableBalance = totalEarnings - pendingAmount - approvedAmount
 
       return {
         total_earnings: totalEarnings,

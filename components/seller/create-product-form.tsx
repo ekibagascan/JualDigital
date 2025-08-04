@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, ExternalLink, Save, X, Plus, Upload, Link2 } from "lucide-react"
+import { Eye, ExternalLink, Save, X, Plus, Upload, Link2, Sparkles, Wand2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
+import { supabase } from "@/lib/supabase-client"
 
 export function CreateProductForm() {
   const [formData, setFormData] = useState({
@@ -39,10 +40,64 @@ export function CreateProductForm() {
 
   const [newTag, setNewTag] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState("")
+  const [imagePreview, setImagePreview] = useState<string[]>([])
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
   const { user } = useAuth()
   const router = useRouter()
+
+  // AI Description Generator
+  const generateAIDescription = async (type: 'short' | 'long') => {
+    if (!formData.title) {
+      toast({
+        title: "Error",
+        description: "Please fill in the product title first",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsGeneratingAI(true)
+
+    try {
+      const prompt = type === 'short'
+        ? `Generate a short, compelling product description (max 150 characters) for: "${formData.title}"${formData.category ? ` in category "${formData.category}"` : ''}. Focus on key benefits and value proposition.`
+        : `Generate a detailed product description (max 500 characters) for: "${formData.title}"${formData.category ? ` in category "${formData.category}"` : ''}. Include features, benefits, target audience, and usage instructions.`
+
+      const response = await fetch('/api/ai/generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, type })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const generatedText = data.description
+
+        if (type === 'short') {
+          setFormData(prev => ({ ...prev, description: generatedText }))
+        } else {
+          setFormData(prev => ({ ...prev, longDescription: generatedText }))
+        }
+
+        toast({
+          title: "Success",
+          description: `AI generated ${type} description successfully`,
+        })
+      } else {
+        throw new Error('Failed to generate description')
+      }
+    } catch (error) {
+      console.error('[AI DESCRIPTION] Error:', error)
+      toast({
+        title: "Error",
+        description: "Failed to generate AI description. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingAI(false)
+    }
+  }
 
   const handleInputChange = (field: string, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -50,7 +105,57 @@ export function CreateProductForm() {
 
   const handleFileChange = (field: string, files: FileList | null) => {
     if (files) {
-      setFormData((prev) => ({ ...prev, [field]: Array.from(files) }))
+      // For images, append new files to existing ones
+      if (field === 'images') {
+        setFormData((prev) => {
+          const existingImages = prev.images || []
+          const newImages = Array.from(files)
+          const allImages = [...existingImages, ...newImages]
+
+          // Limit to 5 images maximum
+          if (allImages.length > 5) {
+            toast({
+              title: "Terlalu banyak gambar",
+              description: "Maksimal 5 gambar per produk",
+              variant: "destructive",
+            })
+            return prev
+          }
+
+          return { ...prev, [field]: allImages }
+        })
+
+        // Create image previews for all images (existing + new)
+        const fileArray = Array.from(files)
+
+        setFormData((prev) => {
+          const existingPreviews = imagePreview || []
+          const newPreviews: string[] = []
+          let loadedCount = 0
+
+          fileArray.forEach((file, index) => {
+            const reader = new FileReader()
+            reader.onload = (e) => {
+              if (e.target?.result) {
+                newPreviews[index] = e.target.result as string
+                loadedCount++
+
+                // Only update preview when all new files are loaded
+                if (loadedCount === fileArray.length) {
+                  const allPreviews = [...existingPreviews, ...newPreviews]
+                  setImagePreview(allPreviews)
+                }
+              }
+            }
+            reader.readAsDataURL(file)
+          })
+
+          return prev
+        })
+      } else {
+        // For other file fields, replace existing files
+        setFormData((prev) => ({ ...prev, [field]: Array.from(files) }))
+      }
     }
   }
 
@@ -73,7 +178,6 @@ export function CreateProductForm() {
 
   const testLivePreview = () => {
     if (formData.livePreview) {
-      setPreviewUrl(formData.livePreview)
       window.open(formData.livePreview, "_blank")
     }
   }
@@ -121,10 +225,21 @@ export function CreateProductForm() {
       return
     }
 
-    if (!formData.title || !formData.description || !formData.category || !formData.price) {
+    if (!formData.title || !formData.description || !formData.category) {
       toast({
         title: "Data tidak lengkap",
-        description: "Mohon lengkapi semua field yang diperlukan.",
+        description: "Mohon lengkapi judul, deskripsi, dan kategori produk.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check if at least one variant has price
+    const hasValidPrice = variants.some(v => v.name && v.price && parseFloat(v.price) > 0)
+    if (!hasValidPrice) {
+      toast({
+        title: "Harga tidak valid",
+        description: "Minimal satu varian dengan nama dan harga harus diisi.",
         variant: "destructive",
       })
       return
@@ -152,8 +267,126 @@ export function CreateProductForm() {
     setIsLoading(true)
 
     try {
-      // Mock API call to create product
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Prepare variants data
+      const variantsData = validVariants.map(variant => ({
+        name: variant.name,
+        price: parseFloat(variant.price),
+        description: variant.description,
+      }))
+
+      // Handle image uploads first if any
+      let imageUrl = null
+      let imageUrls: string[] = []
+
+      if (formData.images.length > 0) {
+        try {
+          // Upload all images
+          for (let i = 0; i < formData.images.length; i++) {
+            const image = formData.images[i]
+            const fileName = `${user.id}-${Date.now()}-${i}-${image.name}`
+            const { error } = await supabase.storage
+              .from('products')
+              .upload(fileName, image)
+
+            if (error) {
+              console.error('[CREATE PRODUCT] Image upload error:', error)
+            } else {
+              const { data: { publicUrl } } = supabase.storage
+                .from('products')
+                .getPublicUrl(fileName)
+              imageUrls.push(publicUrl)
+
+              // Use first image as main thumbnail
+              if (i === 0) {
+                imageUrl = publicUrl
+              }
+            }
+          }
+        } catch (uploadError) {
+          console.error('[CREATE PRODUCT] Image upload failed:', uploadError)
+        }
+      }
+
+      // Create product via API
+      const requestBody = {
+        title: formData.title,
+        description: formData.description,
+        longDescription: formData.longDescription,
+        category: formData.category,
+        price: validVariants[0]?.price || formData.price, // Use variant price as primary price
+        variants: variantsData,
+        sellerId: user.id, // Send seller ID for authentication
+        language: formData.language,
+        tags: formData.tags,
+        livePreview: formData.livePreview,
+        license: formData.license,
+        format: formData.format,
+        deliveryMethod: formData.deliveryMethod,
+        productLinks: formData.productLinks,
+        downloadLimit: -1, // Set to infinite
+        imageUrl: imageUrl, // Include the uploaded image URL
+        imageUrls: imageUrls, // Include all uploaded image URLs
+      }
+
+      console.log('[CREATE PRODUCT] Sending request body:', requestBody)
+
+      const response = await fetch('/api/seller/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create product')
+      }
+
+      const result = await response.json()
+      const productId = result.product?.id
+
+      // Handle file uploads if any
+      if (formData.files.length > 0) {
+        // TODO: Implement file upload to Supabase Storage
+        console.log('[CREATE PRODUCT] File upload not implemented yet')
+      }
+
+      // Handle image uploads if any
+      if (formData.images.length > 0) {
+        try {
+          const imageUrls: string[] = []
+
+          for (const image of formData.images) {
+            const fileName = `${user.id}-${Date.now()}-${image.name}`
+            const { error } = await supabase.storage
+              .from('products')
+              .upload(fileName, image)
+
+            if (error) {
+              console.error('[CREATE PRODUCT] Image upload error:', error)
+              continue
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('products')
+              .getPublicUrl(fileName)
+
+            imageUrls.push(publicUrl)
+          }
+
+          // Update product with image URLs
+          if (imageUrls.length > 0) {
+            await fetch(`/api/seller/products/${productId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image_url: imageUrls[0] })
+            })
+          }
+        } catch (uploadError) {
+          console.error('[CREATE PRODUCT] Image upload failed:', uploadError)
+        }
+      }
 
       toast({
         title: "Produk berhasil ditambahkan!",
@@ -162,9 +395,10 @@ export function CreateProductForm() {
 
       router.push("/seller/products")
     } catch (error) {
+      console.error('[CREATE PRODUCT] Error:', error)
       toast({
         title: "Gagal menambah produk",
-        description: "Terjadi kesalahan. Silakan coba lagi.",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan. Silakan coba lagi.",
         variant: "destructive",
       })
     } finally {
@@ -221,6 +455,20 @@ export function CreateProductForm() {
               rows={3}
               required
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              💡 Tip: Isi judul produk terlebih dahulu, lalu gunakan tombol AI untuk generate deskripsi otomatis
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => generateAIDescription('short')}
+              disabled={isGeneratingAI}
+              className="mt-2 flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              {isGeneratingAI ? "Membuat..." : "✨ Auto-generate"}
+            </Button>
           </div>
 
           <div>
@@ -232,6 +480,20 @@ export function CreateProductForm() {
               placeholder="Deskripsi detail tentang produk, fitur, dan manfaat yang didapat..."
               rows={6}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              💡 Tip: Gunakan AI untuk generate deskripsi lengkap yang profesional dan menarik
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => generateAIDescription('long')}
+              disabled={isGeneratingAI}
+              className="mt-2 flex items-center gap-2"
+            >
+              <Wand2 className="w-4 h-4" />
+              {isGeneratingAI ? "Membuat..." : "🪄 Auto-generate"}
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -242,12 +504,14 @@ export function CreateProductForm() {
                   <SelectValue placeholder="Pilih kategori" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="grafis">Grafis</SelectItem>
                   <SelectItem value="ebook">E-book</SelectItem>
+                  <SelectItem value="akun">Akun</SelectItem>
+                  <SelectItem value="software">Software</SelectItem>
                   <SelectItem value="template">Template</SelectItem>
-                  <SelectItem value="music">Musik & Audio</SelectItem>
-                  <SelectItem value="software">Software & Tools</SelectItem>
-                  <SelectItem value="course">Kursus Online</SelectItem>
-                  <SelectItem value="document">Dokumen Bisnis</SelectItem>
+                  <SelectItem value="kursus">Kursus Online</SelectItem>
+                  <SelectItem value="video">Video</SelectItem>
+                  <SelectItem value="music">Musik</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -326,7 +590,7 @@ export function CreateProductForm() {
               </div>
 
               <div>
-                <Label htmlFor={`variant-description-${variant.id}`}>Deskripsi Varian</Label>
+                <Label htmlFor={`variant-description-${variant.id}`}>Deskripsi Varian (opsional)</Label>
                 <Textarea
                   id={`variant-description-${variant.id}`}
                   value={variant.description}
@@ -424,37 +688,26 @@ export function CreateProductForm() {
               </div>
 
               {formData.productLinks.map((link, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 border rounded">
-                  <div>
-                    <Label htmlFor={`link-name-${index}`}>Nama File</Label>
+                <div key={index} className="flex gap-2 p-3 border rounded">
+                  <div className="flex-1">
+                    <Label htmlFor={`link-url-${index}`}>URL Download</Label>
                     <Input
-                      id={`link-name-${index}`}
-                      value={link.name}
-                      onChange={(e) => updateProductLink(index, "name", e.target.value)}
-                      placeholder="Contoh: E-book PDF, Bonus Template"
+                      id={`link-url-${index}`}
+                      type="url"
+                      value={link.url}
+                      onChange={(e) => updateProductLink(index, "url", e.target.value)}
+                      placeholder="https://drive.google.com/..."
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Label htmlFor={`link-url-${index}`}>URL Download</Label>
-                      <Input
-                        id={`link-url-${index}`}
-                        type="url"
-                        value={link.url}
-                        onChange={(e) => updateProductLink(index, "url", e.target.value)}
-                        placeholder="https://drive.google.com/..."
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeProductLink(index)}
-                      className="mt-6 text-destructive hover:text-destructive"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeProductLink(index)}
+                    className="mt-6 text-destructive hover:text-destructive"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
 
@@ -498,6 +751,41 @@ export function CreateProductForm() {
             />
             <p className="text-xs text-muted-foreground mt-1">Upload 1-5 gambar (JPG, PNG - Max 5MB per file)</p>
           </div>
+
+          {/* Image Preview */}
+          {imagePreview.length > 0 && (
+            <div className="mt-4">
+              <Label>Preview Gambar:</Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
+                {imagePreview.map((preview, index) => (
+                  <div key={index} className="relative group">
+                    <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-gray-50">
+                      <img
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2 h-6 w-6 p-0 bg-red-500 hover:bg-red-600 text-white shadow-lg"
+                        onClick={() => {
+                          setImagePreview(imagePreview.filter((_, i) => i !== index))
+                          setFormData(prev => ({
+                            ...prev,
+                            images: prev.images.filter((_, i) => i !== index)
+                          }))
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

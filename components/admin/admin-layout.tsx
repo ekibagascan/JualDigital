@@ -17,6 +17,7 @@ import {
   X,
   MessageSquare,
   Megaphone,
+  ShoppingCart,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Pengguna", href: "/admin/users", icon: Users },
   { name: "Produk", href: "/admin/products", icon: Package },
+  { name: "Pesanan", href: "/admin/orders", icon: ShoppingCart },
   { name: "Pembayaran", href: "/admin/payments", icon: CreditCard },
   { name: "Penarikan", href: "/admin/withdrawals", icon: Wallet },
   { name: "Pesan", href: "/admin/messages", icon: MessageSquare },
@@ -38,19 +40,32 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    const adminAuth = localStorage.getItem("adminAuth")
-    if (!adminAuth) {
-      router.push("/admin/login")
-    }
+    // Check if admin is authenticated via cookie (handled by middleware)
+    // No need to check localStorage anymore as middleware handles protection
   }, [router])
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminAuth")
-    toast({
-      title: "Logout berhasil",
-      description: "Anda telah keluar dari admin panel.",
-    })
-    router.push("/admin/login")
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/admin/auth', {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Logout berhasil",
+          description: "Anda telah keluar dari admin panel.",
+        })
+        router.push("/admin/login")
+      } else {
+        throw new Error('Logout failed')
+      }
+    } catch {
+      toast({
+        title: "Logout gagal",
+        description: "Terjadi kesalahan saat logout.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (

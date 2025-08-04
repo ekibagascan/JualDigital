@@ -2,10 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 export async function GET(request: NextRequest) {
+  console.log('[DASHBOARD API] ===== API CALLED =====')
+  console.log('[DASHBOARD API] All headers:', Object.fromEntries(request.headers.entries()))
+  console.log('[DASHBOARD API] URL:', request.url)
+  console.log('[DASHBOARD API] Search params:', request.nextUrl.searchParams.toString())
+  
   try {
+    console.log('[DASHBOARD API] Starting request')
+    
+    // Get user ID from request headers (set by middleware)
+    const userId = request.headers.get('x-user-id')
+    console.log('[DASHBOARD API] User ID from headers:', userId)
+    
+    if (!userId) {
+      console.log('[DASHBOARD API] No user ID in headers')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
         cookies: {
           getAll: () => request.cookies.getAll(),
@@ -13,16 +29,11 @@ export async function GET(request: NextRequest) {
         },
       }
     )
-    // Get user from session/cookies
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const userId = user.id
-
+    
+    console.log('[DASHBOARD API] Supabase client created')
     console.log('[DASHBOARD API] Fetching stats for user:', userId)
 
-    // Get user stats
+    // Get user stats - orders for this specific user
     const { data: orders, error: ordersError } = await supabase
       .from('orders')
       .select('total_amount, status')
@@ -34,22 +45,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch user stats' }, { status: 500 })
     }
 
+    console.log('[DASHBOARD API] Orders for user', userId, ':', orders)
     const totalPurchases = orders?.length || 0
     const totalSpent = orders?.reduce((sum: number, order: { total_amount: number }) => sum + order.total_amount, 0) || 0
+    console.log('[DASHBOARD API] Total purchases:', totalPurchases, 'Total spent:', totalSpent)
 
-    // Get wishlist items
-    const { data: wishlistItems } = await supabase
+    // Get wishlist items for this specific user
+    const { data: wishlistItems, error: wishlistError } = await supabase
       .from('wishlist')
       .select('id')
       .eq('user_id', userId)
 
-    const wishlistCount = wishlistItems?.length || 0
+    if (wishlistError) {
+      console.error('Error fetching wishlist:', wishlistError)
+    }
 
-    // Get downloaded items
-    const { data: downloads } = await supabase
+    const wishlistCount = wishlistItems?.length || 0
+    console.log('[DASHBOARD API] Wishlist items for user', userId, ':', wishlistItems)
+    console.log('[DASHBOARD API] Wishlist count:', wishlistCount)
+
+    // Get downloaded items for this specific user
+    const { data: downloads, error: downloadsError } = await supabase
       .from('downloads')
       .select('id')
       .eq('user_id', userId)
+
+    if (downloadsError) {
+      console.error('Error fetching downloads:', downloadsError)
+    }
 
     const downloadedCount = downloads?.length || 0
 
@@ -60,7 +83,7 @@ export async function GET(request: NextRequest) {
       downloadedItems: downloadedCount,
     }
 
-    // Get seller stats
+    // Get seller stats for this specific user
     const { data: products, error: productsError } = await supabase
       .from('products')
       .select('id, price')
@@ -69,12 +92,11 @@ export async function GET(request: NextRequest) {
 
     if (productsError) {
       console.error('Error fetching products:', productsError)
-      return NextResponse.json({ error: 'Failed to fetch seller stats' }, { status: 500 })
     }
 
     const totalProducts = products?.length || 0
 
-    // Get total sales and earnings from order_items
+    // Get total sales and earnings from order_items for this specific seller
     const { data: orderItems, error: orderItemsError } = await supabase
       .from('order_items')
       .select('price, quantity, seller_earnings, orders!inner(status)')
@@ -83,18 +105,21 @@ export async function GET(request: NextRequest) {
 
     if (orderItemsError) {
       console.error('Error fetching order items:', orderItemsError)
-      return NextResponse.json({ error: 'Failed to fetch seller stats' }, { status: 500 })
     }
 
     const totalSales = orderItems?.length || 0
     const totalEarnings = orderItems?.reduce((sum: number, item: { seller_earnings: number }) => sum + (item.seller_earnings || 0), 0) || 0
 
-    // Get pending withdrawals
-    const { data: withdrawals } = await supabase
+    // Get pending withdrawals for this specific seller
+    const { data: withdrawals, error: withdrawalsError } = await supabase
       .from('withdrawals')
       .select('amount')
       .eq('seller_id', userId)
       .in('status', ['pending', 'approved'])
+
+    if (withdrawalsError) {
+      console.error('Error fetching withdrawals:', withdrawalsError)
+    }
 
     const pendingWithdrawal = withdrawals?.reduce((sum: number, w: { amount: number }) => sum + w.amount, 0) || 0
 
@@ -105,7 +130,7 @@ export async function GET(request: NextRequest) {
       pendingWithdrawal,
     }
 
-    // Get recent purchases
+    // Get recent purchases for this specific user
     const { data: recentOrderItems, error: recentError } = await supabase
       .from('order_items')
       .select(`
@@ -167,15 +192,14 @@ export async function GET(request: NextRequest) {
       }
     }) || []
 
-    // Get recent products
+    // Get recent products for this specific seller
     const { data: recentProducts, error: productsRecentError } = await supabase
       .from('products')
       .select(`
         id,
         title,
         price,
-        total_sales,
-        seller_earnings
+        total_sales
       `)
       .eq('seller_id', userId)
       .eq('status', 'active')
@@ -186,22 +210,37 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching recent products:', productsRecentError)
     }
 
-    const recentProductsList = recentProducts?.map((product: { id: string, title: string, price: number, total_sales?: number, seller_earnings?: number }) => ({
+    const recentProductsList = recentProducts?.map((product: { id: string, title: string, price: number, total_sales?: number }) => ({
       id: product.id,
       title: product.title,
       price: product.price,
       sales: product.total_sales || 0,
-      earnings: product.seller_earnings || 0,
+      earnings: 0, // Calculate earnings from order_items if needed
       status: 'active',
     })) || []
 
-    return NextResponse.json({
+    const result = {
       success: true,
+      timestamp: Date.now(),
       userStats,
       sellerStats,
       recentPurchases,
       recentProducts: recentProductsList,
+    }
+    
+    console.log('[DASHBOARD API] Final result for user', userId, ':', result)
+    
+    // Return response with cache control headers to prevent caching
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store',
+        'X-Timestamp': Date.now().toString(),
+      },
     })
+    
   } catch (error) {
     console.error('[DASHBOARD API] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
