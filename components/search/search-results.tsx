@@ -107,7 +107,7 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
               Coba gunakan kata kunci yang berbeda atau jelajahi kategori lain
             </p>
             <Button asChild>
-              <a href="/categories">Jelajahi Semua Kategori</a>
+              <a href="/produk">Jelajahi Semua Kategori</a>
             </Button>
           </div>
         ) : (

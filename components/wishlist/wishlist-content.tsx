@@ -183,7 +183,7 @@ export function WishlistContent() {
                             Anda belum menambahkan produk ke wishlist
                         </p>
                         <Button asChild>
-                            <Link href="/categories">
+                            <Link href="/produk">
                                 Jelajahi Produk
                             </Link>
                         </Button>

@@ -243,7 +243,7 @@ export function UserDashboard() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Button asChild className="h-auto p-4 flex-col">
-                  <Link href="/categories">
+                  <Link href="/produk">
                     <ShoppingCart className="w-6 h-6 mb-2" />
                     Jelajahi Produk
                   </Link>

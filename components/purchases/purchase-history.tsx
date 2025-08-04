@@ -175,7 +175,7 @@ export function PurchaseHistory() {
               <h3 className="text-xl font-semibold mb-2">Belum ada pembelian</h3>
               <p className="text-muted-foreground mb-6">Mulai jelajahi produk digital yang menarik</p>
               <Button asChild>
-                <Link href="/categories">Jelajahi Produk</Link>
+                <Link href="/produk">Jelajahi Produk</Link>
               </Button>
             </div>
           ) : (

@@ -70,7 +70,7 @@ export function AdminSettings() {
       title: "Promo Akhir Tahun",
       description: "Diskon hingga 50% untuk semua produk digital",
       image: "/placeholder.svg?height=200&width=800&text=Banner+1",
-      link: "/categories",
+      link: "/produk",
       active: true,
     },
   ])
@@ -315,7 +315,7 @@ export function AdminSettings() {
                       <Input
                         value={banner.link}
                         onChange={(e) => updateBanner(banner.id, "link", e.target.value)}
-                        placeholder="/categories"
+                        placeholder="/produk"
                       />
                     </div>
                   </div>

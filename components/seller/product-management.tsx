@@ -110,12 +110,46 @@ export function ProductManagement() {
     )
   }
 
-  const handleToggleStatus = (productId: string, currentStatus: string) => {
+  const handleToggleStatus = async (productId: string, currentStatus: string) => {
+    if (!user?.id) return
+
     const newStatus = currentStatus === "active" ? "inactive" : "active"
-    toast({
-      title: "Status produk diubah",
-      description: `Produk berhasil diubah menjadi ${newStatus === "active" ? "aktif" : "tidak aktif"}.`,
-    })
+
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update({ status: newStatus })
+        .eq("id", productId)
+        .eq("seller_id", user.id)
+
+      if (error) {
+        toast({
+          title: "Gagal mengubah status produk",
+          description: error.message,
+          variant: "destructive"
+        })
+      } else {
+        // Update the local state
+        setProducts((prev) =>
+          prev.map((product) =>
+            product.id === productId
+              ? { ...product, status: newStatus }
+              : product
+          )
+        )
+
+        toast({
+          title: "Status produk diubah",
+          description: `Produk berhasil diubah menjadi ${newStatus === "active" ? "aktif" : "tidak aktif"}.`,
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Gagal mengubah status produk",
+        description: "Terjadi kesalahan saat mengubah status produk.",
+        variant: "destructive"
+      })
+    }
   }
 
   return (
