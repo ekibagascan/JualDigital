@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sendSellerApplicationConfirmation } from '@/lib/email-service'
-
-import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { sendSellerApplicationConfirmation } from '@/lib/email-service'
 
