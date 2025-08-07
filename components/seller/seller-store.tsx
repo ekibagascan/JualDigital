@@ -89,7 +89,6 @@ export function SellerStore() {
         </Button>
       </div>
     )
-    )
   }
 
   const isSeller = user.role === "author" || user.role === "admin"
@@ -141,7 +140,7 @@ export function SellerStore() {
               <User className="w-16 h-16" />
             </div>
             <div className="text-center md:text-left flex-1">
-              <h1 className="text-4xl font-bold mb-2">{user.name}</h1>
+              <h1 className="text-4xl font-bold mb-2">{user.user_metadata?.name || user.email}</h1>
               <p className="text-xl opacity-90 mb-4">Penjual Digital Terpercaya</p>
               <div className="flex flex-wrap justify-center md:justify-start gap-6 text-sm">
                 <div className="flex items-center gap-2">

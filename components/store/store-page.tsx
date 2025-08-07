@@ -393,88 +393,88 @@ export function StorePage({ sellerId }: StorePageProps) {
                                             <SelectItem value="name">Nama A-Z</SelectItem>
                                         </SelectContent>
                                     </Select>
-                            </div>
-                        </CardContent>
-                    </Card>
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                    {/* Products Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
-                        {sortedProducts.map((product) => (
-                            <ProductCard
-                                key={product.id}
-                                product={transformProduct(product)}
-                                sellerName={seller?.business_name || seller?.name || "Seller"}
-                            />
-                        ))}
-                    </div>
-
-                    {sortedProducts.length === 0 && (
-                        <div className="text-center py-16">
-                            <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                            <h3 className="text-xl font-semibold mb-2">Tidak ada produk ditemukan</h3>
-                            <p className="text-muted-foreground mb-6">
-                                {searchQuery || categoryFilter !== "all"
-                                    ? "Coba ubah filter pencarian Anda"
-                                    : "Toko ini belum memiliki produk"}
-                            </p>
+                        {/* Products Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+                            {sortedProducts.map((product) => (
+                                <ProductCard
+                                    key={product.id}
+                                    product={transformProduct(product)}
+                                    sellerName={seller?.business_name || seller?.name || "Seller"}
+                                />
+                            ))}
                         </div>
-                    )}
-                </TabsContent>
 
-                {/* Reviews Tab */}
-                <TabsContent value="reviews" className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Ulasan Pelanggan</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {reviews.length > 0 ? (
-                                <div className="space-y-6">
-                                    {reviews.map((review) => (
-                                        <div key={review.id} className="border-b pb-4 last:border-b-0">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                                                    <User className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className="font-medium">{review.user_name}</span>
-                                                        <div className="flex items-center">
-                                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                                <Star
-                                                                    key={star}
-                                                                    className={`w-4 h-4 ${star <= review.rating
-                                                                        ? "fill-yellow-400 text-yellow-400"
-                                                                        : "text-gray-300"
-                                                                        }`}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                        <span className="text-sm text-muted-foreground">
-                                                            {new Date(review.created_at).toLocaleDateString('id-ID')}
-                                                        </span>
+                        {sortedProducts.length === 0 && (
+                            <div className="text-center py-16">
+                                <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">Tidak ada produk ditemukan</h3>
+                                <p className="text-muted-foreground mb-6">
+                                    {searchQuery || categoryFilter !== "all"
+                                        ? "Coba ubah filter pencarian Anda"
+                                        : "Toko ini belum memiliki produk"}
+                                </p>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    {/* Reviews Tab */}
+                    <TabsContent value="reviews" className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Ulasan Pelanggan</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {reviews.length > 0 ? (
+                                    <div className="space-y-6">
+                                        {reviews.map((review) => (
+                                            <div key={review.id} className="border-b pb-4 last:border-b-0">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                                                        <User className="w-5 h-5" />
                                                     </div>
-                                                    <p className="text-sm text-muted-foreground mb-2">{review.product_title}</p>
-                                                    <p className="text-sm">{review.comment}</p>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="font-medium">{review.user_name}</span>
+                                                            <div className="flex items-center">
+                                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                                    <Star
+                                                                        key={star}
+                                                                        className={`w-4 h-4 ${star <= review.rating
+                                                                            ? "fill-yellow-400 text-yellow-400"
+                                                                            : "text-gray-300"
+                                                                            }`}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                            <span className="text-sm text-muted-foreground">
+                                                                {new Date(review.created_at).toLocaleDateString('id-ID')}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground mb-2">{review.product_title}</p>
+                                                        <p className="text-sm">{review.comment}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <Star className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                                    <h3 className="text-lg font-semibold mb-2">Belum ada ulasan</h3>
-                                    <p className="text-muted-foreground">Jadilah yang pertama memberikan ulasan untuk produk dari toko ini.</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <Star className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                                        <h3 className="text-lg font-semibold mb-2">Belum ada ulasan</h3>
+                                        <p className="text-muted-foreground">Jadilah yang pertama memberikan ulasan untuk produk dari toko ini.</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
 
-            </Tabs>
-        </div>
+                </Tabs>
+            </div>
         </div >
     )
 } 
