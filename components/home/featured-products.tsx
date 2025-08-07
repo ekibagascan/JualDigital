@@ -19,6 +19,7 @@ const transformProduct = (product: Product) => ({
   sales: product.total_sales || 0,
   category: product.category,
   livePreview: product.live_preview,
+  seller_id: product.seller_id,
 })
 
 export function FeaturedProducts() {
@@ -53,7 +54,7 @@ export function FeaturedProducts() {
               Produk digital terpopuler dan berkualitas tinggi dari kreator terbaik
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-12">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="bg-muted h-48 rounded-lg mb-4"></div>
