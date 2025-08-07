@@ -5,7 +5,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-16">
+      <main className="container mx-auto px-2 sm:px-4 py-16">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold mb-8">Kebijakan Privasi</h1>
 

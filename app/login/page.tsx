@@ -7,7 +7,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-16">
+      <main className="container mx-auto px-2 sm:px-4 py-16">
         <Suspense fallback={<div>Loading...</div>}>
           <LoginForm />
         </Suspense>

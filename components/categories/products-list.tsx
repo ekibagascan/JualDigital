@@ -63,10 +63,12 @@ export function ProductsList({ category }: ProductsListProps) {
           price_max?: number
           categories?: string[]
           min_rating?: number
+          sort?: string
         } = {
           category,
           limit: itemsPerPage,
           offset: (currentPage - 1) * itemsPerPage,
+          sort,
         }
 
         // Add price filters
@@ -133,10 +135,12 @@ export function ProductsList({ category }: ProductsListProps) {
             price_max?: number
             categories?: string[]
             min_rating?: number
+            sort?: string
           } = {
             category,
             limit: itemsPerPage,
             offset: (currentPage - 1) * itemsPerPage,
+            sort,
           }
 
           // Add price filters
@@ -176,6 +180,13 @@ export function ProductsList({ category }: ProductsListProps) {
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSortChange = (newSort: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('sort', newSort)
+    window.history.pushState(null, '', `${window.location.pathname}?${params.toString()}`)
+    setSortBy(newSort)
   }
 
   const generatePageNumbers = () => {
@@ -223,15 +234,14 @@ export function ProductsList({ category }: ProductsListProps) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
-            Menampilkan {products.length} dari {totalProducts} produk
+            Menampilkan {products.length} produk
             {category && ` dalam kategori ${category}`}
-            {totalPages > 1 && ` (Halaman ${currentPage} dari ${totalPages})`}
           </p>
         </div>
 
         <div className="flex items-center gap-4">
           {/* Sort */}
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select value={sortBy} onValueChange={handleSortChange}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Urutkan berdasarkan" />
             </SelectTrigger>

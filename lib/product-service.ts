@@ -55,6 +55,7 @@ export class ProductService {
     price_max?: number
     categories?: string[]
     min_rating?: number
+    sort?: string
   }): Promise<Product[]> {
     try {
       let query = supabase
@@ -95,7 +96,31 @@ export class ProductService {
         query = query.range(options.offset, options.offset + (options.limit || 10) - 1)
       }
 
-      const { data: products, error } = await query.order('created_at', { ascending: false })
+      // Apply sorting
+      if (options?.sort) {
+        switch (options.sort) {
+          case 'newest':
+            query = query.order('created_at', { ascending: false })
+            break
+          case 'price-low':
+            query = query.order('price', { ascending: true })
+            break
+          case 'price-high':
+            query = query.order('price', { ascending: false })
+            break
+          case 'rating':
+            query = query.order('rating', { ascending: false })
+            break
+          case 'popular':
+          default:
+            query = query.order('total_sales', { ascending: false })
+            break
+        }
+      } else {
+        query = query.order('created_at', { ascending: false })
+      }
+
+      const { data: products, error } = await query
 
       if (error) {
         console.error('Error fetching products:', error)

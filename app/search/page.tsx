@@ -61,7 +61,7 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-4">
             Hasil Pencarian: "{query}"

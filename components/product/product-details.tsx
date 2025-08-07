@@ -270,7 +270,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-8">
+    <div className="grid lg:grid-cols-2 gap-4 lg:gap-8">
       {/* Product Images */}
       <div className="space-y-4">
         <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted">
@@ -471,7 +471,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
       </div>
 
       {/* Product Description Tabs */}
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 mt-8 lg:mt-0">
         <Tabs defaultValue="description" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="description">Deskripsi</TabsTrigger>
