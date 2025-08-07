@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency } from "@/lib/utils"
 import { supabase } from "@/lib/supabase-client"
+import { ProductCard } from "@/components/product/product-card"
 
 interface StorePageProps {
     sellerId: string
@@ -114,6 +115,7 @@ export function StorePage({ sellerId }: StorePageProps) {
           rating,
           content,
           created_at,
+          user_id,
           products!inner(
             title,
             seller_id
@@ -126,14 +128,26 @@ export function StorePage({ sellerId }: StorePageProps) {
             if (reviewsError) {
                 console.error('Error loading reviews:', reviewsError)
             } else {
-                // Transform reviews data
-                const transformedReviews = (reviewsData || []).map((review: any) => ({
-                    id: review.id,
-                    rating: review.rating,
-                    comment: review.content,
-                    created_at: review.created_at,
-                    user_name: 'Anonymous', // You can add user names if you have them
-                    product_title: review.products?.title || 'Unknown Product'
+                // Transform reviews data and fetch user names
+                const transformedReviews = await Promise.all((reviewsData || []).map(async (review: any) => {
+                    let userName = 'Anonymous'
+                    if (review.user_id) {
+                        try {
+                            const { data: userData } = await supabase.auth.admin.getUserById(review.user_id)
+                            userName = userData?.user?.user_metadata?.name || userData?.user?.email || 'Anonymous'
+                        } catch (error) {
+                            console.error('Error fetching user data:', error)
+                        }
+                    }
+
+                    return {
+                        id: review.id,
+                        rating: review.rating,
+                        comment: review.content,
+                        created_at: review.created_at,
+                        user_name: userName,
+                        product_title: review.products?.title || 'Unknown Product'
+                    }
                 }))
                 setReviews(transformedReviews)
             }
@@ -169,6 +183,22 @@ export function StorePage({ sellerId }: StorePageProps) {
     })
 
     const categories = Array.from(new Set(products.map(p => p.category)))
+
+    // Transform store products to ProductCard format
+    const transformProduct = (product: Product) => ({
+        id: product.id,
+        title: product.title,
+        description: product.description,
+        price: product.price,
+        originalPrice: undefined,
+        image: product.image_url || "/placeholder.svg",
+        author: seller?.business_name || seller?.name || "Seller",
+        rating: product.rating || 0,
+        sales: product.sales || 0,
+        category: product.category,
+        livePreview: undefined,
+        seller_id: sellerId,
+    })
 
     // Function to truncate description
     const truncateDescription = (text: string, maxLength: number = 150) => {
@@ -363,125 +393,88 @@ export function StorePage({ sellerId }: StorePageProps) {
                                             <SelectItem value="name">Nama A-Z</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Products Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {sortedProducts.map((product) => (
-                                <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                                    <div className="aspect-video relative">
-                                        <img
-                                            src={product.image_url || "/placeholder.svg"}
-                                            alt={product.title}
-                                            className="w-full h-full object-cover"
-                                        />
-                                        <Badge className="absolute top-2 right-2 bg-green-500">
-                                            Aktif
-                                        </Badge>
-                                    </div>
-                                    <CardContent className="p-4">
-                                        <h3 className="font-semibold mb-2 line-clamp-2">{product.title}</h3>
-                                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                                            {product.description}
-                                        </p>
-
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                                                <span className="text-sm">{product.rating || 0}</span>
-                                                <span className="text-xs text-muted-foreground">({product.reviews || 0})</span>
-                                            </div>
-                                            <span className="text-sm text-muted-foreground">{product.sales || 0} terjual</span>
-                                        </div>
-
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="font-semibold text-primary">
-                                                    {formatCurrency(product.price)}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">{product.category}</p>
-                                            </div>
-                                            <Button asChild size="sm">
-                                                <Link href={`/product/${product.id}`}>
-                                                    <ShoppingCart className="w-4 h-4 mr-2" />
-                                                    Beli
-                                                </Link>
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-
-                        {sortedProducts.length === 0 && (
-                            <div className="text-center py-16">
-                                <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">Tidak ada produk ditemukan</h3>
-                                <p className="text-muted-foreground mb-6">
-                                    {searchQuery || categoryFilter !== "all"
-                                        ? "Coba ubah filter pencarian Anda"
-                                        : "Toko ini belum memiliki produk"}
-                                </p>
                             </div>
-                        )}
-                    </TabsContent>
+                        </CardContent>
+                    </Card>
 
-                    {/* Reviews Tab */}
-                    <TabsContent value="reviews" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Ulasan Pelanggan</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {reviews.length > 0 ? (
-                                    <div className="space-y-6">
-                                        {reviews.map((review) => (
-                                            <div key={review.id} className="border-b pb-4 last:border-b-0">
-                                                <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                                                        <User className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <span className="font-medium">{review.user_name}</span>
-                                                            <div className="flex items-center">
-                                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                                    <Star
-                                                                        key={star}
-                                                                        className={`w-4 h-4 ${star <= review.rating
-                                                                            ? "fill-yellow-400 text-yellow-400"
-                                                                            : "text-gray-300"
-                                                                            }`}
-                                                                    />
-                                                                ))}
-                                                            </div>
-                                                            <span className="text-sm text-muted-foreground">
-                                                                {new Date(review.created_at).toLocaleDateString('id-ID')}
-                                                            </span>
+                    {/* Products Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+                        {sortedProducts.map((product) => (
+                            <ProductCard
+                                key={product.id}
+                                product={transformProduct(product)}
+                                sellerName={seller?.business_name || seller?.name || "Seller"}
+                            />
+                        ))}
+                    </div>
+
+                    {sortedProducts.length === 0 && (
+                        <div className="text-center py-16">
+                            <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                            <h3 className="text-xl font-semibold mb-2">Tidak ada produk ditemukan</h3>
+                            <p className="text-muted-foreground mb-6">
+                                {searchQuery || categoryFilter !== "all"
+                                    ? "Coba ubah filter pencarian Anda"
+                                    : "Toko ini belum memiliki produk"}
+                            </p>
+                        </div>
+                    )}
+                </TabsContent>
+
+                {/* Reviews Tab */}
+                <TabsContent value="reviews" className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Ulasan Pelanggan</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {reviews.length > 0 ? (
+                                <div className="space-y-6">
+                                    {reviews.map((review) => (
+                                        <div key={review.id} className="border-b pb-4 last:border-b-0">
+                                            <div className="flex items-start gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                                                    <User className="w-5 h-5" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="font-medium">{review.user_name}</span>
+                                                        <div className="flex items-center">
+                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                <Star
+                                                                    key={star}
+                                                                    className={`w-4 h-4 ${star <= review.rating
+                                                                        ? "fill-yellow-400 text-yellow-400"
+                                                                        : "text-gray-300"
+                                                                        }`}
+                                                                />
+                                                            ))}
                                                         </div>
-                                                        <p className="text-sm text-muted-foreground mb-2">{review.product_title}</p>
-                                                        <p className="text-sm">{review.comment}</p>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {new Date(review.created_at).toLocaleDateString('id-ID')}
+                                                        </span>
                                                     </div>
+                                                    <p className="text-sm text-muted-foreground mb-2">{review.product_title}</p>
+                                                    <p className="text-sm">{review.comment}</p>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8">
-                                        <Star className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                                        <h3 className="text-lg font-semibold mb-2">Belum ada ulasan</h3>
-                                        <p className="text-muted-foreground">Jadilah yang pertama memberikan ulasan untuk produk dari toko ini.</p>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <Star className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                                    <h3 className="text-lg font-semibold mb-2">Belum ada ulasan</h3>
+                                    <p className="text-muted-foreground">Jadilah yang pertama memberikan ulasan untuk produk dari toko ini.</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
 
-                </Tabs>
-            </div>
+            </Tabs>
         </div>
+        </div >
     )
 } 

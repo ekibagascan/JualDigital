@@ -81,7 +81,7 @@ export function SellerStore() {
 
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
+      <div className="container mx-auto px-2 sm:px-4 py-16 text-center">
         <h2 className="text-2xl font-bold mb-4">Login Diperlukan</h2>
         <p className="text-muted-foreground mb-8">Silakan login untuk mengakses toko Anda</p>
         <Button asChild>
@@ -89,13 +89,14 @@ export function SellerStore() {
         </Button>
       </div>
     )
+    )
   }
 
   const isSeller = user.role === "author" || user.role === "admin"
 
   if (!isSeller) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
+      <div className="container mx-auto px-2 sm:px-4 py-16 text-center">
         <h2 className="text-2xl font-bold mb-4">Akses Terbatas</h2>
         <p className="text-muted-foreground mb-8">Anda perlu menjadi penjual untuk mengakses halaman ini</p>
         <Button asChild>
@@ -182,7 +183,7 @@ export function SellerStore() {
       </div>
 
       {/* Store Content */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-2 sm:px-4 py-8">
         <Tabs defaultValue="products" className="space-y-8">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="products">Produk ({mockStats.totalProducts})</TabsTrigger>
@@ -236,7 +237,7 @@ export function SellerStore() {
             </Card>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
               {sortedProducts.map((product) => (
                 <Card key={product.id} className="overflow-hidden">
                   <div className="aspect-video relative">
@@ -246,13 +247,12 @@ export function SellerStore() {
                       className="w-full h-full object-cover"
                     />
                     <Badge
-                      className={`absolute top-2 right-2 ${
-                        product.status === "active"
-                          ? "bg-green-500"
-                          : product.status === "draft"
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                      }`}
+                      className={`absolute top-2 right-2 ${product.status === "active"
+                        ? "bg-green-500"
+                        : product.status === "draft"
+                          ? "bg-yellow-500"
+                          : "bg-red-500"
+                        }`}
                     >
                       {product.status === "active" ? "Aktif" : product.status === "draft" ? "Draft" : "Tidak Aktif"}
                     </Badge>
