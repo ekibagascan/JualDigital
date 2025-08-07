@@ -162,22 +162,20 @@ export async function POST(req: NextRequest) {
               <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
                   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                       <div style="text-align: center; margin-bottom: 30px;">
-                          <div style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #1f2937 0%, #374151 100%); padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(31, 41, 55, 0.3);">
+                          <div style="display: inline-flex; align-items: center; gap: 12px;">
                               <div style="
-                                background: white;
-                                color: #1f2937;
+                                background: #1f2937;
+                                color: white;
                                 padding: 8px 12px;
-                                border-radius: 8px;
+                                border-radius: 6px;
                                 font-weight: bold;
-                                font-size: 18px;
-                                letter-spacing: 1px;
-                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                font-size: 16px;
+                                letter-spacing: 0.5px;
                               ">JD</div>
                               <span style="
                                 font-weight: bold;
-                                font-size: 22px;
-                                color: white;
-                                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                                font-size: 20px;
+                                color: #1f2937;
                               ">Jual Digital</span>
                           </div>
                       </div>
