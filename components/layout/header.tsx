@@ -87,7 +87,7 @@ export function Header() {
             <div className="h-8 w-8 rounded bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">JD</span>
             </div>
-            <span className="font-bold text-xl">Jual Digital</span>
+            <span className="font-bold text-lg sm:text-xl">Jual Digital</span>
           </Link>
 
           {/* Desktop Navigation */}
