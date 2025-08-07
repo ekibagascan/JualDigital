@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { createInvoice } from './xendit'
+import { WhatsAppService } from '@/lib/whatsapp-service'
 
 export interface OrderItem {
   product_id: string
@@ -42,9 +43,25 @@ export interface Order {
   updated_at: string
 }
 
-export class OrderService {
-  constructor(private supabase: SupabaseClient) {}
+interface OrderItemWithSeller {
+  order_id: string
+  product_id: string
+  seller_id: string
+  product_title: string
+  product_image?: string
+  price: number
+  quantity: number
+  seller_earnings: number
+}
 
+export class OrderService {
+  private supabase: SupabaseClient
+  private whatsappService: WhatsAppService
+
+  constructor(supabase: SupabaseClient) {
+    this.supabase = supabase
+    this.whatsappService = new WhatsAppService()
+  }
 
 
   async createOrder(orderData: CreateOrderRequest): Promise<{ order: Order; paymentUrl?: string }> {
@@ -144,6 +161,9 @@ export class OrderService {
         console.error('Order items creation error:', itemsError)
         throw new Error('Failed to create order items')
       }
+
+      // Send WhatsApp notifications to sellers
+      await this.sendSellerNotifications(order.id, orderItems, order.order_number, orderData)
 
       // 4. Create Xendit invoice (hosted checkout page)
       const invoiceItems = orderItems.map(item => ({
@@ -289,6 +309,50 @@ export class OrderService {
     } catch (error) {
       console.error('Get order items error:', error)
       return []
+    }
+  }
+
+  private async sendSellerNotifications(orderId: string, orderItems: OrderItemWithSeller[], orderNumber: string, orderData: CreateOrderRequest) {
+    try {
+      // Group items by seller to send one notification per seller
+      const sellerGroups = new Map<string, OrderItemWithSeller[]>()
+      
+      for (const item of orderItems) {
+        if (!sellerGroups.has(item.seller_id)) {
+          sellerGroups.set(item.seller_id, [])
+        }
+        sellerGroups.get(item.seller_id)!.push(item)
+      }
+
+      // Send notification to each seller
+      for (const [sellerId, items] of sellerGroups) {
+        const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+        const productTitles = items.map(item => item.product_title).join(', ')
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
+
+        // Get buyer name if available
+        let buyerName: string | undefined
+        if (orderData.user_id) {
+          try {
+            const { data: user } = await this.supabase.auth.admin.getUserById(orderData.user_id)
+            buyerName = user?.user?.user_metadata?.name || user?.user?.email
+          } catch (error) {
+            console.log('[WHATSAPP] Could not fetch buyer name:', error)
+          }
+        }
+
+        await this.whatsappService.sendOrderNotification(sellerId, {
+          orderNumber,
+          productTitle: productTitles,
+          amount: totalAmount,
+          buyerName,
+          quantity: totalQuantity,
+          note: orderData.note
+        })
+      }
+    } catch (error) {
+      console.error('[WHATSAPP] Error sending seller notifications:', error)
+      // Don't throw error to avoid breaking order creation
     }
   }
 } 
