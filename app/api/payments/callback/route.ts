@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { OrderService } from '@/lib/order-service'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendDownloadEmail } from '@/lib/email-service'
+import { WhatsAppService } from '@/lib/whatsapp-service'
 
 export async function POST(req: NextRequest) {
   try {
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
       // Fetch order and order items
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .select('id, order_number, user_id, guest_email, status')
+        .select('id, order_number, user_id, guest_email, status, note')
         .eq('id', external_id)
         .single()
       
@@ -120,10 +121,10 @@ export async function POST(req: NextRequest) {
               return `
                 <div style="margin: 20px 0; padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
                   <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px;">${product?.title || item.product_title}</h3>
-                  <a href="${link}" style="
+                  <a href="${link}" class="download-btn" style="
                     display: inline-block;
-                    background: white;
-                    color: black;
+                    background: black;
+                    color: white;
                     padding: 12px 24px;
                     text-decoration: none;
                     border-radius: 6px;
@@ -143,24 +144,40 @@ export async function POST(req: NextRequest) {
               <head>
                   <meta charset="utf-8">
                   <title>Link Download Pesanan</title>
+                  <style>
+                    @media (prefers-color-scheme: dark) {
+                      .download-btn {
+                        background: white !important;
+                        color: black !important;
+                      }
+                    }
+                    @media (prefers-color-scheme: light) {
+                      .download-btn {
+                        background: black !important;
+                        color: white !important;
+                      }
+                    }
+                  </style>
               </head>
               <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
                   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                       <div style="text-align: center; margin-bottom: 30px;">
-                          <div style="display: inline-flex; align-items: center; gap: 12px;">
+                          <div style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #1f2937 0%, #374151 100%); padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(31, 41, 55, 0.3);">
                               <div style="
-                                background: #1f2937;
-                                color: white;
+                                background: white;
+                                color: #1f2937;
                                 padding: 8px 12px;
-                                border-radius: 6px;
+                                border-radius: 8px;
                                 font-weight: bold;
-                                font-size: 16px;
-                                letter-spacing: 0.5px;
+                                font-size: 18px;
+                                letter-spacing: 1px;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                               ">JD</div>
                               <span style="
                                 font-weight: bold;
-                                font-size: 20px;
-                                color: #1f2937;
+                                font-size: 22px;
+                                color: white;
+                                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
                               ">Jual Digital</span>
                           </div>
                       </div>
@@ -213,8 +230,62 @@ export async function POST(req: NextRequest) {
       } else {
         console.log('[WEBHOOK] Order has no user_id (guest order) or error:', orderError)
       }
+
+      // Send WhatsApp notifications to sellers when payment is successful
+      console.log('[WEBHOOK] Sending WhatsApp notifications to sellers...')
+      const whatsappService = new WhatsAppService()
+      
+      // Fetch order items with seller information
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select('id, product_id, seller_id, product_title, price, quantity')
+        .eq('order_id', external_id)
+      
+      if (!itemsError && orderItems && orderItems.length > 0) {
+        // Group items by seller
+        const sellerGroups = new Map<string, typeof orderItems>()
+        
+        for (const item of orderItems) {
+          if (!sellerGroups.has(item.seller_id)) {
+            sellerGroups.set(item.seller_id, [])
+          }
+          sellerGroups.get(item.seller_id)!.push(item)
+        }
+
+        // Send notification to each seller
+        for (const [sellerId, items] of sellerGroups) {
+          const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+          const productTitles = items.map(item => item.product_title).join(', ')
+          const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
+
+          // Get buyer name if available
+          let buyerName: string | undefined
+          if (order?.user_id) {
+            try {
+              const { data: user } = await supabase.auth.admin.getUserById(order.user_id)
+              buyerName = user?.user?.user_metadata?.name || user?.user?.email
+            } catch (error) {
+              console.log('[WEBHOOK] Could not fetch buyer name:', error)
+            }
+          }
+
+          await whatsappService.sendOrderNotification(sellerId, {
+            orderNumber: order?.order_number || external_id,
+            productTitle: productTitles,
+            amount: totalAmount,
+            buyerName,
+            quantity: totalQuantity,
+            note: order?.note,
+            paymentStatus: 'paid'
+          })
+        }
+        
+        console.log('[WEBHOOK] WhatsApp notifications sent to sellers')
+      } else {
+        console.log('[WEBHOOK] No order items found for WhatsApp notifications:', itemsError)
+      }
     } else {
-      console.log('[WEBHOOK] Order is not paid, skipping email')
+      console.log('[WEBHOOK] Order is not paid, skipping email and WhatsApp notifications')
     }
 
     return NextResponse.json({ 

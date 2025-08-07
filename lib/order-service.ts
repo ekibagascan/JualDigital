@@ -162,8 +162,8 @@ export class OrderService {
         throw new Error('Failed to create order items')
       }
 
-      // Send WhatsApp notifications to sellers
-      await this.sendSellerNotifications(order.id, orderItems, order.order_number, orderData)
+      // WhatsApp notifications will be sent after payment is successful via webhook
+      // await this.sendSellerNotifications(order.id, orderItems, order.order_number, orderData)
 
       // 4. Create Xendit invoice (hosted checkout page)
       const invoiceItems = orderItems.map(item => ({
