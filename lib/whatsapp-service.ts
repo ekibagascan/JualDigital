@@ -44,6 +44,7 @@ export class WhatsAppService {
     buyerName?: string
     quantity: number
     note?: string
+    paymentStatus?: string
   }): Promise<boolean> {
     try {
       // Get seller's phone number from profiles table
@@ -110,16 +111,21 @@ export class WhatsAppService {
     buyerName?: string
     quantity: number
     note?: string
+    paymentStatus?: string
   }): string {
     const buyerInfo = data.buyerName ? `\nPembeli: ${data.buyerName}` : ''
     const quantityText = data.quantity > 1 ? ` (${data.quantity}x)` : ''
     const noteInfo = data.note ? `\n📝 Catatan: ${data.note}` : ''
+    const paymentStatus = data.paymentStatus ? `\n💳 Status Pembayaran: ${data.paymentStatus.toUpperCase()}` : ''
+    const dashboardLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/seller/orders`
     
     return `🛒 *PESANAN BARU!*
 
 📦 Produk: ${data.productTitle}${quantityText}
 💰 Total: Rp${data.amount.toLocaleString('id-ID')}
-📋 Order: #${data.orderNumber}${buyerInfo}${noteInfo}
+📋 Order: #${data.orderNumber}${buyerInfo}${noteInfo}${paymentStatus}
+
+📊 *Dashboard Seller:* ${dashboardLink}
 
 Silakan cek dashboard seller Anda untuk detail lengkap dan proses pesanan.
 

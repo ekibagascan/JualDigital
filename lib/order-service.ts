@@ -314,6 +314,18 @@ export class OrderService {
 
   private async sendSellerNotifications(orderId: string, orderItems: OrderItemWithSeller[], orderNumber: string, orderData: CreateOrderRequest) {
     try {
+      // Get order status
+      const { data: order, error: orderError } = await this.supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .single()
+
+      if (orderError) {
+        console.error('[WHATSAPP] Could not fetch order status:', orderError)
+        return
+      }
+
       // Group items by seller to send one notification per seller
       const sellerGroups = new Map<string, OrderItemWithSeller[]>()
       
@@ -347,7 +359,8 @@ export class OrderService {
           amount: totalAmount,
           buyerName,
           quantity: totalQuantity,
-          note: orderData.note
+          note: orderData.note,
+          paymentStatus: order?.status || 'pending'
         })
       }
     } catch (error) {

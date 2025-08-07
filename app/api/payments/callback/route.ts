@@ -107,8 +107,8 @@ export async function POST(req: NextRequest) {
           if (!itemsError && items && items.length > 0) {
             console.log('[WEBHOOK] Preparing to send email...')
             
-            // Compose download links
-            const downloadLinks = items.map(item => {
+            // Compose download links with styled buttons
+            const downloadButtons = items.map(item => {
               const product = Array.isArray(item.products) ? item.products[0] : item.products
               let link = ''
               if (product?.download_link) {
@@ -116,10 +116,78 @@ export async function POST(req: NextRequest) {
               } else if (product?.file_url) {
                 link = `${process.env.NEXT_PUBLIC_APP_URL}/api/download/${item.id}`
               }
-              return `<li><b>${product?.title || item.product_title}</b>: <a href="${link}">${link}</a></li>`
+              
+              return `
+                <div style="margin: 20px 0; padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                  <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px;">${product?.title || item.product_title}</h3>
+                  <a href="${link}" style="
+                    display: inline-block;
+                    background: white;
+                    color: black;
+                    padding: 12px 24px;
+                    text-decoration: none;
+                    border-radius: 6px;
+                    border: 2px solid #e5e7eb;
+                    font-weight: 600;
+                    font-size: 14px;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                  ">📥 Download Produk</a>
+                </div>
+              `
             }).join('')
             
-            const html = `<p>Terima kasih telah membeli produk digital di Jual Digital.</p><ul>${downloadLinks}</ul><p>Jika Anda mengalami masalah, silakan hubungi support kami.</p>`
+            const html = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                  <meta charset="utf-8">
+                  <title>Link Download Pesanan</title>
+              </head>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
+                  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                      <div style="text-align: center; margin-bottom: 30px;">
+                          <div style="display: inline-flex; align-items: center; gap: 12px;">
+                              <div style="
+                                background: #1f2937;
+                                color: white;
+                                padding: 8px 12px;
+                                border-radius: 6px;
+                                font-weight: bold;
+                                font-size: 16px;
+                                letter-spacing: 0.5px;
+                              ">JD</div>
+                              <span style="
+                                font-weight: bold;
+                                font-size: 20px;
+                                color: #1f2937;
+                              ">Jual Digital</span>
+                          </div>
+                      </div>
+                      
+                      <div style="background: #f8fafc; padding: 30px; border-radius: 8px; margin-bottom: 20px;">
+                          <h2 style="color: #059669; margin-top: 0;">✅ Pembayaran Berhasil!</h2>
+                          
+                          <p>Terima kasih telah membeli produk digital di Jual Digital.</p>
+                          <p><strong>Order #${order.order_number}</strong></p>
+                          
+                          <div style="margin: 30px 0;">
+                              <h3 style="color: #1f2937; margin-bottom: 20px;">Link Download Produk:</h3>
+                              ${downloadButtons}
+                          </div>
+                          
+                          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+                              Jika Anda mengalami masalah, silakan hubungi support kami.
+                          </p>
+                      </div>
+                      
+                      <div style="text-align: center; color: #6b7280; font-size: 12px;">
+                          <p>© 2025 Jual Digital. Semua hak dilindungi.</p>
+                      </div>
+                  </div>
+              </body>
+              </html>
+            `
             const text = `Terima kasih telah membeli produk digital di Jual Digital. Link download:\n${items.map(item => {
               const product = Array.isArray(item.products) ? item.products[0] : item.products
               return `${product?.title || item.product_title}: ${product?.download_link || product?.file_url ? process.env.NEXT_PUBLIC_APP_URL + '/api/download/' + item.id : ''}`
