@@ -136,8 +136,8 @@ export function ProductsFilter() {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="mx-0 sm:mx-0">
+      <CardHeader className="px-3 sm:px-6">
         <div className="flex items-center justify-between">
           <CardTitle>Filter</CardTitle>
           <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -145,7 +145,7 @@ export function ProductsFilter() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 px-3 sm:px-6">
         {/* Price Range */}
         <div>
           <Label className="text-sm font-medium mb-3 block">Rentang Harga</Label>

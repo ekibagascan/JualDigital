@@ -240,8 +240,8 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
         </div>
       </Link>
 
-      <CardContent className="p-4">
-        <div className="space-y-3">
+      <CardContent className="p-2 sm:p-4">
+        <div className="space-y-2 sm:space-y-3">
           <div>
             <Link href={`/product/${product.id}`} className="block">
               <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
@@ -287,13 +287,15 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
-            <Button size="sm" variant="outline" className="flex-1 bg-transparent" onClick={handleAddToCart}>
-              <ShoppingCart className="w-4 h-4 mr-1" />
-              Keranjang
+          <div className="flex gap-1 pt-2">
+            <Button size="sm" variant="outline" className="flex-1 bg-transparent text-xs px-2" onClick={handleAddToCart}>
+              <ShoppingCart className="w-3 h-3 mr-1" />
+              <span className="hidden sm:inline">Keranjang</span>
+              <span className="sm:hidden">Cart</span>
             </Button>
-            <Button size="sm" className="flex-1" onClick={handleBuyNow}>
-              Beli Sekarang
+            <Button size="sm" className="flex-1 text-xs px-2" onClick={handleBuyNow}>
+              <span className="hidden sm:inline">Beli Sekarang</span>
+              <span className="sm:hidden">Beli</span>
             </Button>
           </div>
         </div>

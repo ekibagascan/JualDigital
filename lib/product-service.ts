@@ -284,6 +284,60 @@ export class ProductService {
     }
   }
 
+  async getProductsCount(options?: {
+    category?: string
+    status?: string
+    search?: string
+    price_min?: number
+    price_max?: number
+    categories?: string[]
+    min_rating?: number
+  }): Promise<number> {
+    try {
+      let query = supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+
+      if (options?.category) {
+        query = query.eq('category', options.category)
+      }
+
+      if (options?.categories && options.categories.length > 0) {
+        query = query.in('category', options.categories)
+      }
+
+      if (options?.price_min) {
+        query = query.gte('price', options.price_min)
+      }
+
+      if (options?.price_max) {
+        query = query.lte('price', options.price_max)
+      }
+
+      if (options?.min_rating) {
+        query = query.gte('rating', options.min_rating)
+      }
+
+      if (options?.search) {
+        const searchTerm = options.search.toLowerCase()
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`)
+      }
+
+      const { count, error } = await query
+
+      if (error) {
+        console.error('Error getting products count:', error)
+        return 0
+      }
+
+      return count || 0
+    } catch (error) {
+      console.error('Error getting products count:', error)
+      return 0
+    }
+  }
+
   static async fetchSellerNames(sellerIds: string[]): Promise<Record<string, string>> {
     if (sellerIds.length === 0) return {}
     const { data: sellers, error } = await supabase

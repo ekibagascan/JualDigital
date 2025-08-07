@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Grid, List } from "lucide-react"
 import { ProductCard } from "@/components/product/product-card"
-import { productService, type Product, SellerProfile, ProductService } from "@/lib/product-service"
+import { productService, type Product, ProductService } from "@/lib/product-service"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -34,11 +34,16 @@ export function ProductsList({ category }: ProductsListProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [sellerNameMap, setSellerNameMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalProducts, setTotalProducts] = useState(0)
+  const itemsPerPage = 12
 
   useEffect(() => {
     const fetchProductsAndSellers = async () => {
       try {
         setLoading(true)
+        setCurrentPage(1) // Reset to first page when filters change
 
         // Get filter parameters from URL
         const price_min = searchParams.get("price_min")
@@ -50,9 +55,18 @@ export function ProductsList({ category }: ProductsListProps) {
         setSortBy(sort)
 
         // Build filter object
-        const filters: any = {
+        const filters: {
+          category?: string
+          limit?: number
+          offset?: number
+          price_min?: number
+          price_max?: number
+          categories?: string[]
+          min_rating?: number
+        } = {
           category,
-          limit: 50,
+          limit: itemsPerPage,
+          offset: (currentPage - 1) * itemsPerPage,
         }
 
         // Add price filters
@@ -75,6 +89,14 @@ export function ProductsList({ category }: ProductsListProps) {
         const fetchedProducts = await productService.getProducts(filters)
         setProducts(fetchedProducts)
 
+        // Get total count for pagination
+        const countFilters = { ...filters }
+        delete countFilters.limit
+        delete countFilters.offset
+        const totalCount = await productService.getProductsCount(countFilters)
+        setTotalProducts(totalCount)
+        setTotalPages(Math.ceil(totalCount / itemsPerPage))
+
         // Batch fetch sellers
         const uniqueSellerIds = Array.from(new Set(fetchedProducts.map(p => p.seller_id)))
         const sellerNames = await ProductService.fetchSellerNames(uniqueSellerIds)
@@ -87,6 +109,90 @@ export function ProductsList({ category }: ProductsListProps) {
     }
     fetchProductsAndSellers()
   }, [category, searchParams])
+
+  // Separate useEffect for pagination changes
+  useEffect(() => {
+    if (currentPage > 1) {
+      const fetchProductsAndSellers = async () => {
+        try {
+          setLoading(true)
+
+          // Get filter parameters from URL
+          const price_min = searchParams.get("price_min")
+          const price_max = searchParams.get("price_max")
+          const categories = searchParams.get("categories")
+          const ratings = searchParams.get("ratings")
+          const sort = searchParams.get("sort") || "popular"
+
+          // Build filter object
+          const filters: {
+            category?: string
+            limit?: number
+            offset?: number
+            price_min?: number
+            price_max?: number
+            categories?: string[]
+            min_rating?: number
+          } = {
+            category,
+            limit: itemsPerPage,
+            offset: (currentPage - 1) * itemsPerPage,
+          }
+
+          // Add price filters
+          if (price_min) filters.price_min = Number.parseInt(price_min)
+          if (price_max) filters.price_max = Number.parseInt(price_max)
+
+          // Add category filter
+          if (categories) {
+            const categoryList = categories.split(",")
+            filters.categories = categoryList
+          }
+
+          // Add rating filter
+          if (ratings) {
+            const ratingList = ratings.split(",")
+            const minRating = Math.min(...ratingList.map(r => Number.parseInt(r)))
+            filters.min_rating = minRating
+          }
+
+          const fetchedProducts = await productService.getProducts(filters)
+          setProducts(fetchedProducts)
+
+          // Batch fetch sellers
+          const uniqueSellerIds = Array.from(new Set(fetchedProducts.map(p => p.seller_id)))
+          const sellerNames = await ProductService.fetchSellerNames(uniqueSellerIds)
+          setSellerNameMap(sellerNames)
+        } catch (error) {
+          console.error('Error fetching products or sellers:', error)
+        } finally {
+          setLoading(false)
+        }
+      }
+      fetchProductsAndSellers()
+    }
+  }, [currentPage, category, searchParams])
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const generatePageNumbers = () => {
+    const pages = []
+    const maxVisiblePages = 5
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
+    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1)
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i)
+    }
+    return pages
+  }
 
   if (loading) {
     return (
@@ -117,8 +223,9 @@ export function ProductsList({ category }: ProductsListProps) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
-            Menampilkan {products.length} produk
+            Menampilkan {products.length} dari {totalProducts} produk
             {category && ` dalam kategori ${category}`}
+            {totalPages > 1 && ` (Halaman ${currentPage} dari ${totalPages})`}
           </p>
         </div>
 
@@ -169,7 +276,7 @@ export function ProductsList({ category }: ProductsListProps) {
           </Button>
         </div>
       ) : (
-        <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6" : "space-y-4"}>
+        <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6" : "space-y-4"}>
           {products.map((product) => {
             return (
               <ProductCard
@@ -183,18 +290,34 @@ export function ProductsList({ category }: ProductsListProps) {
       )}
 
       {/* Pagination */}
-      {products.length > 0 && (
+      {products.length > 0 && totalPages > 1 && (
         <div className="flex justify-center pt-8">
           <div className="flex items-center gap-2">
-            <Button variant="outline" disabled>
+            <Button
+              variant="outline"
+              disabled={currentPage === 1}
+              onClick={() => handlePageChange(currentPage - 1)}
+            >
               Sebelumnya
             </Button>
-            <Button variant="default">1</Button>
-            <Button variant="outline">2</Button>
-            <Button variant="outline">3</Button>
-            <span className="px-2">...</span>
-            <Button variant="outline">10</Button>
-            <Button variant="outline">Selanjutnya</Button>
+
+            {generatePageNumbers().map((page) => (
+              <Button
+                key={page}
+                variant={page === currentPage ? "default" : "outline"}
+                onClick={() => handlePageChange(page)}
+              >
+                {page}
+              </Button>
+            ))}
+
+            <Button
+              variant="outline"
+              disabled={currentPage === totalPages}
+              onClick={() => handlePageChange(currentPage + 1)}
+            >
+              Selanjutnya
+            </Button>
           </div>
         </div>
       )}
