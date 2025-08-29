@@ -326,12 +326,12 @@ export function EditProductForm({ productId }: EditProductFormProps) {
           const uploadData = await uploadResponse.json()
           imageUrls.push(uploadData.url)
 
-                  // Use selected thumbnail or first image as main thumbnail
-        if (i === thumbnailIndex || (thumbnailIndex === 0 && i === 0)) {
-          imageUrl = uploadData.url
+          // Use selected thumbnail or first image as main thumbnail
+          if (i === thumbnailIndex || (thumbnailIndex === 0 && i === 0)) {
+            imageUrl = uploadData.url
+          }
         }
-        }
-        
+
         // If no thumbnail was set, use the selected thumbnail from existing images
         if (!imageUrl && imageUrls.length > 0) {
           imageUrl = imageUrls[thumbnailIndex] || imageUrls[0]
@@ -405,12 +405,38 @@ export function EditProductForm({ productId }: EditProductFormProps) {
         throw new Error(errorData.error || 'Failed to update product')
       }
 
+      const responseData = await response.json()
+
+      // Update local state with the updated product data
+      if (responseData.product) {
+        setProductData(responseData.product)
+
+        // Update image preview if images were changed
+        if (responseData.product.images && responseData.product.images.length > 0) {
+          setImagePreview(responseData.product.images)
+          setThumbnailIndex(0) // Reset to first image
+        }
+
+        // Update product links if download_link was changed
+        if (responseData.product.download_link) {
+          setProductLinks([{ name: "", url: responseData.product.download_link }])
+        }
+
+        // Update variants if they were changed
+        if (responseData.variants && responseData.variants.length > 0) {
+          setVariants(responseData.variants.map((variant: any, index: number) => ({
+            id: variant.id || index + 1,
+            name: variant.name,
+            price: variant.price.toString(),
+            description: variant.description || ""
+          })))
+        }
+      }
+
       toast({
         title: "Berhasil",
         description: "Produk berhasil diperbarui",
       })
-
-      router.push("/seller/products")
     } catch (error) {
       console.error("Error updating product:", error)
       toast({
@@ -800,7 +826,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                 onChange={(e) => handleFileChange("images", e.target.files)}
                 className="cursor-pointer"
               />
-                              <p className="text-xs text-muted-foreground mt-1">Upload 1-12 gambar (JPG, PNG - Max 5MB per file)</p>
+              <p className="text-xs text-muted-foreground mt-1">Upload 1-12 gambar (JPG, PNG - Max 5MB per file)</p>
             </div>
 
             {/* Image Preview */}
@@ -844,22 +870,21 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                           alt={`Preview ${index + 1}`}
                           className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                         />
-                        
+
                         {/* Thumbnail Selection Button */}
                         <Button
                           type="button"
                           variant={thumbnailIndex === index ? "default" : "outline"}
                           size="sm"
-                          className={`absolute top-2 left-2 h-6 px-2 text-xs ${
-                            thumbnailIndex === index 
-                              ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                              : "bg-white/90 hover:bg-white text-gray-700"
-                          } shadow-lg`}
+                          className={`absolute top-2 left-2 h-6 px-2 text-xs ${thumbnailIndex === index
+                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                            : "bg-white/90 hover:bg-white text-gray-700"
+                            } shadow-lg`}
                           onClick={() => setThumbnailIndex(index)}
                         >
                           {thumbnailIndex === index ? "✓ Thumbnail" : "Set Thumbnail"}
                         </Button>
-                        
+
                         <Button
                           type="button"
                           variant="destructive"
@@ -885,11 +910,11 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                     </div>
                   ))}
                 </div>
-                
+
                 {/* Thumbnail Info */}
                 {imagePreview.length > 0 && (
                   <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-                    <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk. 
+                    <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk.
                     Klik "Set Thumbnail" pada gambar yang ingin dijadikan thumbnail.
                   </div>
                 )}
@@ -1022,7 +1047,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                 <p className="text-xs text-muted-foreground mt-1">-1 = unlimited, 0 = tidak bisa download</p>
               </div>
             </div>
-            
+
             {/* Aktifkan produk toggle - ONLY DIFFERENCE FROM CREATE FORM */}
             <div className="flex items-center space-x-2">
               <Switch

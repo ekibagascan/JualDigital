@@ -109,9 +109,20 @@ export async function PUT(
       }
     }
 
+    // Get updated variants for response
+    const { data: updatedVariants, error: variantsFetchError } = await supabase
+      .from("product_variants")
+      .select("*")
+      .eq("product_id", params.id)
+
+    if (variantsFetchError) {
+      console.error("Error fetching updated variants:", variantsFetchError)
+    }
+
     return NextResponse.json({ 
       message: "Product updated successfully",
-      product 
+      product,
+      variants: updatedVariants || []
     })
 
   } catch (error) {
