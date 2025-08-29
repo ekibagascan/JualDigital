@@ -81,6 +81,10 @@ export function ProductDetails({ product }: ProductDetailsProps) {
   const [variants, setVariants] = useState<ProductVariant[]>([])
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null)
   const [loadingVariants, setLoadingVariants] = useState(true)
+  const [touchStart, setTouchStart] = useState<number | null>(null)
+  const [touchEnd, setTouchEnd] = useState<number | null>(null)
+  const [isZoomed, setIsZoomed] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const { addItem } = useCart()
   const { user } = useAuth()
   const { isInWishlist, addToWishlist, removeFromWishlist } = useSupabaseWishlist()
@@ -89,6 +93,48 @@ export function ProductDetails({ product }: ProductDetailsProps) {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Keyboard navigation for image slider
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (product.images.length <= 1) return
+
+      if (event.key === 'ArrowLeft') {
+        setSelectedImage(prev => prev === 0 ? product.images.length - 1 : prev - 1)
+      } else if (event.key === 'ArrowRight') {
+        setSelectedImage(prev => prev === product.images.length - 1 ? 0 : prev + 1)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [product.images.length])
+
+  // Touch/swipe support for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX)
+  }
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd || product.images.length <= 1) return
+
+    const distance = touchStart - touchEnd
+    const isLeftSwipe = distance > 50
+    const isRightSwipe = distance < -50
+
+    if (isLeftSwipe) {
+      setSelectedImage(prev => prev === product.images.length - 1 ? 0 : prev + 1)
+    } else if (isRightSwipe) {
+      setSelectedImage(prev => prev === 0 ? product.images.length - 1 : prev - 1)
+    }
+
+    setTouchStart(null)
+    setTouchEnd(null)
+  }
 
   useEffect(() => {
     const fetchVariants = async () => {
@@ -273,20 +319,92 @@ export function ProductDetails({ product }: ProductDetailsProps) {
     <div className="grid lg:grid-cols-2 gap-4 lg:gap-8">
       {/* Product Images */}
       <div className="space-y-4">
-        <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted">
+        <div
+          className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted group cursor-grab active:cursor-grabbing"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
           <Image
             src={product.images[selectedImage] || product.image}
             alt={product.title}
             fill
-            className="object-cover"
+            className={`object-cover select-none transition-all duration-300 ${isZoomed ? 'scale-150' : 'scale-100'
+              }`}
+            priority={selectedImage === 0}
           />
-          {mounted && product.livePreview && (
+
+          {/* Zoom Toggle Button */}
+          <button
+            onClick={() => setIsZoomed(!isZoomed)}
+            className="absolute top-4 left-4 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            aria-label={isZoomed ? "Zoom out" : "Zoom in"}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isZoomed ? "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" : "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"} />
+            </svg>
+          </button>
+
+          {/* Fullscreen Button */}
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="absolute top-4 left-16 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isFullscreen ? "M6 18L18 6M6 6l12 12" : "M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"} />
+            </svg>
+          </button>
+
+          {/* Navigation Arrows */}
+          {mounted && product.images.length > 1 && (
+            <>
+              {/* Left Arrow */}
+              <button
+                onClick={() => setSelectedImage(selectedImage === 0 ? product.images.length - 1 : selectedImage - 1)}
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                aria-label="Previous image"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              {/* Right Arrow */}
+              <button
+                onClick={() => setSelectedImage(selectedImage === product.images.length - 1 ? 0 : selectedImage + 1)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                aria-label="Next image"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </>
+          )}
+
+          {/* Image Counter */}
+          {mounted && product.images.length > 1 && (
+            <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium">
+              {selectedImage + 1} / {product.images.length}
+            </div>
+          )}
+
+          {/* Live Preview Button */}
+          {mounted && product.livePreview ? (
             <div className="absolute top-4 right-4">
-              <Button size="sm" variant="secondary" asChild>
+              <Button size="sm" variant="secondary" className="bg-blue-600 hover:bg-blue-700 text-white" asChild>
                 <a href={product.livePreview} target="_blank" rel="noopener noreferrer">
                   <Eye className="w-4 h-4 mr-2" />
-                  Preview
+                  Live Preview
                 </a>
+              </Button>
+            </div>
+          ) : (
+            <div className="absolute top-4 right-4">
+              <Button size="sm" variant="outline" className="bg-white/90 hover:bg-white text-gray-700" disabled>
+                <Eye className="w-4 h-4 mr-2" />
+                No Preview
               </Button>
             </div>
           )}
@@ -294,17 +412,119 @@ export function ProductDetails({ product }: ProductDetailsProps) {
 
         {/* Thumbnail Images */}
         {mounted && product.images.length > 1 && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-2">
             {product.images.map((image, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
-                className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${selectedImage === index ? "border-primary" : "border-transparent"
+                className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 ${selectedImage === index ? "border-primary" : "border-transparent"
                   }`}
               >
                 <Image src={image} alt={`${product.title} ${index + 1}`} fill className="object-cover" />
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Dot Indicators */}
+        {mounted && product.images.length > 1 && (
+          <div className="flex justify-center gap-2">
+            {product.images.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setSelectedImage(index)}
+                className={`w-2 h-2 rounded-full transition-colors ${selectedImage === index ? "bg-primary" : "bg-gray-300"
+                  }`}
+                aria-label={`Go to image ${index + 1}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Live Preview Section */}
+        {mounted && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-1">Live Preview</h3>
+                <p className="text-sm text-gray-600">
+                  {product.livePreview
+                    ? "See this product in action before you buy"
+                    : "No live preview available for this product"
+                  }
+                </p>
+
+              </div>
+              {product.livePreview ? (
+                <Button size="sm" variant="default" className="bg-blue-600 hover:bg-blue-700" asChild>
+                  <a href={product.livePreview} target="_blank" rel="noopener noreferrer">
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Live Demo
+                  </a>
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" disabled>
+                  <Eye className="w-4 h-4 mr-2" />
+                  No Preview
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Fullscreen Modal */}
+        {isFullscreen && (
+          <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+            <div className="relative w-full h-full flex items-center justify-center">
+              <Image
+                src={product.images[selectedImage] || product.image}
+                alt={product.title}
+                fill
+                className="object-contain"
+                priority
+              />
+
+              {/* Close Button */}
+              <button
+                onClick={() => setIsFullscreen(false)}
+                className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white p-4 rounded-full"
+                aria-label="Close fullscreen"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              {/* Fullscreen Navigation Arrows */}
+              {product.images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setSelectedImage(selectedImage === 0 ? product.images.length - 1 : selectedImage - 1)}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-4 rounded-full"
+                    aria-label="Previous image"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedImage(selectedImage === product.images.length - 1 ? 0 : selectedImage + 1)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-4 rounded-full"
+                    aria-label="Next image"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+
+                  {/* Fullscreen Image Counter */}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-full text-lg font-medium">
+                    {selectedImage + 1} / {product.images.length}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

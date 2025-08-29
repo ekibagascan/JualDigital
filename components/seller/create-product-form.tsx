@@ -34,6 +34,7 @@ export function CreateProductForm() {
     language: "id",
     deliveryMethod: "upload", // "upload" or "link"
     productLinks: [] as { name: string; url: string }[],
+    thumbnailIndex: 0, // Index of the selected thumbnail image
   })
 
   const [variants, setVariants] = useState([{ id: 1, name: "Standard", price: "", description: "" }])
@@ -99,7 +100,7 @@ export function CreateProductForm() {
     }
   }
 
-  const handleInputChange = (field: string, value: string | string[]) => {
+  const handleInputChange = (field: string, value: string | string[] | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -296,11 +297,16 @@ export function CreateProductForm() {
                 .getPublicUrl(fileName)
               imageUrls.push(publicUrl)
 
-              // Use first image as main thumbnail
-              if (i === 0) {
+              // Use selected thumbnail or first image as main thumbnail
+              if (i === formData.thumbnailIndex || (formData.thumbnailIndex === 0 && i === 0)) {
                 imageUrl = publicUrl
               }
             }
+          }
+          
+          // If no thumbnail was set, use the first image
+          if (!imageUrl && imageUrls.length > 0) {
+            imageUrl = imageUrls[0]
           }
         } catch (uploadError) {
           console.error('[CREATE PRODUCT] Image upload failed:', uploadError)
@@ -326,6 +332,7 @@ export function CreateProductForm() {
         downloadLimit: -1, // Set to infinite
         imageUrl: imageUrl, // Include the uploaded image URL
         imageUrls: imageUrls, // Include all uploaded image URLs
+        thumbnailIndex: formData.thumbnailIndex, // Include thumbnail selection
       }
 
       console.log('[CREATE PRODUCT] Sending request body:', requestBody)
@@ -352,41 +359,7 @@ export function CreateProductForm() {
         console.log('[CREATE PRODUCT] File upload not implemented yet')
       }
 
-      // Handle image uploads if any
-      if (formData.images.length > 0) {
-        try {
-          const imageUrls: string[] = []
 
-          for (const image of formData.images) {
-            const fileName = `${user.id}-${Date.now()}-${image.name}`
-            const { error } = await supabase.storage
-              .from('products')
-              .upload(fileName, image)
-
-            if (error) {
-              console.error('[CREATE PRODUCT] Image upload error:', error)
-              continue
-            }
-
-            const { data: { publicUrl } } = supabase.storage
-              .from('products')
-              .getPublicUrl(fileName)
-
-            imageUrls.push(publicUrl)
-          }
-
-          // Update product with image URLs
-          if (imageUrls.length > 0) {
-            await fetch(`/api/seller/products/${productId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ image_url: imageUrls[0] })
-            })
-          }
-        } catch (uploadError) {
-          console.error('[CREATE PRODUCT] Image upload failed:', uploadError)
-        }
-      }
 
       toast({
         title: "Produk berhasil ditambahkan!",
@@ -765,6 +738,22 @@ export function CreateProductForm() {
                         alt={`Preview ${index + 1}`}
                         className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                       />
+                      
+                      {/* Thumbnail Selection Button */}
+                      <Button
+                        type="button"
+                        variant={formData.thumbnailIndex === index ? "default" : "outline"}
+                        size="sm"
+                        className={`absolute top-2 left-2 h-6 px-2 text-xs ${
+                          formData.thumbnailIndex === index 
+                            ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                            : "bg-white/90 hover:bg-white text-gray-700"
+                        } shadow-lg`}
+                        onClick={() => handleInputChange("thumbnailIndex", index)}
+                      >
+                        {formData.thumbnailIndex === index ? "✓ Thumbnail" : "Set Thumbnail"}
+                      </Button>
+                      
                       <Button
                         type="button"
                         variant="destructive"
@@ -774,7 +763,9 @@ export function CreateProductForm() {
                           setImagePreview(imagePreview.filter((_, i) => i !== index))
                           setFormData(prev => ({
                             ...prev,
-                            images: prev.images.filter((_, i) => i !== index)
+                            images: prev.images.filter((_, i) => i !== index),
+                            thumbnailIndex: prev.thumbnailIndex === index ? 0 : 
+                              prev.thumbnailIndex > index ? prev.thumbnailIndex - 1 : prev.thumbnailIndex
                           }))
                         }}
                       >
@@ -784,6 +775,14 @@ export function CreateProductForm() {
                   </div>
                 ))}
               </div>
+              
+              {/* Thumbnail Info */}
+              {imagePreview.length > 0 && (
+                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                  <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk. 
+                  Klik "Set Thumbnail" pada gambar yang ingin dijadikan thumbnail.
+                </div>
+              )}
             </div>
           )}
 

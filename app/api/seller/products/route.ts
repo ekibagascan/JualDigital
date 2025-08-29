@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
       productLinks,
       downloadLimit,
       imageUrl,
-      imageUrls
+      imageUrls,
+      thumbnailIndex
     } = body
 
     // If auth failed, try to get user from sellerId in body
@@ -121,8 +122,10 @@ export async function POST(req: NextRequest) {
           ? productLinks[0].url 
           : null,
 
-        // Handle image URL for product thumbnail
-        image_url: imageUrl || null,
+        // Handle image URL for product thumbnail - use selected thumbnail or first image
+        image_url: (imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined) 
+          ? imageUrls[thumbnailIndex] || imageUrls[0] 
+          : imageUrl || null,
         // Handle multiple images
         images: imageUrls && imageUrls.length > 0 ? imageUrls : null
       })
