@@ -74,16 +74,62 @@ export function ProductManagement() {
   const handleDeleteProduct = async (productId: string) => {
     if (!user?.id) return
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", productId)
-      .eq("seller_id", user.id)
-    if (error) {
-      toast({ title: "Gagal menghapus produk", description: error.message, variant: "destructive" })
-    } else {
-      setProducts((prev) => (prev || []).filter((p) => p.id !== productId))
-      toast({ title: "Produk dihapus", description: "Produk berhasil dihapus dari toko Anda." })
+    // Add confirmation dialog
+    if (!confirm("Apakah Anda yakin ingin menghapus produk ini? Tindakan ini tidak dapat dibatalkan.")) {
+      return
+    }
+
+    try {
+      // Check if product has any orders first
+      const { data: orderItems, error: orderCheckError } = await supabase
+        .from("order_items")
+        .select("id")
+        .eq("product_id", productId)
+        .limit(1)
+
+      if (orderCheckError) {
+        toast({
+          title: "Gagal memeriksa produk",
+          description: "Tidak dapat memeriksa apakah produk memiliki pesanan.",
+          variant: "destructive"
+        })
+        return
+      }
+
+      if (orderItems && orderItems.length > 0) {
+        toast({
+          title: "Tidak dapat menghapus produk",
+          description: "Produk ini memiliki pesanan dan tidak dapat dihapus. Gunakan fitur Nonaktifkan sebagai gantinya.",
+          variant: "destructive"
+        })
+        return
+      }
+
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId)
+        .eq("seller_id", user.id)
+
+      if (error) {
+        toast({
+          title: "Gagal menghapus produk",
+          description: error.message || "Terjadi kesalahan saat menghapus produk",
+          variant: "destructive"
+        })
+      } else {
+        setProducts((prev) => (prev || []).filter((p) => p.id !== productId))
+        toast({
+          title: "Produk dihapus",
+          description: "Produk berhasil dihapus dari toko Anda."
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Gagal menghapus produk",
+        description: "Terjadi kesalahan saat menghapus produk.",
+        variant: "destructive"
+      })
     }
   }
 
@@ -125,7 +171,7 @@ export function ProductManagement() {
       if (error) {
         toast({
           title: "Gagal mengubah status produk",
-          description: error.message,
+          description: error.message || "Terjadi kesalahan saat mengubah status produk",
           variant: "destructive"
         })
       } else {

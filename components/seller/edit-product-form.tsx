@@ -96,8 +96,9 @@ export function EditProductForm({ productId }: EditProductFormProps) {
           // Set image preview from images array or fallback to image_url
           if (product.images && product.images.length > 0) {
             setImagePreview(product.images)
-            // Set thumbnail index to 0 (first image) by default
-            setThumbnailIndex(0)
+            // Find which image is currently the thumbnail
+            const currentThumbnailIndex = product.images.findIndex((img: string) => img === product.image_url)
+            setThumbnailIndex(currentThumbnailIndex >= 0 ? currentThumbnailIndex : 0)
           } else if (product.image_url) {
             setImagePreview([product.image_url])
             setThumbnailIndex(0)
@@ -332,8 +333,8 @@ export function EditProductForm({ productId }: EditProductFormProps) {
           }
         }
 
-        // If no thumbnail was set, use the selected thumbnail from existing images
-        if (!imageUrl && imageUrls.length > 0) {
+        // Always use the selected thumbnail from existing images
+        if (imageUrls.length > 0) {
           imageUrl = imageUrls[thumbnailIndex] || imageUrls[0]
         }
       }
@@ -476,7 +477,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => router.back()}>
+        <Button variant="ghost" onClick={() => router.push("/seller/products")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Kembali
         </Button>
