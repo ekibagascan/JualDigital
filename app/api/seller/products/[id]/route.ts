@@ -43,7 +43,7 @@ export async function PUT(
     const {
       title, description, longDescription, category, price, variants,
       language, deliveryMethod, tags, livePreview, license, format,
-      originalPrice, productLinks, downloadLimit, imageUrl, imageUrls, fileUrl, status
+      originalPrice, productLinks, downloadLimit, imageUrl, imageUrls, fileUrl, status, thumbnailIndex
     } = body
 
     // Update product
@@ -64,9 +64,10 @@ export async function PUT(
         format: format || null,
         delivery_method: deliveryMethod || 'file',
         download_limit: downloadLimit || -1,
+        pages: body.pages || null,
         file_url: deliveryMethod === 'file' ? (fileUrl || existingProduct.file_url) : null,
         download_link: deliveryMethod === 'link' && productLinks && productLinks.length > 0 ? productLinks[0].url : null,
-        image_url: imageUrl || existingProduct.image_url,
+        image_url: imageUrl || (imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined ? imageUrls[thumbnailIndex] : existingProduct.image_url),
         images: imageUrls && imageUrls.length > 0 ? imageUrls : existingProduct.images
       })
       .eq("id", params.id)

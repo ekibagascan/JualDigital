@@ -39,6 +39,7 @@ interface ProductData {
   download_limit?: number
   license?: string
   delivery_method: "file" | "link"
+  thumbnailIndex?: number
 }
 
 interface EditProductFormProps {
@@ -56,6 +57,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
   const [imagePreview, setImagePreview] = useState<string[]>([])
   const [productLinks, setProductLinks] = useState<{ name: string; url: string }[]>([])
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([])
+  const [thumbnailIndex, setThumbnailIndex] = useState(0)
 
   // Fetch product data from API
   useEffect(() => {
@@ -94,13 +96,21 @@ export function EditProductForm({ productId }: EditProductFormProps) {
           // Set image preview from images array or fallback to image_url
           if (product.images && product.images.length > 0) {
             setImagePreview(product.images)
+            // Set thumbnail index to 0 (first image) by default
+            setThumbnailIndex(0)
           } else if (product.image_url) {
             setImagePreview([product.image_url])
+            setThumbnailIndex(0)
           }
 
           // Set product links from download_link
           if (product.download_link) {
             setProductLinks([{ name: "", url: product.download_link }])
+          }
+
+          // Ensure delivery method is set
+          if (!product.delivery_method) {
+            setProductData(prev => prev ? { ...prev, delivery_method: product.download_link ? 'link' : 'file' } : null)
           }
         }
       } catch (error) {
@@ -178,7 +188,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
     }
   }
 
-  const handleInputChange = (field: string, value: string | string[]) => {
+  const handleInputChange = (field: string, value: string | string[] | number) => {
     setProductData(prev => prev ? { ...prev, [field]: value } : null)
   }
 
@@ -192,11 +202,11 @@ export function EditProductForm({ productId }: EditProductFormProps) {
           const newImages = Array.from(files)
           const allImages = [...existingImages, ...newImages]
 
-          // Limit to 5 images maximum
-          if (allImages.length > 5) {
+          // Limit to 12 images maximum
+          if (allImages.length > 12) {
             toast({
               title: "Terlalu banyak gambar",
-              description: "Maksimal 5 gambar per produk",
+              description: "Maksimal 12 gambar per produk",
               variant: "destructive",
             })
             return prev
@@ -316,10 +326,15 @@ export function EditProductForm({ productId }: EditProductFormProps) {
           const uploadData = await uploadResponse.json()
           imageUrls.push(uploadData.url)
 
-          // Use first image as main thumbnail
-          if (i === 0) {
-            imageUrl = uploadData.url
-          }
+                  // Use selected thumbnail or first image as main thumbnail
+        if (i === thumbnailIndex || (thumbnailIndex === 0 && i === 0)) {
+          imageUrl = uploadData.url
+        }
+        }
+        
+        // If no thumbnail was set, use the selected thumbnail from existing images
+        if (!imageUrl && imageUrls.length > 0) {
+          imageUrl = imageUrls[thumbnailIndex] || imageUrls[0]
         }
       }
 
@@ -367,12 +382,14 @@ export function EditProductForm({ productId }: EditProductFormProps) {
         format: productData.format,
         originalPrice: productData.original_price,
         productLinks: productLinks,
-        downloadLimit: -1, // Set to infinite
+        downloadLimit: productData.download_limit || -1,
+        pages: productData.pages,
         imageUrl: imageUrl,
         imageUrls: imageUrls,
         fileUrl: fileUrl,
         status: productData.status,
-        deliveryMethod: productData.delivery_method
+        deliveryMethod: productData.delivery_method,
+        thumbnailIndex: thumbnailIndex
       }
 
       const response = await fetch(`/api/seller/products/${productId}`, {
@@ -783,7 +800,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                 onChange={(e) => handleFileChange("images", e.target.files)}
                 className="cursor-pointer"
               />
-              <p className="text-xs text-muted-foreground mt-1">Upload 1-5 gambar (JPG, PNG - Max 5MB per file)</p>
+                              <p className="text-xs text-muted-foreground mt-1">Upload 1-12 gambar (JPG, PNG - Max 5MB per file)</p>
             </div>
 
             {/* Image Preview */}
@@ -827,6 +844,22 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                           alt={`Preview ${index + 1}`}
                           className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                         />
+                        
+                        {/* Thumbnail Selection Button */}
+                        <Button
+                          type="button"
+                          variant={thumbnailIndex === index ? "default" : "outline"}
+                          size="sm"
+                          className={`absolute top-2 left-2 h-6 px-2 text-xs ${
+                            thumbnailIndex === index 
+                              ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                              : "bg-white/90 hover:bg-white text-gray-700"
+                          } shadow-lg`}
+                          onClick={() => setThumbnailIndex(index)}
+                        >
+                          {thumbnailIndex === index ? "✓ Thumbnail" : "Set Thumbnail"}
+                        </Button>
+                        
                         <Button
                           type="button"
                           variant="destructive"
@@ -838,6 +871,12 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                               ...prev,
                               images: prev.images?.filter((_, i) => i !== index) || []
                             } : null)
+                            // Update thumbnail index if needed
+                            if (thumbnailIndex === index) {
+                              setThumbnailIndex(0)
+                            } else if (thumbnailIndex > index) {
+                              setThumbnailIndex(thumbnailIndex - 1)
+                            }
                           }}
                         >
                           <X className="w-3 h-3" />
@@ -846,6 +885,14 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                     </div>
                   ))}
                 </div>
+                
+                {/* Thumbnail Info */}
+                {imagePreview.length > 0 && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                    <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk. 
+                    Klik "Set Thumbnail" pada gambar yang ingin dijadikan thumbnail.
+                  </div>
+                )}
               </div>
             )}
 
@@ -952,6 +999,30 @@ export function EditProductForm({ productId }: EditProductFormProps) {
             <CardTitle>Detail Produk</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="pages">Jumlah Halaman</Label>
+                <Input
+                  id="pages"
+                  type="number"
+                  value={productData.pages || ''}
+                  onChange={(e) => handleInputChange("pages", e.target.value)}
+                  placeholder="Contoh: 50"
+                />
+              </div>
+              <div>
+                <Label htmlFor="download_limit">Limit Download</Label>
+                <Input
+                  id="download_limit"
+                  type="number"
+                  value={productData.download_limit || ''}
+                  onChange={(e) => handleInputChange("download_limit", e.target.value)}
+                  placeholder="-1 untuk unlimited"
+                />
+                <p className="text-xs text-muted-foreground mt-1">-1 = unlimited, 0 = tidak bisa download</p>
+              </div>
+            </div>
+            
             {/* Aktifkan produk toggle - ONLY DIFFERENCE FROM CREATE FORM */}
             <div className="flex items-center space-x-2">
               <Switch
