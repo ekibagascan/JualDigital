@@ -114,7 +114,7 @@ export function ProductManagement() {
       if (error) {
         toast({
           title: "Gagal menghapus produk",
-          description: error.message || "Terjadi kesalahan saat menghapus produk",
+          description: `Error: ${error.message}. Kode: ${error.code || 'N/A'}`,
           variant: "destructive"
         })
       } else {
@@ -125,9 +125,10 @@ export function ProductManagement() {
         })
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast({
         title: "Gagal menghapus produk",
-        description: "Terjadi kesalahan saat menghapus produk.",
+        description: `Terjadi kesalahan: ${errorMessage}`,
         variant: "destructive"
       })
     }
