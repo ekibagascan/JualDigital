@@ -113,11 +113,11 @@ export function CreateProductForm() {
           const newImages = Array.from(files)
           const allImages = [...existingImages, ...newImages]
 
-          // Limit to 5 images maximum
-          if (allImages.length > 5) {
+          // Limit to 12 images maximum
+          if (allImages.length > 12) {
             toast({
               title: "Terlalu banyak gambar",
-              description: "Maksimal 5 gambar per produk",
+              description: "Maksimal 12 gambar per produk",
               variant: "destructive",
             })
             return prev
@@ -303,7 +303,7 @@ export function CreateProductForm() {
               }
             }
           }
-          
+
           // If no thumbnail was set, use the first image
           if (!imageUrl && imageUrls.length > 0) {
             imageUrl = imageUrls[0]
@@ -722,7 +722,7 @@ export function CreateProductForm() {
               onChange={(e) => handleFileChange("images", e.target.files)}
               className="cursor-pointer"
             />
-            <p className="text-xs text-muted-foreground mt-1">Upload 1-5 gambar (JPG, PNG - Max 5MB per file)</p>
+            <p className="text-xs text-muted-foreground mt-1">Upload 1-12 gambar (JPG, PNG - Max 5MB per file)</p>
           </div>
 
           {/* Image Preview */}
@@ -738,22 +738,21 @@ export function CreateProductForm() {
                         alt={`Preview ${index + 1}`}
                         className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                       />
-                      
+
                       {/* Thumbnail Selection Button */}
                       <Button
                         type="button"
                         variant={formData.thumbnailIndex === index ? "default" : "outline"}
                         size="sm"
-                        className={`absolute top-2 left-2 h-6 px-2 text-xs ${
-                          formData.thumbnailIndex === index 
-                            ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                            : "bg-white/90 hover:bg-white text-gray-700"
-                        } shadow-lg`}
+                        className={`absolute top-2 left-2 h-6 px-2 text-xs ${formData.thumbnailIndex === index
+                          ? "bg-blue-600 hover:bg-blue-700 text-white"
+                          : "bg-white/90 hover:bg-white text-gray-700"
+                          } shadow-lg`}
                         onClick={() => handleInputChange("thumbnailIndex", index)}
                       >
                         {formData.thumbnailIndex === index ? "✓ Thumbnail" : "Set Thumbnail"}
                       </Button>
-                      
+
                       <Button
                         type="button"
                         variant="destructive"
@@ -764,7 +763,7 @@ export function CreateProductForm() {
                           setFormData(prev => ({
                             ...prev,
                             images: prev.images.filter((_, i) => i !== index),
-                            thumbnailIndex: prev.thumbnailIndex === index ? 0 : 
+                            thumbnailIndex: prev.thumbnailIndex === index ? 0 :
                               prev.thumbnailIndex > index ? prev.thumbnailIndex - 1 : prev.thumbnailIndex
                           }))
                         }}
@@ -775,11 +774,11 @@ export function CreateProductForm() {
                   </div>
                 ))}
               </div>
-              
+
               {/* Thumbnail Info */}
               {imagePreview.length > 0 && (
                 <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-                  <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk. 
+                  <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk.
                   Klik "Set Thumbnail" pada gambar yang ingin dijadikan thumbnail.
                 </div>
               )}
