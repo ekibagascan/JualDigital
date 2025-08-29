@@ -76,7 +76,26 @@ interface ProductDetailsProps {
 }
 
 export function ProductDetails({ product }: ProductDetailsProps) {
-  const [selectedImage, setSelectedImage] = useState(0)
+  // Find which image in the images array corresponds to the thumbnail (image)
+  const getThumbnailIndex = () => {
+    if (!product.images || product.images.length === 0) return 0
+    const thumbnailIndex = product.images.findIndex(img => img === product.image)
+    return thumbnailIndex >= 0 ? thumbnailIndex : 0
+  }
+
+  // Filter out duplicate images to avoid showing thumbnail twice
+  const getUniqueImages = () => {
+    if (!product.images || product.images.length === 0) return [product.image]
+    
+    // Remove the thumbnail from images array if it exists there
+    const filteredImages = product.images.filter(img => img !== product.image)
+    
+    // Return thumbnail first, then the rest of the unique images
+    return [product.image, ...filteredImages]
+  }
+
+  const uniqueImages = getUniqueImages()
+  const [selectedImage, setSelectedImage] = useState(0) // Always start with thumbnail (index 0)
   const [mounted, setMounted] = useState(false)
   const [variants, setVariants] = useState<ProductVariant[]>([])
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null)
@@ -97,18 +116,18 @@ export function ProductDetails({ product }: ProductDetailsProps) {
   // Keyboard navigation for image slider
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (product.images.length <= 1) return
+      if (uniqueImages.length <= 1) return
 
       if (event.key === 'ArrowLeft') {
-        setSelectedImage(prev => prev === 0 ? product.images.length - 1 : prev - 1)
+        setSelectedImage(prev => prev === 0 ? uniqueImages.length - 1 : prev - 1)
       } else if (event.key === 'ArrowRight') {
-        setSelectedImage(prev => prev === product.images.length - 1 ? 0 : prev + 1)
+        setSelectedImage(prev => prev === uniqueImages.length - 1 ? 0 : prev + 1)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [product.images.length])
+  }, [uniqueImages.length])
 
   // Touch/swipe support for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -120,16 +139,16 @@ export function ProductDetails({ product }: ProductDetailsProps) {
   }
 
   const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd || product.images.length <= 1) return
+    if (!touchStart || !touchEnd || uniqueImages.length <= 1) return
 
     const distance = touchStart - touchEnd
     const isLeftSwipe = distance > 50
     const isRightSwipe = distance < -50
 
     if (isLeftSwipe) {
-      setSelectedImage(prev => prev === product.images.length - 1 ? 0 : prev + 1)
+      setSelectedImage(prev => prev === uniqueImages.length - 1 ? 0 : prev + 1)
     } else if (isRightSwipe) {
-      setSelectedImage(prev => prev === 0 ? product.images.length - 1 : prev - 1)
+      setSelectedImage(prev => prev === 0 ? uniqueImages.length - 1 : prev - 1)
     }
 
     setTouchStart(null)
@@ -326,7 +345,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           onTouchEnd={handleTouchEnd}
         >
           <Image
-            src={product.images[selectedImage] || product.image}
+            src={uniqueImages[selectedImage]}
             alt={product.title}
             fill
             className={`object-cover select-none transition-all duration-300 ${isZoomed ? 'scale-150' : 'scale-100'
@@ -357,11 +376,11 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           </button>
 
           {/* Navigation Arrows */}
-          {mounted && product.images.length > 1 && (
+          {mounted && uniqueImages.length > 1 && (
             <>
               {/* Left Arrow */}
               <button
-                onClick={() => setSelectedImage(selectedImage === 0 ? product.images.length - 1 : selectedImage - 1)}
+                onClick={() => setSelectedImage(selectedImage === 0 ? uniqueImages.length - 1 : selectedImage - 1)}
                 className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 aria-label="Previous image"
               >
@@ -372,7 +391,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
 
               {/* Right Arrow */}
               <button
-                onClick={() => setSelectedImage(selectedImage === product.images.length - 1 ? 0 : selectedImage + 1)}
+                onClick={() => setSelectedImage(selectedImage === uniqueImages.length - 1 ? 0 : selectedImage + 1)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 aria-label="Next image"
               >
@@ -384,9 +403,9 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           )}
 
           {/* Image Counter */}
-          {mounted && product.images.length > 1 && (
+          {mounted && uniqueImages.length > 1 && (
             <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium">
-              {selectedImage + 1} / {product.images.length}
+              {selectedImage + 1} / {uniqueImages.length}
             </div>
           )}
 
@@ -411,9 +430,9 @@ export function ProductDetails({ product }: ProductDetailsProps) {
         </div>
 
         {/* Thumbnail Images */}
-        {mounted && product.images.length > 1 && (
+        {mounted && uniqueImages.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-2">
-            {product.images.map((image, index) => (
+            {uniqueImages.map((image, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
@@ -427,9 +446,9 @@ export function ProductDetails({ product }: ProductDetailsProps) {
         )}
 
         {/* Dot Indicators */}
-        {mounted && product.images.length > 1 && (
+        {mounted && uniqueImages.length > 1 && (
           <div className="flex justify-center gap-2">
-            {product.images.map((_, index) => (
+            {uniqueImages.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
