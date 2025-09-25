@@ -168,7 +168,8 @@ export function UserManagement() {
       })
 
       if (!roleResponse.ok) {
-        throw new Error('Failed to update user role')
+        const errorData = await roleResponse.json()
+        throw new Error(`Failed to update user role: ${errorData.error || 'Unknown error'}`)
       }
 
       // Then update the status to active
@@ -185,7 +186,8 @@ export function UserManagement() {
       })
 
       if (!statusResponse.ok) {
-        throw new Error('Failed to update user status')
+        const errorData = await statusResponse.json()
+        throw new Error(`Failed to update user status: ${errorData.error || 'Unknown error'}`)
       }
 
       toast({
@@ -193,13 +195,15 @@ export function UserManagement() {
         description: `${user.name} berhasil disetujui menjadi seller.`,
       })
 
-      // Refresh the users list
-      fetchUsers()
+      // Refresh the users list with a small delay to ensure database is updated
+      setTimeout(() => {
+        fetchUsers()
+      }, 500)
     } catch (error) {
       console.error('Error approving seller application:', error)
       toast({
         title: "Error",
-        description: "Gagal menyetujui aplikasi seller",
+        description: `Gagal menyetujui aplikasi seller: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       })
     }
@@ -221,7 +225,8 @@ export function UserManagement() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to reject seller application')
+        const errorData = await response.json()
+        throw new Error(`Failed to reject seller application: ${errorData.error || 'Unknown error'}`)
       }
 
       toast({
@@ -229,13 +234,15 @@ export function UserManagement() {
         description: `${user.name} tidak disetujui menjadi seller.`,
       })
 
-      // Refresh the users list
-      fetchUsers()
+      // Refresh the users list with a small delay to ensure database is updated
+      setTimeout(() => {
+        fetchUsers()
+      }, 500)
     } catch (error) {
       console.error('Error rejecting seller application:', error)
       toast({
         title: "Error",
-        description: "Gagal menolak aplikasi seller",
+        description: `Gagal menolak aplikasi seller: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       })
     }
@@ -407,15 +414,17 @@ export function UserManagement() {
 
           {showPendingSellers && (
             <div className="space-y-4">
-              {users.filter(user => user.role === 'seller' && user.status === 'pending').length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Tidak ada aplikasi seller tertunda
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {users
-                    .filter(user => user.role === 'seller' && user.status === 'pending')
-                    .map(user => (
+              {(() => {
+                const pendingSellers = users.filter(user => user.role === 'seller' && user.status === 'pending')
+                console.log('Pending sellers:', pendingSellers)
+                console.log('All users with seller role:', users.filter(user => user.role === 'seller'))
+                return pendingSellers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Tidak ada aplikasi seller tertunda
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {pendingSellers.map(user => (
                       <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
@@ -445,15 +454,16 @@ export function UserManagement() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleSuspendUser(user)}
+                            onClick={() => handleRejectSeller(user)}
                           >
                             Tolak
                           </Button>
                         </div>
                       </div>
                     ))}
-                </div>
-              )}
+                  </div>
+                )
+              })()}
             </div>
           )}
         </CardContent>

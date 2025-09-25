@@ -92,10 +92,10 @@ export async function PUT(
       }
 
       // Then insert new variants
-      const variantsData = variants.map((variant: any) => ({
+      const variantsData = variants.map((variant: { name: string; price: number; description: string }) => ({
         product_id: params.id,
         name: variant.name,
-        price: parseFloat(variant.price),
+        price: variant.price,
         description: variant.description || null
       }))
 

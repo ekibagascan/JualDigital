@@ -171,7 +171,7 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    let updateData: any = {}
+    const updateData: Record<string, string> = {}
 
     if (action === 'updateRole') {
       if (!role) {
@@ -222,6 +222,8 @@ export async function PUT(req: NextRequest) {
       business_name: userData?.business_name
     })
 
+    console.log('[ADMIN USERS API] Updating user:', { userId, updateData })
+    
     const { error } = await supabase
       .from('profiles')
       .update(updateData)
@@ -234,6 +236,8 @@ export async function PUT(req: NextRequest) {
         { status: 500 }
       )
     }
+
+    console.log('[ADMIN USERS API] User updated successfully:', { userId, updateData })
 
     // Send email notifications for seller application status changes
     if (userData && (action === 'updateRole' || action === 'updateStatus')) {

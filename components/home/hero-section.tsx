@@ -2,12 +2,12 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Download, Users, Star, Sparkles, Zap, TrendingUp } from "lucide-react"
+import { ArrowRight, Sparkles, Zap, TrendingUp } from "lucide-react"
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase-client"
 
 export function HeroSection() {
-  const [popularProducts, setPopularProducts] = useState<
+  const [, setPopularProducts] = useState<
     { id: string; title: string; price: number; total_sales: number }[]
   >([])
 

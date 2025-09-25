@@ -206,7 +206,7 @@ export function BecomeSeller() {
                   <h3 className="font-semibold text-lg mb-2">{story.name}</h3>
                   <p className="text-primary font-medium mb-2">{story.earnings}</p>
                   <p className="text-sm text-muted-foreground mb-3">{story.category}</p>
-                  <p className="text-sm italic">"{story.story}"</p>
+                  <p className="text-sm italic">&ldquo;{story.story}&rdquo;</p>
                 </CardContent>
               </Card>
             ))}

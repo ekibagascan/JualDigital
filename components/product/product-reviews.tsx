@@ -51,7 +51,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
       const response = await fetch(`/api/reviews?productId=${productId}&page=${page}&t=${Date.now()}`)
 
       if (!response.ok) {
-        const errorText = await response.text()
+        await response.text()
         return
       }
 

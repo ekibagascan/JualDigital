@@ -69,10 +69,6 @@ export function middleware(request: NextRequest) {
 
   // For cart routes, be more lenient - allow access if there are any session cookies
   if (isCartRoute) {
-    const hasAnySessionCookie = request.cookies.getAll().some(cookie => 
-      cookie.name.startsWith('sb-') || cookie.name.includes('session') || cookie.name.includes('auth')
-    );
-
     // Allow access to cart even without full authentication
     // The cart component will handle showing appropriate UI
     return NextResponse.next();

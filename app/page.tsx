@@ -5,7 +5,6 @@ import { Footer } from "@/components/layout/footer"
 // Original homepage components (commented out for maintenance)
 import { HeroSection } from "@/components/home/hero-section"
 import { FeaturedProducts } from "@/components/home/featured-products"
-import { CategoriesPreview } from "@/components/home/categories-preview"
 import { NewestProducts } from "@/components/home/newest-products"
 // import { StatsSection } from "@/components/home/stats-section"
 import { Suspense } from "react"

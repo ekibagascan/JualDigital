@@ -3,21 +3,31 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Package, Star, Users, TrendingUp, Search, User, MapPin, Globe, Calendar, ShoppingCart } from "lucide-react"
+import { Package, Star, Users, TrendingUp, Search, User, MapPin, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCurrency } from "@/lib/utils"
 import { supabase } from "@/lib/supabase-client"
 import { ProductCard } from "@/components/product/product-card"
 
 interface StorePageProps {
     sellerId: string
+}
+
+interface ReviewData {
+    id: string
+    rating: number
+    content: string
+    created_at: string
+    user_id: string
+    products: {
+        title: string
+        seller_id: string
+    }[]
 }
 
 interface SellerProfile {
@@ -90,7 +100,7 @@ export function StorePage({ sellerId }: StorePageProps) {
                 throw new Error('Failed to load seller data')
             }
 
-            const { seller: sellerData, stats } = await response.json()
+            const { seller: sellerData } = await response.json()
             setSeller(sellerData)
 
             // Load seller's products
@@ -129,7 +139,7 @@ export function StorePage({ sellerId }: StorePageProps) {
                 console.error('Error loading reviews:', reviewsError)
             } else {
                 // Transform reviews data and fetch user names
-                const transformedReviews = await Promise.all((reviewsData || []).map(async (review: any) => {
+                const transformedReviews = await Promise.all((reviewsData || []).map(async (review: ReviewData) => {
                     let userName = 'Anonymous'
                     if (review.user_id) {
                         try {
@@ -146,7 +156,7 @@ export function StorePage({ sellerId }: StorePageProps) {
                         comment: review.content,
                         created_at: review.created_at,
                         user_name: userName,
-                        product_title: review.products?.title || 'Unknown Product'
+                        product_title: review.products?.[0]?.title || 'Unknown Product'
                     }
                 }))
                 setReviews(transformedReviews)

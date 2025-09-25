@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
-import { type Withdrawal, withdrawalService } from "@/lib/withdrawal-service"
+import { type Withdrawal } from "@/lib/withdrawal-service"
 
 interface WithdrawalWithProfile extends Withdrawal {
   profiles?: {

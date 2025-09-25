@@ -11,10 +11,9 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, X, Plus, Save, ArrowLeft, LinkIcon, FileText, ImageIcon, Sparkles, Wand2, Eye, ExternalLink, Link2 } from "lucide-react"
+import { Upload, X, Plus, Save, ArrowLeft, Sparkles, Wand2, Eye, ExternalLink, Link2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase-client"
+
 
 interface ProductData {
   id: string
@@ -40,6 +39,13 @@ interface ProductData {
   license?: string
   delivery_method: "file" | "link"
   thumbnailIndex?: number
+}
+
+interface VariantData {
+  id: number
+  name: string
+  price: number
+  description: string
 }
 
 interface EditProductFormProps {
@@ -77,7 +83,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
 
           // Set variants from API or default
           if (productVariants && productVariants.length > 0) {
-            setVariants(productVariants.map((variant: any, index: number) => ({
+            setVariants(productVariants.map((variant: VariantData, index: number) => ({
               id: variant.id || index + 1,
               name: variant.name,
               price: variant.price.toString(),
@@ -425,7 +431,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
 
         // Update variants if they were changed
         if (responseData.variants && responseData.variants.length > 0) {
-          setVariants(responseData.variants.map((variant: any, index: number) => ({
+          setVariants(responseData.variants.map((variant: VariantData, index: number) => ({
             id: variant.id || index + 1,
             name: variant.name,
             price: variant.price.toString(),
@@ -791,7 +797,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
 
                 {productLinks.length === 0 && (
                   <div className="text-center py-4 text-muted-foreground">
-                    <p>Belum ada link download. Klik "Tambah Link" untuk menambahkan link produk.</p>
+                    <p>Belum ada link download. Klik &ldquo;Tambah Link&rdquo; untuk menambahkan link produk.</p>
                   </div>
                 )}
 
@@ -916,7 +922,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                 {imagePreview.length > 0 && (
                   <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
                     <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk.
-                    Klik "Set Thumbnail" pada gambar yang ingin dijadikan thumbnail.
+                    Klik &ldquo;Set Thumbnail&rdquo; pada gambar yang ingin dijadikan thumbnail.
                   </div>
                 )}
               </div>

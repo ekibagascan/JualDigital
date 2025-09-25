@@ -23,12 +23,12 @@ export interface CreateWithdrawalRequest {
 
 export class WithdrawalService {
   // No commission on withdrawals - commission is charged on sales like Gumroad
-  calculateWithdrawalCommission(withdrawalAmount: number, totalEarnings: number): number {
+  calculateWithdrawalCommission(): number {
     return 0 // No withdrawal commission
   }
 
   // Calculate net withdrawal amount (no commission on withdrawals)
-  calculateNetWithdrawalAmount(withdrawalAmount: number, totalEarnings: number): number {
+  calculateNetWithdrawalAmount(withdrawalAmount: number): number {
     return withdrawalAmount // Full amount, no commission
   }
 

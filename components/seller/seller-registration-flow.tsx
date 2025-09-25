@@ -232,7 +232,7 @@ export function SellerRegistrationFlow() {
       })
 
       router.push("/seller/application-submitted")
-    } catch (error) {
+    } catch {
       toast({
         title: "Gagal mengirim aplikasi",
         description: "Terjadi kesalahan. Silakan coba lagi.",

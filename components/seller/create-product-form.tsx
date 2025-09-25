@@ -277,7 +277,7 @@ export function CreateProductForm() {
 
       // Handle image uploads first if any
       let imageUrl = null
-      let imageUrls: string[] = []
+      const imageUrls: string[] = []
 
       if (formData.images.length > 0) {
         try {
@@ -350,8 +350,7 @@ export function CreateProductForm() {
         throw new Error(errorData.error || 'Failed to create product')
       }
 
-      const result = await response.json()
-      const productId = result.product?.id
+      await response.json()
 
       // Handle file uploads if any
       if (formData.files.length > 0) {
@@ -686,7 +685,7 @@ export function CreateProductForm() {
 
               {formData.productLinks.length === 0 && (
                 <div className="text-center py-4 text-muted-foreground">
-                  <p>Belum ada link produk. Klik "Tambah Link" untuk menambahkan.</p>
+                  <p>Belum ada link produk. Klik &ldquo;Tambah Link&rdquo; untuk menambahkan.</p>
                 </div>
               )}
 
@@ -779,7 +778,7 @@ export function CreateProductForm() {
               {imagePreview.length > 0 && (
                 <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
                   <strong>Thumbnail:</strong> Gambar pertama akan digunakan sebagai thumbnail utama produk.
-                  Klik "Set Thumbnail" pada gambar yang ingin dijadikan thumbnail.
+                  Klik &ldquo;Set Thumbnail&rdquo; pada gambar yang ingin dijadikan thumbnail.
                 </div>
               )}
             </div>

@@ -203,7 +203,7 @@ export function ProfileSettings() {
         title: "Pengaturan notifikasi disimpan",
         description: "Preferensi notifikasi Anda telah diperbarui.",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Gagal menyimpan pengaturan",
         description: "Terjadi kesalahan. Silakan coba lagi.",
@@ -239,7 +239,7 @@ export function ProfileSettings() {
       const fileName = `${user?.id}-${Date.now()}.${fileExt}`
 
       // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('avatars')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -270,7 +270,7 @@ export function ProfileSettings() {
       })
 
       if (response.ok) {
-        const result = await response.json()
+        await response.json()
 
         // Update the user object with new avatar
         if (user) {

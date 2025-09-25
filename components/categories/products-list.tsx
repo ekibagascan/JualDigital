@@ -21,6 +21,7 @@ const transformProduct = (product: Product) => ({
   sales: product.total_sales || 0,
   category: product.category,
   livePreview: product.live_preview,
+  seller_id: product.seller_id,
 })
 
 interface ProductsListProps {
@@ -36,7 +37,7 @@ export function ProductsList({ category }: ProductsListProps) {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [totalProducts, setTotalProducts] = useState(0)
+  const [, setTotalProducts] = useState(0)
   const itemsPerPage = 12
 
   useEffect(() => {

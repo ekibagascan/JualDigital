@@ -76,20 +76,14 @@ interface ProductDetailsProps {
 }
 
 export function ProductDetails({ product }: ProductDetailsProps) {
-  // Find which image in the images array corresponds to the thumbnail (image)
-  const getThumbnailIndex = () => {
-    if (!product.images || product.images.length === 0) return 0
-    const thumbnailIndex = product.images.findIndex(img => img === product.image)
-    return thumbnailIndex >= 0 ? thumbnailIndex : 0
-  }
 
   // Filter out duplicate images to avoid showing thumbnail twice
   const getUniqueImages = () => {
     if (!product.images || product.images.length === 0) return [product.image]
-    
+
     // Remove the thumbnail from images array if it exists there
     const filteredImages = product.images.filter(img => img !== product.image)
-    
+
     // Return thumbnail first, then the rest of the unique images
     return [product.image, ...filteredImages]
   }

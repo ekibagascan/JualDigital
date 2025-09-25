@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase-server"
+import { createSupabaseServerClient } from "@/lib/supabase-server"
+
+interface OrderData {
+  total_amount: string
+  order_items?: Array<{ quantity: number }>
+  created_at: string
+}
+
+interface ProductData {
+  rating: number
+  total_reviews: number
+}
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createServerClient()
+    const supabase = createSupabaseServerClient()
     const { searchParams } = new URL(req.url)
     const sellerId = searchParams.get('sellerId')
 
@@ -53,13 +64,13 @@ export async function GET(req: NextRequest) {
 
     // Calculate metrics
     const totalSales = salesData?.length || 0
-    const totalRevenue = salesData?.reduce((sum, order) => sum + parseFloat(order.total_amount || '0'), 0) || 0
-    const totalProductsSold = salesData?.reduce((sum, order) => 
-      sum + (order.order_items?.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0) || 0), 0) || 0
+    const totalRevenue = salesData?.reduce((sum: number, order: OrderData) => sum + parseFloat(order.total_amount || '0'), 0) || 0
+    const totalProductsSold = salesData?.reduce((sum: number, order: OrderData) => 
+      sum + (order.order_items?.reduce((itemSum: number, item: { quantity: number }) => itemSum + (item.quantity || 0), 0) || 0), 0) || 0
 
     // Calculate average rating
-    const allRatings = productsData?.map(p => p.rating).filter(r => r > 0) || []
-    const averageRating = allRatings.length > 0 ? allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length : 0
+    const allRatings = productsData?.map((p: ProductData) => p.rating).filter((r: number) => r > 0) || []
+    const averageRating = allRatings.length > 0 ? allRatings.reduce((sum: number, r: number) => sum + r, 0) / allRatings.length : 0
 
     // Calculate days since first sale
     const firstSaleDate = salesData?.[0]?.created_at
@@ -85,7 +96,7 @@ export async function GET(req: NextRequest) {
       totalSales,
       totalRevenue,
       averageRating,
-      totalReviews: productsData?.reduce((sum, p) => sum + (p.total_reviews || 0), 0) || 0,
+      totalReviews: productsData?.reduce((sum: number, p: ProductData) => sum + (p.total_reviews || 0), 0) || 0,
       daysSinceFirstSale,
       productsSold: totalProductsSold,
       returnRate: 0, // Would need returns data

@@ -190,7 +190,7 @@ export function ProductManagement() {
           description: `Produk berhasil diubah menjadi ${newStatus === "active" ? "aktif" : "tidak aktif"}.`,
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Gagal mengubah status produk",
         description: "Terjadi kesalahan saat mengubah status produk.",

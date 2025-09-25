@@ -153,7 +153,7 @@ export function OrderManagement() {
 
 
                     // Fetch emails from auth.users using service role
-                    const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers()
+                    const { data: usersData } = await supabase.auth.admin.listUsers()
 
 
 

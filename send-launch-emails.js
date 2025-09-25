@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const sgMail = require("@sendgrid/mail");
 require("dotenv").config();
 
@@ -188,50 +189,50 @@ async function sendJualDigitalAnnouncement(email, name) {
   return sgMail.send(msg);
 }
 
-// Main function to send emails to all users
-async function sendToAllUsers() {
-  console.log("🚀 Starting to send Jual Digital launch announcement emails...");
-  console.log(`📧 Total users: ${emailList.length}`);
-  console.log("");
+// Main function to send emails to all users (unused - kept for reference)
+// async function sendToAllUsers() {
+console.log("🚀 Starting to send Jual Digital launch announcement emails...");
+console.log(`📧 Total users: ${emailList.length}`);
+console.log("");
 
-  let successCount = 0;
-  let failureCount = 0;
+let successCount = 0;
+let failureCount = 0;
 
-  for (const user of emailList) {
-    console.log(`📤 Sending to: ${user.email} (${user.name})`);
+for (const user of emailList) {
+  console.log(`📤 Sending to: ${user.email} (${user.name})`);
 
-    try {
-      const success = await sendJualDigitalAnnouncement(user.email, user.name);
+  try {
+    const success = await sendJualDigitalAnnouncement(user.email, user.name);
 
-      if (success) {
-        console.log(`✅ Success: ${user.email}`);
-        successCount++;
-      } else {
-        console.log(`❌ Failed: ${user.email}`);
-        failureCount++;
-      }
-
-      // Add delay between emails to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.error(`❌ Error sending to ${user.email}:`, error);
+    if (success) {
+      console.log(`✅ Success: ${user.email}`);
+      successCount++;
+    } else {
+      console.log(`❌ Failed: ${user.email}`);
       failureCount++;
     }
 
-    console.log("");
+    // Add delay between emails to avoid rate limiting
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } catch (error) {
+    console.error(`❌ Error sending to ${user.email}:`, error);
+    failureCount++;
   }
 
-  console.log("🎯 Email Campaign Summary:");
-  console.log(`✅ Successful: ${successCount}`);
-  console.log(`❌ Failed: ${failureCount}`);
-  console.log(`📊 Total: ${emailList.length}`);
-
-  if (failureCount === 0) {
-    console.log("🎉 All emails sent successfully!");
-  } else {
-    console.log("⚠️ Some emails failed to send. Check the logs above.");
-  }
+  console.log("");
 }
+
+console.log("🎯 Email Campaign Summary:");
+console.log(`✅ Successful: ${successCount}`);
+console.log(`❌ Failed: ${failureCount}`);
+console.log(`📊 Total: ${emailList.length}`);
+
+if (failureCount === 0) {
+  console.log("🎉 All emails sent successfully!");
+} else {
+  console.log("⚠️ Some emails failed to send. Check the logs above.");
+}
+// }
 
 // Function to show batch information
 function showBatchInfo() {

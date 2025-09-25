@@ -17,6 +17,7 @@ const transformProduct = (product: Product) => ({
   sales: product.total_sales || 0,
   category: product.category,
   livePreview: product.live_preview,
+  seller_id: product.seller_id,
 })
 
 interface RelatedProductsProps {

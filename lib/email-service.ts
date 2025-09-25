@@ -31,7 +31,7 @@ export async function sendDownloadEmail({
   }
   
   try {
-    const result = await sgMail.send(msg)
+      await sgMail.send(msg)
     return true
   } catch (error: unknown) {
     console.error('[EMAIL SERVICE] Failed to send email:', error)

@@ -23,6 +23,27 @@ export interface RecentPurchase {
   status: string
 }
 
+interface OrderItemData {
+  id: string
+  product_title: string
+  price: number
+  created_at: string
+  seller_id: string
+  orders: {
+    user_id: string
+    status: string
+    created_at: string
+  }[]
+}
+
+interface ProductData {
+  id: string
+  title: string
+  price: number
+  total_sales: number
+  seller_earnings: number
+}
+
 export interface RecentProduct {
   id: string
   title: string
@@ -192,7 +213,7 @@ export class DashboardService {
       }
 
       // Map the data to RecentPurchase format
-      return orderItems.map((item: any) => {
+      return orderItems.map((item: OrderItemData) => {
         const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
 
         return {
@@ -231,7 +252,7 @@ export class DashboardService {
         return []
       }
 
-      return products?.map((product: any) => ({
+      return products?.map((product: ProductData) => ({
         id: product.id,
         title: product.title,
         price: product.price,

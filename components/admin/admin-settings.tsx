@@ -90,7 +90,7 @@ export function AdminSettings() {
   ])
 
   // Admin Roles
-  const [adminRoles, setAdminRoles] = useState<AdminRole[]>([
+  const [adminRoles] = useState<AdminRole[]>([
     {
       id: "1",
       name: "Super Admin",
@@ -104,7 +104,7 @@ export function AdminSettings() {
   ])
 
   // Footer Links
-  const [footerLinks, setFooterLinks] = useState([
+  const [footerLinks] = useState([
     { id: "1", title: "Tentang Kami", url: "/about", category: "company" },
     { id: "2", title: "Syarat & Ketentuan", url: "/terms", category: "legal" },
     { id: "3", title: "Kebijakan Privasi", url: "/privacy", category: "legal" },
@@ -118,7 +118,7 @@ export function AdminSettings() {
         title: "Berhasil",
         description: "Pengaturan berhasil disimpan",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Gagal menyimpan pengaturan",

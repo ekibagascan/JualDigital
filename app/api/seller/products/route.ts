@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user is a seller
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
@@ -142,10 +142,10 @@ export async function POST(req: NextRequest) {
 
     // Create product variants if provided
     if (variants && variants.length > 0 && product) {
-      const variantData = variants.map((variant: any) => ({
+      const variantData = variants.map((variant: { name: string; price: number; description: string }) => ({
         product_id: product.id,
         name: variant.name,
-        price: parseFloat(variant.price),
+        price: variant.price,
         description: variant.description || ''
       }))
 

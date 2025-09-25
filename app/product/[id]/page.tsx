@@ -13,6 +13,15 @@ interface ProductPageProps {
   }>
 }
 
+interface ExtendedProduct {
+  file_size?: string
+  format?: string
+  pages?: number
+  language?: string
+  download_limit?: number
+  license?: string
+}
+
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params
   const product = await productService.getProduct(id)
@@ -46,13 +55,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
     sales: product.total_sales || 0,
     category: product.category,
     tags: product.tags || [],
-    fileSize: product.file_size || "N/A",
-    format: product.format || "Digital",
-    pages: product.pages || 0,
-    language: product.language || "N/A",
+    fileSize: (product as ExtendedProduct).file_size || "N/A",
+    format: (product as ExtendedProduct).format || "Digital",
+    pages: (product as ExtendedProduct).pages || 0,
+    language: (product as ExtendedProduct).language || "N/A",
     lastUpdated: product.updated_at,
-    downloadLimit: product.download_limit || -1,
-    license: product.license || "Personal Use",
+    downloadLimit: (product as ExtendedProduct).download_limit || -1,
+    license: (product as ExtendedProduct).license || "Personal Use",
     livePreview: product.live_preview,
     seller_id: product.seller_id,
   }
