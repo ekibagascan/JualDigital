@@ -154,40 +154,23 @@ export function UserManagement() {
 
   const handlePromoteToAuthor = async (user: User) => {
     try {
-      // First update the role to seller
-      const roleResponse = await fetch('/api/admin/users', {
+      // Update both role and status in a single API call
+      const response = await fetch('/api/admin/users', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           userId: user.id,
-          action: 'updateRole',
-          role: 'seller'
-        })
-      })
-
-      if (!roleResponse.ok) {
-        const errorData = await roleResponse.json()
-        throw new Error(`Failed to update user role: ${errorData.error || 'Unknown error'}`)
-      }
-
-      // Then update the status to active
-      const statusResponse = await fetch('/api/admin/users', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          action: 'updateStatus',
+          action: 'approveSeller',
+          role: 'seller',
           status: 'active'
         })
       })
 
-      if (!statusResponse.ok) {
-        const errorData = await statusResponse.json()
-        throw new Error(`Failed to update user status: ${errorData.error || 'Unknown error'}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(`Failed to approve seller application: ${errorData.error || 'Unknown error'}`)
       }
 
       toast({
@@ -415,9 +398,16 @@ export function UserManagement() {
           {showPendingSellers && (
             <div className="space-y-4">
               {(() => {
-                const pendingSellers = users.filter(user => user.role === 'seller' && user.status === 'pending')
+                // Filter for pending seller applications - check for users who want to be sellers but haven't been approved yet
+                const pendingSellers = users.filter(user => 
+                  (user.role === 'seller' && user.status === 'pending') || 
+                  (user.role === 'seller' && user.status === 'draft') ||
+                  (user.role === 'seller' && !user.status) ||
+                  (user.role === 'seller' && user.status === '')
+                )
                 console.log('Pending sellers:', pendingSellers)
                 console.log('All users with seller role:', users.filter(user => user.role === 'seller'))
+                console.log('All users:', users.map(u => ({ id: u.id, name: u.name, role: u.role, status: u.status })))
                 return pendingSellers.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     Tidak ada aplikasi seller tertunda

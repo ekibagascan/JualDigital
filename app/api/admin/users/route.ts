@@ -189,6 +189,15 @@ export async function PUT(req: NextRequest) {
         )
       }
       updateData.status = status
+    } else if (action === 'approveSeller') {
+      if (!role || !status) {
+        return NextResponse.json(
+          { error: 'Role and status are required for approveSeller action' },
+          { status: 400 }
+        )
+      }
+      updateData.role = role
+      updateData.status = status
     }
 
     // Get user details before updating for email notifications
@@ -240,9 +249,9 @@ export async function PUT(req: NextRequest) {
     console.log('[ADMIN USERS API] User updated successfully:', { userId, updateData })
 
     // Send email notifications for seller application status changes
-    if (userData && (action === 'updateRole' || action === 'updateStatus')) {
+    if (userData && (action === 'updateRole' || action === 'updateStatus' || action === 'approveSeller')) {
       try {
-        if (action === 'updateRole' && role === 'seller') {
+        if ((action === 'updateRole' && role === 'seller') || action === 'approveSeller') {
           // Seller application approved
           if (userEmail && userEmail.trim() !== '') {
             const emailSent = await sendSellerApplicationApproved({
