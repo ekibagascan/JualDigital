@@ -168,4 +168,4 @@ export async function GET(req: NextRequest) {
     console.error('[SELLER DASHBOARD API] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+} export const dynamic = 'force-dynamic'

@@ -399,8 +399,8 @@ export function UserManagement() {
             <div className="space-y-4">
               {(() => {
                 // Filter for pending seller applications - check for users who want to be sellers but haven't been approved yet
-                const pendingSellers = users.filter(user => 
-                  (user.role === 'seller' && user.status === 'pending') || 
+                const pendingSellers = users.filter(user =>
+                  (user.role === 'seller' && user.status === 'pending') ||
                   (user.role === 'seller' && user.status === 'draft') ||
                   (user.role === 'seller' && !user.status) ||
                   (user.role === 'seller' && user.status === '')

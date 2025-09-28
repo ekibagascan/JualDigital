@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/lib/email-service'
 
+export const dynamic = 'force-dynamic'
+
 
 export async function GET(req: NextRequest) {
   try {

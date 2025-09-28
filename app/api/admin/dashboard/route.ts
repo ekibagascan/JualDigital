@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
     // Check admin authentication
@@ -59,10 +61,14 @@ export async function GET(req: NextRequest) {
       console.error('[ADMIN DASHBOARD API] Products query error:', productsError)
     }
 
-    // 3. Total Revenue - simplified approach
+    // 3. Total Revenue - only count paid orders
     const { data: revenueData, error: revenueError } = await supabase
       .from('order_items')
-      .select('seller_earnings')
+      .select(`
+        seller_earnings,
+        orders!inner(status)
+      `)
+      .eq('orders.status', 'paid')
 
     if (revenueError) {
       console.error('[ADMIN DASHBOARD API] Revenue query error:', revenueError)
@@ -118,10 +124,16 @@ export async function GET(req: NextRequest) {
       }
     }) || []
 
-    // 6. Top Selling Products - get product IDs first
+    // 6. Top Selling Products - only count paid orders
     const { data: topProductItems, error: topProductItemsError } = await supabase
       .from('order_items')
-      .select('product_id, quantity, seller_earnings')
+      .select(`
+        product_id, 
+        quantity, 
+        seller_earnings,
+        orders!inner(status)
+      `)
+      .eq('orders.status', 'paid')
       .order('quantity', { ascending: false })
       .limit(5)
 
@@ -162,10 +174,14 @@ export async function GET(req: NextRequest) {
 
     const usersChange = (lastMonthUsers || 0) > 0 ? (((thisMonthUsers || 0) - (lastMonthUsers || 0)) / (lastMonthUsers || 0)) * 100 : 0
 
-    // 8. Revenue this month vs last month - simplified
+    // 8. Revenue this month vs last month - only count paid orders
     const { data: thisMonthRevenue, error: thisMonthError } = await supabase
       .from('order_items')
-      .select('seller_earnings')
+      .select(`
+        seller_earnings,
+        orders!inner(status)
+      `)
+      .eq('orders.status', 'paid')
       .gte('created_at', now.toISOString().split('T')[0])
 
     if (thisMonthError) {
@@ -174,7 +190,11 @@ export async function GET(req: NextRequest) {
 
     const { data: lastMonthRevenue, error: lastMonthError } = await supabase
       .from('order_items')
-      .select('seller_earnings')
+      .select(`
+        seller_earnings,
+        orders!inner(status)
+      `)
+      .eq('orders.status', 'paid')
       .gte('created_at', thirtyDaysAgo.toISOString().split('T')[0])
       .lt('created_at', now.toISOString().split('T')[0])
 

@@ -41,4 +41,4 @@ export async function GET(request: NextRequest) {
     console.error('[SELLERS API] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+} export const dynamic = 'force-dynamic'

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+export const dynamic = 'force-dynamic'
 
 // Simple in-memory rate limiting (in production, use Redis or database)
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>()

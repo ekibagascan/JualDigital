@@ -110,4 +110,4 @@ export async function GET(req: NextRequest) {
     console.error("Error calculating trust score:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
-} 
+} export const dynamic = 'force-dynamic'
