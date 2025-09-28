@@ -26,14 +26,11 @@
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
-    "@react-three/drei": "^10.7.6",
-    "@react-three/fiber": "^9.3.0",
     "@sendgrid/mail": "^8.1.5",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.39.3",
-    "@types/three": "^0.180.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "dotenv": "^17.2.0",
@@ -44,7 +41,6 @@
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
-    "three": "^0.180.0",
     "xendit-node": "^7.0.0"
   },
   "devDependencies": {
