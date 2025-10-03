@@ -77,6 +77,7 @@ export function UserManagement() {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [processingUsers, setProcessingUsers] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchUsers()
@@ -153,7 +154,22 @@ export function UserManagement() {
   }
 
   const handlePromoteToAuthor = async (user: User) => {
+    // Prevent multiple clicks
+    if (processingUsers.has(user.id)) return
+
     try {
+      // Add user to processing set
+      setProcessingUsers(prev => new Set(prev).add(user.id))
+
+      // Optimistic UI update - immediately update the local state
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u.id === user.id
+            ? { ...u, role: 'seller', status: 'active' }
+            : u
+        )
+      )
+
       // Update both role and status in a single API call
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
@@ -173,27 +189,51 @@ export function UserManagement() {
         throw new Error(`Failed to approve seller application: ${errorData.error || 'Unknown error'}`)
       }
 
+      // Refresh data immediately after successful API call
+      await fetchUsers()
+
       toast({
         title: "Aplikasi disetujui",
         description: `${user.name} berhasil disetujui menjadi seller.`,
       })
-
-      // Refresh the users list with a small delay to ensure database is updated
-      setTimeout(() => {
-        fetchUsers()
-      }, 500)
     } catch (error) {
       console.error('Error approving seller application:', error)
+
+      // Revert optimistic update on error
+      await fetchUsers()
+
       toast({
         title: "Error",
         description: `Gagal menyetujui aplikasi seller: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       })
+    } finally {
+      // Remove user from processing set
+      setProcessingUsers(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(user.id)
+        return newSet
+      })
     }
   }
 
   const handleRejectSeller = async (user: User) => {
+    // Prevent multiple clicks
+    if (processingUsers.has(user.id)) return
+
     try {
+      // Add user to processing set
+      setProcessingUsers(prev => new Set(prev).add(user.id))
+
+      // Optimistic UI update - immediately update the local state
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u.id === user.id
+            ? { ...u, status: 'rejected' }
+            : u
+        )
+      )
+
       // Update the status to rejected
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
@@ -212,21 +252,30 @@ export function UserManagement() {
         throw new Error(`Failed to reject seller application: ${errorData.error || 'Unknown error'}`)
       }
 
+      // Refresh data immediately after successful API call
+      await fetchUsers()
+
       toast({
         title: "Aplikasi ditolak",
         description: `${user.name} tidak disetujui menjadi seller.`,
       })
-
-      // Refresh the users list with a small delay to ensure database is updated
-      setTimeout(() => {
-        fetchUsers()
-      }, 500)
     } catch (error) {
       console.error('Error rejecting seller application:', error)
+
+      // Revert optimistic update on error
+      await fetchUsers()
+
       toast({
         title: "Error",
         description: `Gagal menolak aplikasi seller: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
+      })
+    } finally {
+      // Remove user from processing set
+      setProcessingUsers(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(user.id)
+        return newSet
       })
     }
   }
@@ -438,15 +487,17 @@ export function UserManagement() {
                           <Button
                             size="sm"
                             onClick={() => handlePromoteToAuthor(user)}
+                            disabled={processingUsers.has(user.id)}
                           >
-                            Setujui
+                            {processingUsers.has(user.id) ? "Memproses..." : "Setujui"}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleRejectSeller(user)}
+                            disabled={processingUsers.has(user.id)}
                           >
-                            Tolak
+                            {processingUsers.has(user.id) ? "Memproses..." : "Tolak"}
                           </Button>
                         </div>
                       </div>
