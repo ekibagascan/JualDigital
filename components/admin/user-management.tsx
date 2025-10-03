@@ -449,14 +449,14 @@ export function UserManagement() {
               {(() => {
                 // Filter for pending seller applications - check for users who want to be sellers but haven't been approved yet
                 const pendingSellers = users.filter(user =>
-                  (user.role === 'seller' && user.status === 'pending') ||
-                  (user.role === 'seller' && user.status === 'draft') ||
-                  (user.role === 'seller' && !user.status) ||
-                  (user.role === 'seller' && user.status === '')
+                  user.role === 'seller' && 
+                  user.status !== 'active' && 
+                  user.status !== 'rejected' &&
+                  (user.status === 'pending' || 
+                   user.status === 'draft' || 
+                   !user.status || 
+                   user.status === '')
                 )
-                console.log('Pending sellers:', pendingSellers)
-                console.log('All users with seller role:', users.filter(user => user.role === 'seller'))
-                console.log('All users:', users.map(u => ({ id: u.id, name: u.name, role: u.role, status: u.status })))
                 return pendingSellers.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     Tidak ada aplikasi seller tertunda
