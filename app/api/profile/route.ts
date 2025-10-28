@@ -3,6 +3,17 @@ import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
+interface ProfileUpdate {
+  updated_at: string
+  name?: string
+  bio?: string
+  phone?: string
+  address?: string
+  website?: string
+  avatar_url?: string
+  shop_logo?: string
+}
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = createClient(
@@ -66,7 +77,7 @@ export async function PUT(req: NextRequest) {
     console.log('Profile update request:', updateData)
 
     // Prepare update object
-    const updateObject: any = {
+    const updateObject: ProfileUpdate = {
       updated_at: new Date().toISOString()
     }
 

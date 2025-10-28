@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
+import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase-client";
 
 export default function DebugPage() {
-    const [session, setSession] = useState<any>(null);
-    const [user, setUser] = useState<any>(null);
+    const [session, setSession] = useState<Session | null>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [cookies, setCookies] = useState<string>("");
 
     useEffect(() => {

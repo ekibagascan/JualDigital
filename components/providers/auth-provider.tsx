@@ -1,13 +1,14 @@
 "use client"
 
 import React from "react"
+import type { User } from "@supabase/supabase-js"
 import { AuthProvider as AuthContextProvider } from "@/hooks/use-auth"
 import { useSupabaseCart } from "@/hooks/use-supabase-cart"
 import { useAuth } from "@/hooks/use-auth"
 
 interface AuthProviderProps {
   children: React.ReactNode
-  initialUser?: any
+  initialUser?: User | null
 }
 
 function AuthProviderWrapper({ children }: AuthProviderProps) {

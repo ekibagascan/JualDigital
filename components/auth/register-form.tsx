@@ -110,7 +110,7 @@ export function RegisterForm() {
 
     try {
       const result = await register(formData.name, formData.email, formData.password)
-      if (result && (result as any).needsConfirmation) {
+      if (result?.needsConfirmation) {
         setConfirmationSent(true)
         toast({
           title: "Registrasi berhasil!",

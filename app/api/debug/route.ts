@@ -13,10 +13,10 @@ export async function GET(request: NextRequest) {
       },
     }
   );
-  const { data: { user, session }, error } = await supabase.auth.getUser();
+  const { data: { session }, error } = await supabase.auth.getSession();
   return NextResponse.json({
     cookies: request.cookies.getAll(),
-    user,
+    user: session?.user,
     session,
     error,
   });

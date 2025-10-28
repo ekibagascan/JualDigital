@@ -5,20 +5,25 @@ import { supabase } from "@/lib/supabase-client"
 import type { User, Session } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
 
+interface RegisterResult {
+  needsConfirmation?: boolean
+}
+
 interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, metadata?: object | undefined) => Promise<void>
+  signUp: (email: string, password: string, metadata?: object | undefined) => Promise<RegisterResult | null>
+  register: (name: string, email: string, password: string) => Promise<RegisterResult | null>
   signOut: () => Promise<void>
   signInWithProvider: (provider: "github" | "google") => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+export function AuthProvider({ children, initialUser }: { children: ReactNode, initialUser?: User | null }) {
+  const [user, setUser] = useState<User | null>(initialUser || null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -126,13 +131,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
-  const signUp = async (email: string, password: string, metadata?: object | undefined) => {
-    const { error } = await supabase.auth.signUp({
+  const signUp = async (email: string, password: string, metadata?: object | undefined): Promise<RegisterResult | null> => {
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: metadata },
     })
     if (error) throw error
+    return { needsConfirmation: data.user && !data.session ? true : undefined }
+  }
+
+  const register = async (name: string, email: string, password: string): Promise<RegisterResult | null> => {
+    return signUp(email, password, { full_name: name })
   }
 
   const signOut = async () => {
@@ -162,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         signIn,
         signUp,
+        register,
         signOut,
         signInWithProvider,
       }}
