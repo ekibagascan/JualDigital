@@ -6,10 +6,3 @@
   
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# Required for Next.js middleware and API routes
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/___netlify-server-handler"
-  status = 200
-  force = false
