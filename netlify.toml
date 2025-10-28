@@ -6,3 +6,9 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Redirect all requests to Next.js server function
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/___netlify-server-handler"
+  status = 200
