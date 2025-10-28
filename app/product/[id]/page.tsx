@@ -7,6 +7,8 @@ import { ProductReviews } from "@/components/product/product-reviews"
 import { RelatedProducts } from "@/components/product/related-products"
 import { productService } from "@/lib/product-service"
 
+export const dynamic = 'force-dynamic'
+
 interface ProductPageProps {
   params: Promise<{
     id: string
