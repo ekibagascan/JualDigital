@@ -8,6 +8,8 @@ import { RelatedProducts } from "@/components/product/related-products"
 import { productService } from "@/lib/product-service"
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 interface ProductPageProps {
   params: Promise<{
