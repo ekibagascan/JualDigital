@@ -1,13 +1,15 @@
 [build]
   command = "npm run build"
-  
+
 [build.environment]
   NODE_VERSION = "20"
   
-# Required for Next.js on Netlify
-[functions]
-  external_node_modules = ["sharp"]
-
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Required for Next.js middleware and API routes
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/___netlify-server-handler"
+  status = 200
+  force = false
