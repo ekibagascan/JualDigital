@@ -117,6 +117,23 @@ export function useSupabaseCart() {
     fetchOrCreateCart()
   }, [user])
 
+  // Update quantity
+  const updateQuantity = useCallback(async (id: string, quantity: number) => {
+    try {
+      const { error } = await supabase
+        .from("cart_items")
+        .update({ quantity })
+        .eq("id", id)
+      if (error) {
+        console.error('Error updating quantity:', error)
+        return
+      }
+      setItems(prev => prev.map(i => i.id === id ? { ...i, quantity } : i))
+    } catch (error) {
+      console.error('Error in updateQuantity:', error)
+    }
+  }, [])
+
   // Add item to cart
   const addItem = useCallback(async (item: { 
     product_id: string; 
@@ -169,7 +186,7 @@ export function useSupabaseCart() {
         price: item.price,
         image_url: item.image_url,
         seller_id: sellerId, // Use the fetched seller_id
-        // added_at will default to NOW() in the DB
+        // created_at will default to NOW() in the DB
       }
       
       const { data, error } = await supabase
@@ -199,7 +216,7 @@ export function useSupabaseCart() {
       console.error('Error in addItem:', error)
       throw error
     }
-  }, [cartId, items, supabase, user])
+  }, [cartId, items, updateQuantity])
 
   // Remove item from cart
   const removeItem = useCallback(async (id: string) => {
@@ -213,24 +230,7 @@ export function useSupabaseCart() {
     } catch (error) {
       console.error('Error in removeItem:', error)
     }
-  }, [supabase])
-
-  // Update quantity
-  const updateQuantity = useCallback(async (id: string, quantity: number) => {
-    try {
-      const { error } = await supabase
-        .from("cart_items")
-        .update({ quantity })
-        .eq("id", id)
-      if (error) {
-        console.error('Error updating quantity:', error)
-        return
-      }
-      setItems(prev => prev.map(i => i.id === id ? { ...i, quantity } : i))
-    } catch (error) {
-      console.error('Error in updateQuantity:', error)
-    }
-  }, [supabase])
+  }, [])
 
   // Clear cart
   const clearCart = useCallback(async () => {
@@ -253,7 +253,7 @@ export function useSupabaseCart() {
       // Still clear local state even if DB operation fails
       setItems([])
     }
-  }, [cartId, supabase])
+  }, [cartId])
 
   // Get total price
   const getTotalPrice = useCallback(() => {

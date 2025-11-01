@@ -8,7 +8,9 @@ import { Star, Download, BadgeIcon, Heart, ShoppingCart, Eye, ExternalLink } fro
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { formatCurrency } from "@/lib/utils"
+import type { ProductVariant } from "@/lib/product-service"
 import { useCart } from "@/components/providers/cart-provider"
 import { useSupabaseWishlist } from "@/hooks/use-supabase-wishlist"
 import { useAuth } from "@/hooks/use-auth"
@@ -44,6 +46,11 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
 
   const [showPreview, setShowPreview] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [variants, setVariants] = useState<ProductVariant[]>([])
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null)
+  const [showVariantDialog, setShowVariantDialog] = useState(false)
+  const [pendingAction, setPendingAction] = useState<'cart' | 'buy' | null>(null)
+  const [loadingVariants, setLoadingVariants] = useState(false)
   const { addItem } = useCart()
   const { user } = useAuth()
   const { isInWishlist, addToWishlist, removeFromWishlist } = useSupabaseWishlist()
@@ -55,6 +62,31 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
     window.addEventListener("resize", checkMobile)
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
+
+  // Fetch variants on mount
+  useEffect(() => {
+    const fetchVariants = async () => {
+      try {
+        setLoadingVariants(true)
+        const response = await fetch(`/api/products/${product.id}/variants`)
+        const data = await response.json()
+
+        if (response.ok && data.variants) {
+          setVariants(data.variants || [])
+          // Auto-select first variant if available
+          if (data.variants && data.variants.length > 0) {
+            setSelectedVariant(data.variants[0])
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching variants:', error)
+      } finally {
+        setLoadingVariants(false)
+      }
+    }
+
+    fetchVariants()
+  }, [product.id])
 
   const handleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -86,6 +118,51 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
     }
   }
 
+  const proceedWithAction = async (action: 'cart' | 'buy') => {
+    if (!user) {
+      toast({
+        title: "Login diperlukan",
+        description: "Silakan login terlebih dahulu.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const variantPrice = selectedVariant ? selectedVariant.price : product.price
+
+    try {
+      await addItem({
+        product_id: product.id,
+        variant_id: selectedVariant?.id,
+        variant_name: selectedVariant?.name,
+        title: product.title,
+        price: variantPrice,
+        image_url: product.image,
+        seller_id: product.seller_id,
+        quantity: 1,
+      })
+
+      if (action === 'cart') {
+        toast({
+          title: "Ditambahkan ke keranjang",
+          description: `${product.title}${selectedVariant ? ` - ${selectedVariant.name}` : ''} telah ditambahkan ke keranjang.`,
+        })
+      } else {
+        router.push("/cart")
+      }
+
+      setShowVariantDialog(false)
+      setSelectedVariant(variants.length > 0 ? variants[0] : null)
+    } catch (error) {
+      console.error('Error adding to cart:', error)
+      toast({
+        title: "Gagal menambahkan ke keranjang",
+        description: "Terjadi kesalahan saat menambahkan produk ke keranjang.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -99,27 +176,15 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
       return
     }
 
-    try {
-      await addItem({
-        product_id: product.id,
-        title: product.title,
-        price: product.price,
-        image_url: product.image,
-        seller_id: product.seller_id,
-        quantity: 1,
-      })
-      toast({
-        title: "Ditambahkan ke keranjang",
-        description: `${product.title} telah ditambahkan ke keranjang.`,
-      })
-    } catch (error) {
-      console.error('Error adding to cart:', error)
-      toast({
-        title: "Gagal menambahkan ke keranjang",
-        description: "Terjadi kesalahan saat menambahkan produk ke keranjang.",
-        variant: "destructive",
-      })
+    // If product has more than 1 variant, show dialog
+    if (variants.length > 1) {
+      setPendingAction('cart')
+      setShowVariantDialog(true)
+      return
     }
+
+    // If 0 or 1 variant, proceed directly
+    await proceedWithAction('cart')
   }
 
   const handleBuyNow = async (e: React.MouseEvent) => {
@@ -135,24 +200,15 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
       return
     }
 
-    try {
-      await addItem({
-        product_id: product.id,
-        title: product.title,
-        price: product.price,
-        image_url: product.image,
-        seller_id: product.seller_id,
-        quantity: 1,
-      })
-      router.push("/cart")
-    } catch (error) {
-      console.error('Error adding to cart for buy now:', error)
-      toast({
-        title: "Gagal menambahkan ke keranjang",
-        description: "Terjadi kesalahan saat menambahkan produk ke keranjang.",
-        variant: "destructive",
-      })
+    // If product has more than 1 variant, show dialog
+    if (variants.length > 1) {
+      setPendingAction('buy')
+      setShowVariantDialog(true)
+      return
     }
+
+    // If 0 or 1 variant, proceed directly
+    await proceedWithAction('buy')
   }
 
   const handlePreviewClick = (e: React.MouseEvent) => {
@@ -300,6 +356,77 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
           </div>
         </div>
       </CardContent>
+
+      {/* Variant Selection Dialog */}
+      <Dialog open={showVariantDialog} onOpenChange={setShowVariantDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Pilih Varian</DialogTitle>
+            <DialogDescription>
+              Pilih varian untuk {product.title}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {loadingVariants ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Memuat varian...
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {variants.map((variant) => (
+                  <button
+                    key={variant.id}
+                    onClick={() => setSelectedVariant(variant)}
+                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${selectedVariant?.id === variant.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium">{variant.name}</div>
+                        {variant.description && (
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {variant.description}
+                          </div>
+                        )}
+                      </div>
+                      <div className="ml-4">
+                        <div className="font-bold text-primary">
+                          {formatCurrency(variant.price)}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowVariantDialog(false)
+                setPendingAction(null)
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedVariant && pendingAction) {
+                  proceedWithAction(pendingAction)
+                }
+              }}
+              disabled={!selectedVariant || loadingVariants}
+            >
+              {pendingAction === 'cart' ? 'Tambah ke Keranjang' : 'Beli Sekarang'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
