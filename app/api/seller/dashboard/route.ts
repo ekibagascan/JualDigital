@@ -84,18 +84,19 @@ export async function GET(req: NextRequest) {
     
     if (orderItemsResult.data) {
       orderItemsResult.data.forEach((item: { 
-        orders: { id: string } | { id: string }[]; 
+        orders: { id: string; status: string } | { id: string; status: string }[]; 
         price: number; 
         quantity: number;
         seller_earnings: number;
       }) => {
         // Handle both array and object for orders
         const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
-        if (order && order.id) {
+        // Only count paid orders (double-check even though query filters)
+        if (order && order.id && order.status === 'paid') {
           uniqueOrders.add(order.id)
+          totalRevenue += (item.seller_earnings || 0)
+          totalSales += item.quantity || 0
         }
-        totalRevenue += (item.seller_earnings || 0)
-        totalSales += item.quantity || 0
       })
     }
     
@@ -115,12 +116,17 @@ export async function GET(req: NextRequest) {
       orderItemsResult.data.forEach((item: { 
         seller_earnings: number;
         created_at: string;
+        orders: { id: string; status: string } | { id: string; status: string }[];
       }) => {
-        const itemDate = new Date(item.created_at)
-        if (itemDate >= thisMonth) {
-          thisMonthRevenue += (item.seller_earnings || 0)
-        } else if (itemDate >= lastMonth && itemDate < thisMonth) {
-          lastMonthRevenue += (item.seller_earnings || 0)
+        // Only count paid orders for revenue calculation
+        const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
+        if (order && order.status === 'paid') {
+          const itemDate = new Date(item.created_at)
+          if (itemDate >= thisMonth) {
+            thisMonthRevenue += (item.seller_earnings || 0)
+          } else if (itemDate >= lastMonth && itemDate < thisMonth) {
+            lastMonthRevenue += (item.seller_earnings || 0)
+          }
         }
       })
     }
