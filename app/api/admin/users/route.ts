@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
       }
     )
 
-    // Get all users from profiles table
+    // Get all users from profiles table - force fresh query with timestamp
+    const timestamp = Date.now()
+    console.log('[ADMIN USERS API] Fetching users at:', new Date().toISOString(), 'timestamp:', timestamp)
+    
     const { data: users, error: usersError } = await supabase
       .from('profiles')
       .select('*')
@@ -70,10 +73,26 @@ export async function GET(req: NextRequest) {
     const activeUsers = users?.filter(user => user.status === 'active').length || 0
     const suspendedUsers = users?.filter(user => user.status === 'suspended').length || 0
     const totalAuthors = users?.filter(user => user.role === 'seller').length || 0
-    const pendingSellers = users?.filter(user => user.role === 'seller' && user.status === 'pending').length || 0
+    
+    // Filter pending sellers and log for debugging
+    const pendingSellersList = users?.filter(user => user.role === 'seller' && user.status === 'pending') || []
+    const pendingSellers = pendingSellersList.length
+    console.log('[ADMIN USERS API] Pending sellers count:', pendingSellers)
+    console.log('[ADMIN USERS API] Pending sellers details:', pendingSellersList.map(u => ({ id: u.id, name: u.name, role: u.role, status: u.status })))
+    
     const newUsersThisMonth = users?.filter(user => 
       new Date(user.created_at) >= thisMonth
     ).length || 0
+
+    // Log all seller statuses for debugging
+    const allSellers = users?.filter(user => user.role === 'seller') || []
+    console.log('[ADMIN USERS API] All sellers status breakdown:', {
+      total: allSellers.length,
+      active: allSellers.filter(u => u.status === 'active').length,
+      pending: allSellers.filter(u => u.status === 'pending').length,
+      rejected: allSellers.filter(u => u.status === 'rejected').length,
+      other: allSellers.filter(u => u.status !== 'active' && u.status !== 'pending' && u.status !== 'rejected').map(u => ({ id: u.id, status: u.status }))
+    })
 
     // Process user data with additional statistics
     const processedUsers = users?.map(user => {
@@ -118,6 +137,16 @@ export async function GET(req: NextRequest) {
         lastOrder: lastOrder?.toISOString() || null
       }
     }) || []
+
+    console.log('[ADMIN USERS API] Returning stats:', {
+      totalUsers,
+      activeUsers,
+      suspendedUsers,
+      totalAuthors,
+      pendingSellers,
+      newUsersThisMonth,
+      timestamp: new Date().toISOString()
+    })
 
     return NextResponse.json({
       users: processedUsers,
@@ -257,6 +286,23 @@ export async function PUT(req: NextRequest) {
     }
 
     console.log('[ADMIN USERS API] User updated successfully:', { userId, updateData })
+    
+    // Verify the update by fetching the user again
+    const { data: updatedUser, error: verifyError } = await supabase
+      .from('profiles')
+      .select('id, role, status')
+      .eq('id', userId)
+      .single()
+    
+    if (verifyError) {
+      console.error('[ADMIN USERS API] Error verifying update:', verifyError)
+    } else {
+      console.log('[ADMIN USERS API] Verified user after update:', { 
+        id: updatedUser?.id, 
+        role: updatedUser?.role, 
+        status: updatedUser?.status 
+      })
+    }
 
     // Send email notifications for seller application status changes
     if (userData && (action === 'updateRole' || action === 'updateStatus' || action === 'approveSeller')) {
