@@ -101,6 +101,9 @@ export function UserManagement() {
       }
 
       const data: UserData = await response.json()
+      console.log('[USER MANAGEMENT] Fetched users:', data.users.length)
+      console.log('[USER MANAGEMENT] Pending sellers count:', data.stats.pendingSellers)
+      console.log('[USER MANAGEMENT] Pending sellers:', data.users.filter(u => u.role === 'seller' && u.status === 'pending').map(u => ({ id: u.id, name: u.name, status: u.status })))
       setUsers(data.users)
       setStats(data.stats)
     } catch (error) {
@@ -196,10 +199,14 @@ export function UserManagement() {
         throw new Error(`Failed to approve seller application: ${errorData.error || 'Unknown error'}`)
       }
 
+      const result = await response.json()
+      console.log('[USER MANAGEMENT] Approval response:', result)
+
       // Refresh data immediately after successful API call with small delay to ensure DB is updated
+      console.log('[USER MANAGEMENT] Seller approved, refreshing data...')
       setTimeout(async () => {
         await fetchUsers()
-      }, 300)
+      }, 500) // Increased delay to ensure DB is fully updated
 
       toast({
         title: "Aplikasi disetujui",
@@ -263,10 +270,14 @@ export function UserManagement() {
         throw new Error(`Failed to reject seller application: ${errorData.error || 'Unknown error'}`)
       }
 
+      const result = await response.json()
+      console.log('[USER MANAGEMENT] Rejection response:', result)
+
       // Refresh data immediately after successful API call with small delay to ensure DB is updated
+      console.log('[USER MANAGEMENT] Seller rejected, refreshing data...')
       setTimeout(async () => {
         await fetchUsers()
-      }, 300)
+      }, 500) // Increased delay to ensure DB is fully updated
 
       toast({
         title: "Aplikasi ditolak",
@@ -462,15 +473,9 @@ export function UserManagement() {
           {showPendingSellers && (
             <div className="space-y-4">
               {(() => {
-                // Filter for pending seller applications - check for users who want to be sellers but haven't been approved yet
+                // Filter for pending seller applications - only show users with role='seller' and status='pending'
                 const pendingSellers = users.filter(user =>
-                  user.role === 'seller' &&
-                  user.status !== 'active' &&
-                  user.status !== 'rejected' &&
-                  (user.status === 'pending' ||
-                    user.status === 'draft' ||
-                    !user.status ||
-                    user.status === '')
+                  user.role === 'seller' && user.status === 'pending'
                 )
                 return pendingSellers.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
