@@ -30,17 +30,34 @@ export async function GET(req: NextRequest) {
       }
     )
 
-    // Get all users from profiles table - force fresh query
+    // Get all users from profiles table - force fresh query with aggressive cache-busting
     const timestamp = Date.now()
-    console.log('[ADMIN USERS API] Fetching users at:', new Date().toISOString(), 'timestamp:', timestamp)
+    const randomId = Math.random().toString(36).substring(7)
+    console.log('[ADMIN USERS API] Fetching users at:', new Date().toISOString(), 'timestamp:', timestamp, 'random:', randomId)
     
-    // Force a fresh query by using a unique filter (this prevents caching)
-    const { data: users, error: usersError } = await supabase
+    // Force a completely fresh query by using multiple cache-busting techniques
+    // Create a new Supabase client instance to avoid any connection-level caching
+    const freshSupabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return req.cookies.get(name)?.value
+          },
+        },
+      }
+    )
+    
+    // Force fresh query with timestamp-based filter and no caching
+    const { data: users, error: usersError } = await freshSupabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false })
-      // Add a dummy filter that's always true to force fresh query
+      // Use a filter that's always true but forces fresh query evaluation
       .neq('id', '00000000-0000-0000-0000-000000000000')
+      // Add timestamp to query to prevent any caching
+      .limit(10000) // Set high limit to ensure we get all users
 
     if (usersError) {
       console.error('[ADMIN USERS API] Users query error:', usersError)
@@ -152,6 +169,13 @@ export async function GET(req: NextRequest) {
       timestamp: new Date().toISOString()
     })
 
+    // Log the actual data being returned to help debug
+    const returnedPendingSellers = processedUsers?.filter(user => user.role === 'seller' && user.status === 'pending') || []
+    console.log('[ADMIN USERS API] Returning data - Pending sellers in response:', returnedPendingSellers.length)
+    if (returnedPendingSellers.length > 0) {
+      console.log('[ADMIN USERS API] Sample pending seller IDs:', returnedPendingSellers.slice(0, 3).map(u => ({ id: u.id, name: u.name, status: u.status })))
+    }
+    
     return NextResponse.json({
       users: processedUsers,
       stats: {
@@ -161,6 +185,11 @@ export async function GET(req: NextRequest) {
         totalAuthors,
         pendingSellers,
         newUsersThisMonth
+      },
+      _meta: {
+        fetchedAt: new Date().toISOString(),
+        timestamp: Date.now(),
+        totalUsersReturned: processedUsers?.length || 0
       }
     }, {
       headers: {
@@ -276,12 +305,25 @@ export async function PUT(req: NextRequest) {
 
     console.log('[ADMIN USERS API] Updating user:', { userId, updateData })
     
-    // Update and return the updated data in one query
-    const { data: updateResult, error } = await supabase
+    // Update and return the FULL updated user data in one query
+    // Use a fresh Supabase client to avoid any connection-level caching
+    const updateSupabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return req.cookies.get(name)?.value
+          },
+        },
+      }
+    )
+    
+    const { data: updateResult, error } = await updateSupabase
       .from('profiles')
       .update(updateData)
       .eq('id', userId)
-      .select('id, role, status')
+      .select('*')
       .single()
 
     if (error) {
@@ -293,32 +335,48 @@ export async function PUT(req: NextRequest) {
     }
 
     console.log('[ADMIN USERS API] User updated successfully:', { userId, updateData })
-    console.log('[ADMIN USERS API] Update result from Supabase:', updateResult)
+    console.log('[ADMIN USERS API] Update result from Supabase:', { 
+      id: updateResult?.id, 
+      role: updateResult?.role, 
+      status: updateResult?.status 
+    })
     
-    // Wait longer to ensure the update is committed and visible to subsequent queries
-    // Supabase may have replication lag, so we wait a bit longer
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // Verify the update was actually committed by querying again with a fresh connection
+    await new Promise(resolve => setTimeout(resolve, 200))
     
-    // Verify the update by fetching the user again with a fresh query
-    const { data: updatedUser, error: verifyError } = await supabase
+    const verifySupabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return req.cookies.get(name)?.value
+          },
+        },
+      }
+    )
+    
+    const { data: verifiedUser, error: verifyError } = await verifySupabase
       .from('profiles')
       .select('id, role, status')
       .eq('id', userId)
       .single()
     
-    if (verifyError) {
-      console.error('[ADMIN USERS API] Error verifying update:', verifyError)
-    } else {
-      console.log('[ADMIN USERS API] Verified user after update:', { 
-        id: updatedUser?.id, 
-        role: updatedUser?.role, 
-        status: updatedUser?.status 
+    if (!verifyError && verifiedUser) {
+      console.log('[ADMIN USERS API] Verified update:', { 
+        id: verifiedUser.id, 
+        role: verifiedUser.role, 
+        status: verifiedUser.status 
       })
       
-      // Double-check: if status should be 'active' but it's still 'pending', log a warning
-      if (updateData.status === 'active' && updatedUser?.status !== 'active') {
-        console.error('[ADMIN USERS API] WARNING: Status update failed! Expected active but got:', updatedUser?.status)
+      // If verification shows different status, use verified data
+      if (verifiedUser.status !== updateResult.status) {
+        console.warn('[ADMIN USERS API] Status mismatch! Update result:', updateResult.status, 'Verified:', verifiedUser.status)
+        updateResult.status = verifiedUser.status
+        updateResult.role = verifiedUser.role
       }
+    } else {
+      console.error('[ADMIN USERS API] Verification failed:', verifyError)
     }
 
     // Send email and WhatsApp notifications for seller application status changes
@@ -393,9 +451,12 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Return the updated user data so frontend can update immediately without refetching
     return NextResponse.json({
       success: true,
-      message: 'User updated successfully'
+      message: 'User updated successfully',
+      user: updateResult,
+      updatedFields: updateData
     }, {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',

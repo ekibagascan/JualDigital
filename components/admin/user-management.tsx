@@ -216,12 +216,26 @@ export function UserManagement() {
       const result = await response.json()
       console.log('[USER MANAGEMENT] Approval response:', result)
 
-      // Refresh data immediately after successful API call with delay to ensure DB is updated
-      console.log('[USER MANAGEMENT] Seller approved, refreshing data...')
-      // Wait longer to account for Supabase replication lag
+      // Update local state immediately with the response data (optimistic update)
+      if (result.user) {
+        setUsers(prevUsers =>
+          prevUsers.map(u =>
+            u.id === user.id
+              ? { ...u, role: result.user.role, status: result.user.status }
+              : u
+          )
+        )
+        console.log('[USER MANAGEMENT] Updated local state immediately with:', {
+          id: result.user.id,
+          role: result.user.role,
+          status: result.user.status
+        })
+      }
+
+      // Also refresh data after a short delay to ensure everything is in sync
       setTimeout(async () => {
         await fetchUsers()
-      }, 1000) // Increased to 1 second to ensure Supabase query sees the update
+      }, 500)
 
       toast({
         title: "Aplikasi disetujui",
@@ -296,17 +310,30 @@ export function UserManagement() {
       const result = await response.json()
       console.log('[USER MANAGEMENT] Rejection response:', result)
 
+      // Update local state immediately with the response data (optimistic update)
+      if (result.user) {
+        setUsers(prevUsers =>
+          prevUsers.map(u =>
+            u.id === selectedUser.id
+              ? { ...u, status: result.user.status }
+              : u
+          )
+        )
+        console.log('[USER MANAGEMENT] Updated local state immediately with:', {
+          id: result.user.id,
+          status: result.user.status
+        })
+      }
+
       // Close dialog and reset
       setIsRejectDialogOpen(false)
       setRejectionReason("")
       setSelectedUser(null)
 
-      // Refresh data immediately after successful API call with delay to ensure DB is updated
-      console.log('[USER MANAGEMENT] Seller rejected, refreshing data...')
-      // Wait longer to account for Supabase replication lag
+      // Also refresh data after a short delay to ensure everything is in sync
       setTimeout(async () => {
         await fetchUsers()
-      }, 1000) // Increased to 1 second to ensure Supabase query sees the update
+      }, 500)
 
       toast({
         title: "Aplikasi ditolak",
