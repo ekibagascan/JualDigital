@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ArrowRight, ArrowLeft, FileText, CreditCard, User } from "lucide-react"
+import { Check, ArrowRight, ArrowLeft, FileText, CreditCard, User, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -228,7 +228,7 @@ export function SellerRegistrationFlow() {
 
       toast({
         title: "Aplikasi berhasil dikirim!",
-        description: "Kami akan meninjau aplikasi Anda dalam 1-2 hari kerja dan mengirim notifikasi melalui email.",
+        description: "Kami akan meninjau aplikasi Anda dalam 1-2 hari kerja. Anda akan menerima notifikasi via email dan WhatsApp (jika nomor telepon tersedia).",
       })
 
       router.push("/seller/application-submitted")
@@ -346,6 +346,19 @@ export function SellerRegistrationFlow() {
                     onChange={(e) => handleInputChange("phone", e.target.value)}
                     placeholder="Contoh: 08123456789"
                   />
+                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                    <div className="flex items-start gap-2">
+                      <MessageCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-blue-900 dark:text-blue-100">
+                          Dapatkan notifikasi instan via WhatsApp!
+                        </p>
+                        <p className="text-blue-700 dark:text-blue-300 mt-1">
+                          Nomor telepon ini akan digunakan untuk mengirim notifikasi pesanan baru, status aplikasi, dan update penting lainnya langsung ke WhatsApp Anda.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div>

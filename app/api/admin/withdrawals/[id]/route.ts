@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { createServerClient } from '@supabase/ssr'
+import { sendWithdrawalApproved, sendWithdrawalRejected, sendWithdrawalCompleted } from '@/lib/email-service'
 
 export async function PUT(
   req: NextRequest,
@@ -115,8 +116,42 @@ export async function PUT(
           )
         }
 
+        const updatedWithdrawal = updatedWithdrawals[0]
+
+        // Send email notification for approved withdrawal
+        try {
+          // Fetch seller information
+          const { data: sellerProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('name, email')
+            .eq('id', withdrawal.seller_id)
+            .single()
+
+          if (!profileError && sellerProfile && sellerProfile.email) {
+            const emailSent = await sendWithdrawalApproved({
+              to: sellerProfile.email,
+              sellerName: sellerProfile.name || 'Seller',
+              amount: withdrawal.amount,
+              bankName: withdrawal.bank_name,
+              accountNumber: withdrawal.account_number,
+              accountName: withdrawal.account_name,
+            })
+            
+            if (emailSent) {
+              console.log('[ADMIN WITHDRAWAL API] Approval email sent successfully')
+            } else {
+              console.log('[ADMIN WITHDRAWAL API] Failed to send approval email')
+            }
+          } else {
+            console.log('[ADMIN WITHDRAWAL API] No valid email found for seller, skipping email notification')
+          }
+        } catch (emailError) {
+          console.error('[ADMIN WITHDRAWAL API] Error sending approval email:', emailError)
+          // Don't fail the withdrawal update if email fails
+        }
+
         return NextResponse.json({ 
-          withdrawal: updatedWithdrawals[0],
+          withdrawal: updatedWithdrawal,
           transferId: transferResult.transferId
         })
 
@@ -163,7 +198,58 @@ export async function PUT(
         )
       }
 
-      return NextResponse.json({ withdrawal: updatedWithdrawals[0] })
+      const updatedWithdrawal = updatedWithdrawals[0]
+
+      // Send email notification based on status
+      try {
+        // Fetch seller information
+        const { data: sellerProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('name, email')
+          .eq('id', updatedWithdrawal.seller_id)
+          .single()
+
+        if (!profileError && sellerProfile && sellerProfile.email) {
+          if (body.status === 'rejected') {
+            // Send rejection email
+            const emailSent = await sendWithdrawalRejected({
+              to: sellerProfile.email,
+              sellerName: sellerProfile.name || 'Seller',
+              amount: updatedWithdrawal.amount,
+              rejectionReason: body.rejection_reason,
+            })
+            
+            if (emailSent) {
+              console.log('[ADMIN WITHDRAWAL API] Rejection email sent successfully')
+            } else {
+              console.log('[ADMIN WITHDRAWAL API] Failed to send rejection email')
+            }
+          } else if (body.status === 'completed') {
+            // Send completion email
+            const emailSent = await sendWithdrawalCompleted({
+              to: sellerProfile.email,
+              sellerName: sellerProfile.name || 'Seller',
+              amount: updatedWithdrawal.amount,
+              bankName: updatedWithdrawal.bank_name,
+              accountNumber: updatedWithdrawal.account_number,
+              transferId: updatedWithdrawal.xendit_transfer_id,
+            })
+            
+            if (emailSent) {
+              console.log('[ADMIN WITHDRAWAL API] Completion email sent successfully')
+            } else {
+              console.log('[ADMIN WITHDRAWAL API] Failed to send completion email')
+            }
+          }
+        } else {
+          console.log('[ADMIN WITHDRAWAL API] No valid email found for seller, skipping email notification')
+        }
+      } catch (emailError) {
+        console.error('[ADMIN WITHDRAWAL API] Error sending email:', emailError)
+        // Don't fail the withdrawal update if email fails
+      }
+
+      return NextResponse.json({ withdrawal: updatedWithdrawal })
     }
 
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Camera, Save, Eye, EyeOff } from "lucide-react"
+import { Camera, Save, Eye, EyeOff, MessageCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -44,6 +44,8 @@ export function ProfileSettings() {
     pushNotifications: false,
   })
 
+  const [userRole, setUserRole] = useState<string | null>(null)
+
   // Load profile data on component mount
   useEffect(() => {
     if (user?.id) {
@@ -72,6 +74,9 @@ export function ProfileSettings() {
           website: profile.website || "",
           location: profile.address || "",
         })
+
+        // Store user role to check if seller
+        setUserRole(profile.role || null)
 
         // Update the user object with the avatar URL
         if (profile.avatar_url) {
@@ -396,8 +401,33 @@ export function ProfileSettings() {
                     id="phone"
                     value={profileData.phone}
                     onChange={(e) => handleProfileChange("phone", e.target.value)}
-                    placeholder="Masukkan nomor telepon"
+                    placeholder="Contoh: 08123456789"
                   />
+                  {userRole === 'seller' && !profileData.phone && (
+                    <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-amber-900 dark:text-amber-100">
+                            Tambahkan nomor telepon untuk notifikasi WhatsApp
+                          </p>
+                          <p className="text-amber-700 dark:text-amber-300 mt-1">
+                            Sebagai seller, Anda akan menerima notifikasi instan via WhatsApp untuk pesanan baru, status aplikasi, dan update penting lainnya.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {profileData.phone && (
+                    <div className="mt-2 p-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          Notifikasi WhatsApp aktif untuk nomor ini
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="location">Lokasi</Label>
@@ -564,6 +594,62 @@ export function ProfileSettings() {
                   onCheckedChange={(checked) => handleNotificationChange("pushNotifications", checked)}
                 />
               </div>
+            </div>
+
+            {/* WhatsApp Notifications Section */}
+            <div className="border-t pt-6 mt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <MessageCircle className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold">Notifikasi WhatsApp</h3>
+              </div>
+
+              {userRole === 'seller' ? (
+                <div className="space-y-4">
+                  {profileData.phone ? (
+                    <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <MessageCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium text-green-900 dark:text-green-100">
+                            WhatsApp Notifikasi Aktif
+                          </p>
+                          <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                            Anda akan menerima notifikasi via WhatsApp untuk:
+                          </p>
+                          <ul className="text-sm text-green-700 dark:text-green-300 mt-2 list-disc list-inside space-y-1">
+                            <li>Pesanan baru dari pembeli</li>
+                            <li>Status aplikasi seller (disetujui/ditolak)</li>
+                            <li>Update penting lainnya</li>
+                          </ul>
+                          <p className="text-sm text-green-700 dark:text-green-300 mt-2">
+                            Nomor terdaftar: <span className="font-medium">{profileData.phone}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium text-amber-900 dark:text-amber-100">
+                            Tambahkan Nomor Telepon
+                          </p>
+                          <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                            Untuk menerima notifikasi WhatsApp, silakan tambahkan nomor telepon Anda di tab Profil.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Notifikasi WhatsApp tersedia untuk seller. Tambahkan nomor telepon di tab Profil untuk mengaktifkan notifikasi.
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button onClick={handleNotificationSubmit} disabled={isLoading}>

@@ -35,6 +35,91 @@ export class WhatsAppService {
   }
 
   /**
+   * Send WhatsApp notification to seller about application approval
+   */
+  async sendSellerApprovalNotification(userId: string, data: {
+    sellerName: string
+    businessName: string
+  }): Promise<boolean> {
+    try {
+      // Get user's phone number from profiles table
+      const { data: userProfile, error: profileError } = await this.supabase
+        .from('profiles')
+        .select('phone, name')
+        .eq('id', userId)
+        .single()
+
+      if (profileError || !userProfile?.phone) {
+        console.error('[WHATSAPP] No phone number found for user:', userId)
+        return false
+      }
+
+      // Format phone number
+      const formattedPhone = this.formatPhoneNumber(userProfile.phone)
+      
+      // Create message
+      const message = this.createApprovalMessage(data)
+
+      // Send via WhatsApp API
+      const success = await this.sendWhatsAppMessage(formattedPhone, message)
+      
+      if (success) {
+        console.log('[WHATSAPP] Approval notification sent successfully to user:', userId)
+        return true
+      } else {
+        console.error('[WHATSAPP] Failed to send approval notification to user:', userId)
+        return false
+      }
+    } catch (error) {
+      console.error('[WHATSAPP] Error sending approval notification:', error)
+      return false
+    }
+  }
+
+  /**
+   * Send WhatsApp notification to seller about application rejection
+   */
+  async sendSellerRejectionNotification(userId: string, data: {
+    sellerName: string
+    businessName: string
+    reason?: string
+  }): Promise<boolean> {
+    try {
+      // Get user's phone number from profiles table
+      const { data: userProfile, error: profileError } = await this.supabase
+        .from('profiles')
+        .select('phone, name')
+        .eq('id', userId)
+        .single()
+
+      if (profileError || !userProfile?.phone) {
+        console.error('[WHATSAPP] No phone number found for user:', userId)
+        return false
+      }
+
+      // Format phone number
+      const formattedPhone = this.formatPhoneNumber(userProfile.phone)
+      
+      // Create message
+      const message = this.createRejectionMessage(data)
+
+      // Send via WhatsApp API
+      const success = await this.sendWhatsAppMessage(formattedPhone, message)
+      
+      if (success) {
+        console.log('[WHATSAPP] Rejection notification sent successfully to user:', userId)
+        return true
+      } else {
+        console.error('[WHATSAPP] Failed to send rejection notification to user:', userId)
+        return false
+      }
+    } catch (error) {
+      console.error('[WHATSAPP] Error sending rejection notification:', error)
+      return false
+    }
+  }
+
+  /**
    * Send WhatsApp notification to seller about new order
    */
   async sendOrderNotification(sellerId: string, orderData: {
@@ -99,6 +184,106 @@ export class WhatsAppService {
     }
     
     return cleaned
+  }
+
+  /**
+   * Create seller approval notification message
+   */
+  private createApprovalMessage(data: {
+    sellerName: string
+    businessName: string
+  }): string {
+    const dashboardLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/seller`
+    
+    return `🎉 *SELAMAT! Aplikasi Seller Anda DISETUJUI!* 🎉
+
+Halo *${data.sellerName}*,
+
+Kabar baik! Aplikasi seller Anda untuk *${data.businessName}* telah *DISETUJUI* oleh tim Jual Digital! 🚀
+
+✅ *Status Aplikasi: DISETUJUI*
+📋 *Nama Bisnis:* ${data.businessName}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 *YUK, MULAI JUALAN SEKARANG!*
+
+Sekarang saatnya untuk:
+1️⃣ *Upload Produk Digital Pertama*
+   Mulai dengan produk terbaik Anda!
+
+2️⃣ *Atur Harga & Deskripsi*
+   Buat produk menarik untuk pembeli
+
+3️⃣ *Dapatkan Penghasilan*
+   Setiap penjualan = penghasilan untuk Anda!
+
+💡 *Tips:* Upload produk berkualitas tinggi dengan deskripsi yang jelas untuk menarik lebih banyak pembeli!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 *Akses Dashboard Seller Anda:*
+${dashboardLink}
+
+Klik link di atas untuk mulai mengelola produk dan melihat penjualan Anda!
+
+💬 *Butuh bantuan?* Tim support kami siap membantu Anda kapan saja.
+
+Selamat bergabung dengan Jual Digital! 
+Mari bersama-sama sukses di dunia digital! 🎊✨
+
+_Jual Digital - Platform Jual Beli Digital Terpercaya_`
+  }
+
+  /**
+   * Create seller rejection notification message
+   */
+  private createRejectionMessage(data: {
+    sellerName: string
+    businessName: string
+    reason?: string
+  }): string {
+    const reasonText = data.reason ? `\n\n📝 *Alasan Penolakan:*\n${data.reason}` : ''
+    const applicationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/seller/register`
+    
+    return `📬 *Update Aplikasi Seller*
+
+Halo *${data.sellerName}*,
+
+Kami ingin memberitahu bahwa aplikasi seller Anda untuk *${data.businessName}* tidak dapat disetujui saat ini.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 *Detail Aplikasi:*
+• Nama: ${data.sellerName}
+• Nama Bisnis: ${data.businessName}
+• Status: ❌ Tidak disetujui${reasonText}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ *Apa yang Perlu Dilakukan?*
+
+1️⃣ *Perbaiki Masalah yang Disebutkan*
+   ${data.reason ? `Perhatikan alasan di atas dan perbaiki sesuai yang diminta.` : 'Pastikan semua informasi yang Anda berikan lengkap dan akurat.'}
+
+2️⃣ *Pastikan Data Lengkap*
+   • Informasi bisnis lengkap dan jelas
+   • Nomor rekening bank valid
+   • Data pribadi terverifikasi
+
+3️⃣ *Ajukan Ulang Aplikasi*
+   Setelah memperbaiki, Anda dapat mengajukan ulang aplikasi seller.
+
+🔗 *Ajukan Ulang:* ${applicationLink}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💬 *Butuh Bantuan?*
+Jika Anda memiliki pertanyaan atau butuh klarifikasi, silakan hubungi tim support kami. Kami siap membantu Anda!
+
+Kami berharap dapat menyambut Anda sebagai seller di Jual Digital setelah perbaikan dilakukan. 🙏
+
+_Jual Digital - Platform Jual Beli Digital Terpercaya_`
   }
 
   /**

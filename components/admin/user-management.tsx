@@ -66,6 +66,8 @@ export function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false)
   const [suspensionReason, setSuspensionReason] = useState("")
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState("")
   const [users, setUsers] = useState<User[]>([])
   const [stats, setStats] = useState<UserStats>({
     totalUsers: 0,
@@ -103,7 +105,19 @@ export function UserManagement() {
       const data: UserData = await response.json()
       console.log('[USER MANAGEMENT] Fetched users:', data.users.length)
       console.log('[USER MANAGEMENT] Pending sellers count:', data.stats.pendingSellers)
-      console.log('[USER MANAGEMENT] Pending sellers:', data.users.filter(u => u.role === 'seller' && u.status === 'pending').map(u => ({ id: u.id, name: u.name, status: u.status })))
+      const pendingList = data.users.filter(u => u.role === 'seller' && u.status === 'pending')
+      console.log('[USER MANAGEMENT] Pending sellers:', pendingList.map(u => ({ id: u.id, name: u.name, role: u.role, status: u.status })))
+      console.log('[USER MANAGEMENT] Full pending sellers array:', JSON.stringify(pendingList, null, 2))
+
+      // Also log all sellers to see what's happening
+      const allSellers = data.users.filter(u => u.role === 'seller')
+      console.log('[USER MANAGEMENT] All sellers status breakdown:', {
+        total: allSellers.length,
+        active: allSellers.filter(u => u.status === 'active').length,
+        pending: allSellers.filter(u => u.status === 'pending').length,
+        rejected: allSellers.filter(u => u.status === 'rejected').length,
+        other: allSellers.filter(u => !['active', 'pending', 'rejected'].includes(u.status || '')).map(u => ({ id: u.id, name: u.name, status: u.status }))
+      })
       setUsers(data.users)
       setStats(data.stats)
     } catch (error) {
@@ -202,11 +216,12 @@ export function UserManagement() {
       const result = await response.json()
       console.log('[USER MANAGEMENT] Approval response:', result)
 
-      // Refresh data immediately after successful API call with small delay to ensure DB is updated
+      // Refresh data immediately after successful API call with delay to ensure DB is updated
       console.log('[USER MANAGEMENT] Seller approved, refreshing data...')
+      // Wait longer to account for Supabase replication lag
       setTimeout(async () => {
         await fetchUsers()
-      }, 500) // Increased delay to ensure DB is fully updated
+      }, 1000) // Increased to 1 second to ensure Supabase query sees the update
 
       toast({
         title: "Aplikasi disetujui",
@@ -229,39 +244,47 @@ export function UserManagement() {
       // Remove user from processing set
       setProcessingUsers(prev => {
         const newSet = new Set(prev)
-        newSet.delete(user.id)
+        newSet.delete(selectedUser?.id || '')
         return newSet
       })
     }
   }
 
-  const handleRejectSeller = async (user: User) => {
+  const handleRejectSeller = (user: User) => {
+    setSelectedUser(user)
+    setIsRejectDialogOpen(true)
+  }
+
+  const handleConfirmRejection = async () => {
+    if (!selectedUser) return
+
     // Prevent multiple clicks
-    if (processingUsers.has(user.id)) return
+    if (processingUsers.has(selectedUser.id)) return
 
     try {
       // Add user to processing set
-      setProcessingUsers(prev => new Set(prev).add(user.id))
+      setProcessingUsers(prev => new Set(prev).add(selectedUser.id))
 
       // Optimistic UI update - immediately update the local state
       setUsers(prevUsers =>
         prevUsers.map(u =>
-          u.id === user.id
+          u.id === selectedUser.id
             ? { ...u, status: 'rejected' }
             : u
         )
       )
 
-      // Update the status to rejected
+      // Update the status to rejected with reason
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: user.id,
+          userId: selectedUser.id,
           action: 'updateStatus',
-          status: 'rejected'
+          status: 'rejected',
+          rejectionReason: rejectionReason.trim() || 'Aplikasi tidak memenuhi kriteria yang diperlukan'
         })
       })
 
@@ -273,15 +296,21 @@ export function UserManagement() {
       const result = await response.json()
       console.log('[USER MANAGEMENT] Rejection response:', result)
 
-      // Refresh data immediately after successful API call with small delay to ensure DB is updated
+      // Close dialog and reset
+      setIsRejectDialogOpen(false)
+      setRejectionReason("")
+      setSelectedUser(null)
+
+      // Refresh data immediately after successful API call with delay to ensure DB is updated
       console.log('[USER MANAGEMENT] Seller rejected, refreshing data...')
+      // Wait longer to account for Supabase replication lag
       setTimeout(async () => {
         await fetchUsers()
-      }, 500) // Increased delay to ensure DB is fully updated
+      }, 1000) // Increased to 1 second to ensure Supabase query sees the update
 
       toast({
         title: "Aplikasi ditolak",
-        description: `${user.name} tidak disetujui menjadi seller.`,
+        description: `Aplikasi seller ${selectedUser?.name} telah ditolak.`,
       })
     } catch (error) {
       console.error('Error rejecting seller application:', error)
@@ -300,7 +329,7 @@ export function UserManagement() {
       // Remove user from processing set
       setProcessingUsers(prev => {
         const newSet = new Set(prev)
-        newSet.delete(user.id)
+        newSet.delete(selectedUser?.id || '')
         return newSet
       })
     }
@@ -722,6 +751,51 @@ export function UserManagement() {
               </Button>
               <Button onClick={handleConfirmSuspension} variant="destructive" className="flex-1">
                 Tangguhkan Akun
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Seller Application Dialog */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tolak Aplikasi Seller</DialogTitle>
+            <DialogDescription>
+              Anda akan menolak aplikasi seller untuk {selectedUser?.name}. Berikan alasan penolakan agar mereka tahu apa yang perlu diperbaiki.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="rejectionReason">Alasan Penolakan *</Label>
+              <Textarea
+                id="rejectionReason"
+                placeholder="Contoh: Data bisnis tidak lengkap, nomor rekening tidak valid, atau informasi yang perlu diperbaiki..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Alasan ini akan dikirim ke seller via WhatsApp dan email untuk membantu mereka memperbaiki aplikasi.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => {
+                setIsRejectDialogOpen(false)
+                setRejectionReason("")
+                setSelectedUser(null)
+              }} className="flex-1">
+                Batal
+              </Button>
+              <Button
+                onClick={handleConfirmRejection}
+                variant="destructive"
+                className="flex-1"
+                disabled={!rejectionReason.trim()}
+              >
+                Tolak Aplikasi
               </Button>
             </div>
           </div>

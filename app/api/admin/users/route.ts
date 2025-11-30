@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/lib/email-service'
+import { WhatsAppService } from '@/lib/whatsapp-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,14 +30,17 @@ export async function GET(req: NextRequest) {
       }
     )
 
-    // Get all users from profiles table - force fresh query with timestamp
+    // Get all users from profiles table - force fresh query
     const timestamp = Date.now()
     console.log('[ADMIN USERS API] Fetching users at:', new Date().toISOString(), 'timestamp:', timestamp)
     
+    // Force a fresh query by using a unique filter (this prevents caching)
     const { data: users, error: usersError } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false })
+      // Add a dummy filter that's always true to force fresh query
+      .neq('id', '00000000-0000-0000-0000-000000000000')
 
     if (usersError) {
       console.error('[ADMIN USERS API] Users query error:', usersError)
@@ -201,7 +205,7 @@ export async function PUT(req: NextRequest) {
       }
     )
 
-    const { userId, action, role, status } = await req.json()
+    const { userId, action, role, status, rejectionReason } = await req.json()
 
     if (!userId || !action) {
       return NextResponse.json(
@@ -272,10 +276,13 @@ export async function PUT(req: NextRequest) {
 
     console.log('[ADMIN USERS API] Updating user:', { userId, updateData })
     
-    const { error } = await supabase
+    // Update and return the updated data in one query
+    const { data: updateResult, error } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', userId)
+      .select('id, role, status')
+      .single()
 
     if (error) {
       console.error('[ADMIN USERS API] Update error:', error)
@@ -286,8 +293,13 @@ export async function PUT(req: NextRequest) {
     }
 
     console.log('[ADMIN USERS API] User updated successfully:', { userId, updateData })
+    console.log('[ADMIN USERS API] Update result from Supabase:', updateResult)
     
-    // Verify the update by fetching the user again
+    // Wait longer to ensure the update is committed and visible to subsequent queries
+    // Supabase may have replication lag, so we wait a bit longer
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Verify the update by fetching the user again with a fresh query
     const { data: updatedUser, error: verifyError } = await supabase
       .from('profiles')
       .select('id, role, status')
@@ -302,13 +314,20 @@ export async function PUT(req: NextRequest) {
         role: updatedUser?.role, 
         status: updatedUser?.status 
       })
+      
+      // Double-check: if status should be 'active' but it's still 'pending', log a warning
+      if (updateData.status === 'active' && updatedUser?.status !== 'active') {
+        console.error('[ADMIN USERS API] WARNING: Status update failed! Expected active but got:', updatedUser?.status)
+      }
     }
 
-    // Send email notifications for seller application status changes
+    // Send email and WhatsApp notifications for seller application status changes
     if (userData && (action === 'updateRole' || action === 'updateStatus' || action === 'approveSeller')) {
       try {
         if ((action === 'updateRole' && role === 'seller') || action === 'approveSeller') {
-          // Seller application approved
+          // Seller application approved - send via both email and WhatsApp
+          
+          // Send email notification
           if (userEmail && userEmail.trim() !== '') {
             const emailSent = await sendSellerApplicationApproved({
               to: userEmail,
@@ -323,14 +342,28 @@ export async function PUT(req: NextRequest) {
           } else {
             console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
           }
+          
+          // Send WhatsApp notification
+          const whatsappService = new WhatsAppService()
+          const whatsappSent = await whatsappService.sendSellerApprovalNotification(userId, {
+            sellerName: userData.name || '',
+            businessName: userData.business_name || '',
+          })
+          if (whatsappSent) {
+            console.log('[ADMIN USERS API] Approval WhatsApp sent successfully')
+          } else {
+            console.log('[ADMIN USERS API] Failed to send approval WhatsApp (user may not have phone number)')
+          }
         } else if (action === 'updateStatus' && updateData.status === 'rejected') {
-          // Seller application rejected
+          // Seller application rejected - send via both email and WhatsApp
+          
+          // Send email notification
           if (userEmail && userEmail.trim() !== '') {
             const emailSent = await sendSellerApplicationRejected({
               to: userEmail,
               sellerName: userData.name || '',
               businessName: userData.business_name || '',
-              reason: 'Aplikasi tidak memenuhi kriteria yang diperlukan',
+              reason: rejectionReason || 'Aplikasi tidak memenuhi kriteria yang diperlukan',
             })
             if (emailSent) {
               console.log('[ADMIN USERS API] Rejection email sent successfully')
@@ -340,10 +373,23 @@ export async function PUT(req: NextRequest) {
           } else {
             console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
           }
+          
+          // Send WhatsApp notification
+          const whatsappService = new WhatsAppService()
+          const whatsappSent = await whatsappService.sendSellerRejectionNotification(userId, {
+            sellerName: userData.name || '',
+            businessName: userData.business_name || '',
+            reason: 'Aplikasi tidak memenuhi kriteria yang diperlukan',
+          })
+          if (whatsappSent) {
+            console.log('[ADMIN USERS API] Rejection WhatsApp sent successfully')
+          } else {
+            console.log('[ADMIN USERS API] Failed to send rejection WhatsApp (user may not have phone number)')
+          }
         }
-      } catch (emailError) {
-        console.error('[ADMIN USERS API] Failed to send email notification:', emailError)
-        // Don't fail the update if email fails
+      } catch (notificationError) {
+        console.error('[ADMIN USERS API] Failed to send notification:', notificationError)
+        // Don't fail the update if notification fails
       }
     }
 
