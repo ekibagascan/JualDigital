@@ -6,9 +6,28 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendDownloadEmail } from '@/lib/email-service'
 import { WhatsAppService } from '@/lib/whatsapp-service'
 
+// GET handler for Xendit webhook verification
+export async function GET() {
+  return NextResponse.json({ 
+    status: 'ok',
+    message: 'Webhook endpoint is active',
+    endpoint: '/api/payments/callback'
+  })
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    // Handle empty body (Xendit might send empty requests for verification)
+    let body
+    try {
+      body = await req.json()
+    } catch {
+      // If body is empty or invalid, return success (Xendit verification)
+      return NextResponse.json({ 
+        status: 'ok',
+        message: 'Webhook endpoint ready'
+      })
+    }
 
     // Xendit webhooks can have different structures:
     // 1. Event-based: { event: "invoice.paid", data: { ... } }
