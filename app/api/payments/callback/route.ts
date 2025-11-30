@@ -32,38 +32,54 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Return immediate response with CORS headers
+  const responseHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, webhook-id, X-CALLBACK-TOKEN',
+  }
+
   try {
-    // Handle empty body (Xendit might send empty requests for verification)
-    let body
+    // Read body first before any processing
+    let body: Record<string, unknown> | null = null
     try {
-      body = await req.json()
+      const text = await req.text()
+      if (text && text.trim() !== '') {
+        body = JSON.parse(text) as Record<string, unknown>
+      }
     } catch {
-      // If body is empty or invalid, return success (Xendit verification)
+      // Empty or invalid body - return success for verification
       return NextResponse.json({ 
         status: 'ok',
         message: 'Webhook endpoint ready'
-      })
+      }, { headers: responseHeaders })
+    }
+
+    // If no body, return success (Xendit verification)
+    if (!body) {
+      return NextResponse.json({ 
+        status: 'ok',
+        message: 'Webhook endpoint ready'
+      }, { headers: responseHeaders })
     }
 
     // Xendit webhooks can have different structures:
     // 1. Event-based: { event: "invoice.paid", data: { ... } }
     // 2. Direct invoice data: { external_id, status, ... }
-    let invoiceData = body
+    let invoiceData: Record<string, unknown> = body
     
     // If webhook has 'event' field, extract data from 'data' field or use body directly
     if (body.event) {
       // Xendit sends invoice data in 'data' field for event-based webhooks
-      invoiceData = body.data || body
+      invoiceData = (body.data as Record<string, unknown> | undefined) || body
     }
 
     // Extract payment information from webhook
-    const { 
-      external_id, 
-      status, 
-      payment_id,
-      invoice_id,
-      id // Xendit invoice ID
-    } = invoiceData
+    const external_id = invoiceData.external_id as string | undefined
+    const status = invoiceData.status as string | undefined
+    const payment_id = invoiceData.payment_id as string | undefined
+    const invoice_id = invoiceData.invoice_id as string | undefined
+    const id = invoiceData.id as string | undefined
 
     // Use invoice_id or id if external_id is not available
     const orderId = external_id || id
@@ -317,9 +333,7 @@ export async function POST(req: NextRequest) {
       success: true, 
       message: 'Order status updated' 
     }, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: responseHeaders,
     })
 
   } catch (error) {
