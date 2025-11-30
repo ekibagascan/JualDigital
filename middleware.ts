@@ -4,6 +4,11 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Skip middleware for API routes (critical for webhooks like Xendit)
+  if (pathname.startsWith('/api')) {
+    return NextResponse.next();
+  }
+  
   // Skip middleware for login page to prevent redirect loops
   if (pathname === '/login' || pathname === '/register' || pathname === '/auth/callback' || pathname === '/mulai-jualan') {
     return NextResponse.next();
