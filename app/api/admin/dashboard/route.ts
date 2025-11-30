@@ -61,10 +61,12 @@ export async function GET(req: NextRequest) {
       console.error('[ADMIN DASHBOARD API] Products query error:', productsError)
     }
 
-    // 3. Total Revenue - only count paid orders
+    // 3. Total Revenue and Admin Earnings - only count paid orders
     const { data: revenueData, error: revenueError } = await supabase
       .from('order_items')
       .select(`
+        price,
+        quantity,
         seller_earnings,
         orders!inner(status)
       `)
@@ -74,7 +76,24 @@ export async function GET(req: NextRequest) {
       console.error('[ADMIN DASHBOARD API] Revenue query error:', revenueError)
     }
 
-    const totalRevenue = revenueData?.reduce((sum, item) => sum + (parseFloat(item.seller_earnings) || 0), 0) || 0
+    // Calculate total revenue (seller earnings) and admin earnings (3% commission)
+    let totalRevenue = 0
+    let totalAdminEarnings = 0
+    
+    revenueData?.forEach((item) => {
+      const price = typeof item.price === 'string' ? parseFloat(item.price) : (item.price || 0)
+      const quantity = item.quantity || 0
+      const sellerEarnings = typeof item.seller_earnings === 'string' 
+        ? parseFloat(item.seller_earnings) 
+        : (item.seller_earnings || 0)
+      
+      if (!isNaN(price) && !isNaN(quantity) && !isNaN(sellerEarnings)) {
+        const itemTotal = price * quantity
+        totalRevenue += sellerEarnings
+        // Admin earnings = 3% commission = total - seller_earnings (which is 97%)
+        totalAdminEarnings += (itemTotal - sellerEarnings)
+      }
+    })
 
     // 4. Total Orders - simplified
     const { count: totalOrders, error: ordersError } = await supabase
@@ -174,10 +193,12 @@ export async function GET(req: NextRequest) {
 
     const usersChange = (lastMonthUsers || 0) > 0 ? (((thisMonthUsers || 0) - (lastMonthUsers || 0)) / (lastMonthUsers || 0)) * 100 : 0
 
-    // 8. Revenue this month vs last month - only count paid orders
+    // 8. Revenue and Admin Earnings this month vs last month - only count paid orders
     const { data: thisMonthRevenue, error: thisMonthError } = await supabase
       .from('order_items')
       .select(`
+        price,
+        quantity,
         seller_earnings,
         orders!inner(status)
       `)
@@ -191,6 +212,8 @@ export async function GET(req: NextRequest) {
     const { data: lastMonthRevenue, error: lastMonthError } = await supabase
       .from('order_items')
       .select(`
+        price,
+        quantity,
         seller_earnings,
         orders!inner(status)
       `)
@@ -202,10 +225,40 @@ export async function GET(req: NextRequest) {
       console.error('[ADMIN DASHBOARD API] Last month revenue query error:', lastMonthError)
     }
 
-    const thisMonthTotal = thisMonthRevenue?.reduce((sum, item) => sum + (parseFloat(item.seller_earnings) || 0), 0) || 0
-    const lastMonthTotal = lastMonthRevenue?.reduce((sum, item) => sum + (parseFloat(item.seller_earnings) || 0), 0) || 0
+    let thisMonthTotal = 0
+    let thisMonthAdminEarnings = 0
+    thisMonthRevenue?.forEach((item) => {
+      const price = typeof item.price === 'string' ? parseFloat(item.price) : (item.price || 0)
+      const quantity = item.quantity || 0
+      const sellerEarnings = typeof item.seller_earnings === 'string' 
+        ? parseFloat(item.seller_earnings) 
+        : (item.seller_earnings || 0)
+      
+      if (!isNaN(price) && !isNaN(quantity) && !isNaN(sellerEarnings)) {
+        const itemTotal = price * quantity
+        thisMonthTotal += sellerEarnings
+        thisMonthAdminEarnings += (itemTotal - sellerEarnings)
+      }
+    })
+    
+    let lastMonthTotal = 0
+    let lastMonthAdminEarnings = 0
+    lastMonthRevenue?.forEach((item) => {
+      const price = typeof item.price === 'string' ? parseFloat(item.price) : (item.price || 0)
+      const quantity = item.quantity || 0
+      const sellerEarnings = typeof item.seller_earnings === 'string' 
+        ? parseFloat(item.seller_earnings) 
+        : (item.seller_earnings || 0)
+      
+      if (!isNaN(price) && !isNaN(quantity) && !isNaN(sellerEarnings)) {
+        const itemTotal = price * quantity
+        lastMonthTotal += sellerEarnings
+        lastMonthAdminEarnings += (itemTotal - sellerEarnings)
+      }
+    })
 
     const revenueChange = lastMonthTotal > 0 ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0
+    const adminEarningsChange = lastMonthAdminEarnings > 0 ? ((thisMonthAdminEarnings - lastMonthAdminEarnings) / lastMonthAdminEarnings) * 100 : 0
 
     // 9. Orders this month vs last month - simplified
     const { count: thisMonthOrders, error: thisMonthOrdersError } = await supabase
@@ -237,7 +290,12 @@ export async function GET(req: NextRequest) {
         name: product?.title || 'Unknown Product',
         image: product?.image_url || '',
         sales: item.quantity || 0,
-        revenue: parseFloat(item.seller_earnings) || 0
+        revenue: (() => {
+          const earnings = typeof item.seller_earnings === 'string' 
+            ? parseFloat(item.seller_earnings) 
+            : (item.seller_earnings || 0)
+          return isNaN(earnings) ? 0 : earnings
+        })()
       }
     }) || []
 
@@ -256,10 +314,16 @@ export async function GET(req: NextRequest) {
           changeType: "positive" as const,
         },
         {
-          title: "Total Pendapatan",
+          title: "Total Pendapatan Seller",
           value: `Rp ${totalRevenue.toLocaleString()}`,
           change: `${revenueChange.toFixed(1)}%`,
           changeType: revenueChange >= 0 ? "positive" : "negative",
+        },
+        {
+          title: "Total Pendapatan Admin",
+          value: `Rp ${totalAdminEarnings.toLocaleString()}`,
+          change: `${adminEarningsChange.toFixed(1)}%`,
+          changeType: adminEarningsChange >= 0 ? "positive" : "negative",
         },
         {
           title: "Total Pesanan",
@@ -272,7 +336,15 @@ export async function GET(req: NextRequest) {
       topProducts: processedTopProducts,
     }
 
-    return NextResponse.json(responseData)
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store',
+        'X-Timestamp': Date.now().toString(),
+      },
+    })
   } catch (error) {
     console.error('[ADMIN DASHBOARD API] Error:', error)
     return NextResponse.json(

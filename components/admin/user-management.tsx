@@ -88,7 +88,14 @@ export function UserManagement() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/admin/users')
+      // Add cache-busting timestamp and no-cache headers
+      const response = await fetch(`/api/admin/users?t=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      })
       if (!response.ok) {
         throw new Error('Failed to fetch users')
       }
@@ -189,8 +196,10 @@ export function UserManagement() {
         throw new Error(`Failed to approve seller application: ${errorData.error || 'Unknown error'}`)
       }
 
-      // Refresh data immediately after successful API call
-      await fetchUsers()
+      // Refresh data immediately after successful API call with small delay to ensure DB is updated
+      setTimeout(async () => {
+        await fetchUsers()
+      }, 300)
 
       toast({
         title: "Aplikasi disetujui",
@@ -200,7 +209,9 @@ export function UserManagement() {
       console.error('Error approving seller application:', error)
 
       // Revert optimistic update on error
-      await fetchUsers()
+      setTimeout(async () => {
+        await fetchUsers()
+      }, 300)
 
       toast({
         title: "Error",
@@ -252,8 +263,10 @@ export function UserManagement() {
         throw new Error(`Failed to reject seller application: ${errorData.error || 'Unknown error'}`)
       }
 
-      // Refresh data immediately after successful API call
-      await fetchUsers()
+      // Refresh data immediately after successful API call with small delay to ensure DB is updated
+      setTimeout(async () => {
+        await fetchUsers()
+      }, 300)
 
       toast({
         title: "Aplikasi ditolak",
@@ -263,7 +276,9 @@ export function UserManagement() {
       console.error('Error rejecting seller application:', error)
 
       // Revert optimistic update on error
-      await fetchUsers()
+      setTimeout(async () => {
+        await fetchUsers()
+      }, 300)
 
       toast({
         title: "Error",

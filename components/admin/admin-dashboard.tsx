@@ -89,12 +89,13 @@ export default function AdminDashboard() {
       setLoading(true)
       setError(null)
 
-      // Add cache-busting headers to prevent stale data
-      const response = await fetch('/api/admin/dashboard/', {
+      // Add cache-busting timestamp and headers to prevent stale data
+      const response = await fetch(`/api/admin/dashboard?t=${Date.now()}`, {
         method: 'GET',
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
+          'Expires': '0'
         },
       })
 

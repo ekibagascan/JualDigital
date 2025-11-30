@@ -129,6 +129,14 @@ export async function GET(req: NextRequest) {
         pendingSellers,
         newUsersThisMonth
       }
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store',
+        'X-Timestamp': Date.now().toString(),
+      },
     })
 
   } catch (error) {
@@ -296,6 +304,12 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'User updated successfully'
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
     })
 
   } catch (error) {

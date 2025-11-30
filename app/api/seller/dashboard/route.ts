@@ -72,8 +72,6 @@ export async function GET(req: NextRequest) {
       console.error('[SELLER DASHBOARD API] Error fetching order items:', orderItemsResult.error)
     }
 
-
-
     // Calculate stats
     const totalProducts = productsResult.data?.length || 0
     
@@ -83,21 +81,37 @@ export async function GET(req: NextRequest) {
     let totalSales = 0
     
     if (orderItemsResult.data) {
+      console.log('[SELLER DASHBOARD API] Total order items fetched:', orderItemsResult.data.length)
+      
       orderItemsResult.data.forEach((item: { 
+        id: string;
         orders: { id: string; status: string } | { id: string; status: string }[]; 
-        price: number; 
+        price: number | string; 
         quantity: number;
-        seller_earnings: number;
+        seller_earnings: number | string;
       }) => {
         // Handle both array and object for orders
         const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
         // Only count paid orders (double-check even though query filters)
         if (order && order.id && order.status === 'paid') {
           uniqueOrders.add(order.id)
-          totalRevenue += (item.seller_earnings || 0)
-          totalSales += item.quantity || 0
+          // Parse seller_earnings as it comes from PostgreSQL as string (numeric type)
+          const earnings = typeof item.seller_earnings === 'string' 
+            ? parseFloat(item.seller_earnings) 
+            : (item.seller_earnings || 0)
+          
+          if (isNaN(earnings)) {
+            console.warn('[SELLER DASHBOARD API] Invalid earnings value for item:', item.id, 'earnings:', item.seller_earnings)
+          } else {
+            totalRevenue += earnings
+            totalSales += item.quantity || 0
+          }
+        } else {
+          console.warn('[SELLER DASHBOARD API] Skipping item with non-paid order:', item.id, 'order status:', order?.status)
         }
       })
+      
+      console.log('[SELLER DASHBOARD API] Calculated totalRevenue:', totalRevenue, 'totalSales:', totalSales, 'uniqueOrders:', uniqueOrders.size)
     }
     
     const totalOrders = uniqueOrders.size
@@ -114,18 +128,22 @@ export async function GET(req: NextRequest) {
     
     if (orderItemsResult.data) {
       orderItemsResult.data.forEach((item: { 
-        seller_earnings: number;
+        seller_earnings: number | string;
         created_at: string;
         orders: { id: string; status: string } | { id: string; status: string }[];
       }) => {
         // Only count paid orders for revenue calculation
         const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
         if (order && order.status === 'paid') {
+          // Parse seller_earnings as it comes from PostgreSQL as string (numeric type)
+          const earnings = typeof item.seller_earnings === 'string' 
+            ? parseFloat(item.seller_earnings) 
+            : (item.seller_earnings || 0)
           const itemDate = new Date(item.created_at)
           if (itemDate >= thisMonth) {
-            thisMonthRevenue += (item.seller_earnings || 0)
+            thisMonthRevenue += earnings
           } else if (itemDate >= lastMonth && itemDate < thisMonth) {
-            lastMonthRevenue += (item.seller_earnings || 0)
+            lastMonthRevenue += earnings
           }
         }
       })

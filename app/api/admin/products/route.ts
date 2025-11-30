@@ -51,10 +51,17 @@ export async function GET(req: NextRequest) {
       console.error('[ADMIN PRODUCTS API] Profiles query error:', profilesError)
     }
 
-    // Get order items data to calculate sales and revenue
+    // Get order items data to calculate sales and revenue (paid orders only)
     const { data: orderItems, error: orderItemsError } = await supabase
       .from('order_items')
-      .select('product_id, quantity, seller_earnings, created_at')
+      .select(`
+        product_id, 
+        quantity, 
+        seller_earnings, 
+        created_at,
+        orders!inner(status)
+      `)
+      .eq('orders.status', 'paid')
 
     if (orderItemsError) {
       console.error('[ADMIN PRODUCTS API] Order items query error:', orderItemsError)
@@ -75,19 +82,53 @@ export async function GET(req: NextRequest) {
     const pendingProducts = products?.filter(product => product.status === 'pending').length || 0
     const rejectedProducts = products?.filter(product => product.status === 'rejected').length || 0
 
-    // Calculate total sales and revenue
-    const totalSales = orderItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0
-    const totalRevenue = orderItems?.reduce((sum, item) => sum + (parseFloat(item.seller_earnings) || 0), 0) || 0
+    // Calculate total sales and revenue (only from paid orders)
+    const totalSales = orderItems?.reduce((sum, item) => {
+      // Double-check order status (should already be filtered, but safety check)
+      const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
+      if (order && order.status === 'paid') {
+        return sum + (item.quantity || 0)
+      }
+      return sum
+    }, 0) || 0
+    
+    const totalRevenue = orderItems?.reduce((sum, item) => {
+      // Double-check order status (should already be filtered, but safety check)
+      const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
+      if (order && order.status === 'paid') {
+        const earnings = typeof item.seller_earnings === 'string' 
+          ? parseFloat(item.seller_earnings) 
+          : (item.seller_earnings || 0)
+        return sum + (isNaN(earnings) ? 0 : earnings)
+      }
+      return sum
+    }, 0) || 0
 
     // Process product data with additional statistics
     const processedProducts = products?.map(product => {
       // Find seller information
       const seller = profiles?.find(profile => profile.id === product.seller_id)
       
-      // Calculate product's sales statistics
+      // Calculate product's sales statistics (only from paid orders)
       const productOrderItems = orderItems?.filter(item => item.product_id === product.id) || []
-      const totalSold = productOrderItems.reduce((sum, item) => sum + (item.quantity || 0), 0)
-      const productRevenue = productOrderItems.reduce((sum, item) => sum + (parseFloat(item.seller_earnings) || 0), 0)
+      const totalSold = productOrderItems.reduce((sum, item) => {
+        const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
+        if (order && order.status === 'paid') {
+          return sum + (item.quantity || 0)
+        }
+        return sum
+      }, 0)
+      // Only count revenue from paid orders
+      const productRevenue = productOrderItems.reduce((sum, item) => {
+        const order = Array.isArray(item.orders) ? item.orders[0] : item.orders
+        if (order && order.status === 'paid') {
+          const earnings = typeof item.seller_earnings === 'string' 
+            ? parseFloat(item.seller_earnings) 
+            : (item.seller_earnings || 0)
+          return sum + (isNaN(earnings) ? 0 : earnings)
+        }
+        return sum
+      }, 0)
 
       // Calculate product's rating
       const productReviews = reviews?.filter(review => review.product_id === product.id) || []
