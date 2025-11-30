@@ -181,11 +181,21 @@ export function UserManagement() {
     // Prevent multiple clicks
     if (processingUsers.has(user.id)) return
 
+    // Prevent approving already approved sellers (prevents duplicate notifications)
+    if (user.status === 'active' && user.role === 'seller') {
+      toast({
+        title: "Sudah Disetujui",
+        description: `${user.name} sudah disetujui menjadi seller sebelumnya.`,
+      })
+      return
+    }
+
     try {
       // Add user to processing set
       setProcessingUsers(prev => new Set(prev).add(user.id))
 
-      // Optimistic UI update - immediately update the local state
+      // Optimistic UI update - immediately remove from list (since filter only shows pending)
+      // The user will disappear from the pending list because status changes to 'active'
       setUsers(prevUsers =>
         prevUsers.map(u =>
           u.id === user.id
@@ -193,6 +203,12 @@ export function UserManagement() {
             : u
         )
       )
+
+      // Also update stats immediately
+      setStats(prevStats => ({
+        ...prevStats,
+        pendingSellers: Math.max(0, prevStats.pendingSellers - 1)
+      }))
 
       // Update both role and status in a single API call
       const response = await fetch('/api/admin/users', {
@@ -225,11 +241,21 @@ export function UserManagement() {
               : u
           )
         )
+
+        // Update stats to reflect the change
+        if (result.user.status === 'active' && user.status === 'pending') {
+          setStats(prevStats => ({
+            ...prevStats,
+            pendingSellers: Math.max(0, prevStats.pendingSellers - 1)
+          }))
+        }
+
         console.log('[USER MANAGEMENT] Updated local state immediately with:', {
           id: result.user.id,
           role: result.user.role,
           status: result.user.status
         })
+        console.log('[USER MANAGEMENT] User should now disappear from pending list (status changed to active)')
       }
 
       // Also refresh data after a short delay to ensure everything is in sync
@@ -279,7 +305,8 @@ export function UserManagement() {
       // Add user to processing set
       setProcessingUsers(prev => new Set(prev).add(selectedUser.id))
 
-      // Optimistic UI update - immediately update the local state
+      // Optimistic UI update - immediately remove from list (since filter only shows pending)
+      // The user will disappear from the pending list because status changes to 'rejected'
       setUsers(prevUsers =>
         prevUsers.map(u =>
           u.id === selectedUser.id
@@ -287,6 +314,12 @@ export function UserManagement() {
             : u
         )
       )
+
+      // Also update stats immediately
+      setStats(prevStats => ({
+        ...prevStats,
+        pendingSellers: Math.max(0, prevStats.pendingSellers - 1)
+      }))
 
       // Update the status to rejected with reason
       const response = await fetch('/api/admin/users', {
@@ -319,10 +352,20 @@ export function UserManagement() {
               : u
           )
         )
+
+        // Update stats to reflect the change
+        if (result.user.status === 'rejected' && selectedUser.status === 'pending') {
+          setStats(prevStats => ({
+            ...prevStats,
+            pendingSellers: Math.max(0, prevStats.pendingSellers - 1)
+          }))
+        }
+
         console.log('[USER MANAGEMENT] Updated local state immediately with:', {
           id: result.user.id,
           status: result.user.status
         })
+        console.log('[USER MANAGEMENT] User should now disappear from pending list (status changed to rejected)')
       }
 
       // Close dialog and reset
@@ -533,6 +576,8 @@ export function UserManagement() {
                 const pendingSellers = users.filter(user =>
                   user.role === 'seller' && user.status === 'pending'
                 )
+                console.log('[USER MANAGEMENT] Filtered pending sellers:', pendingSellers.length, 'out of', users.length, 'total users')
+                console.log('[USER MANAGEMENT] Pending sellers details:', pendingSellers.map(u => ({ id: u.id, name: u.name, status: u.status })))
                 return pendingSellers.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     Tidak ada aplikasi seller tertunda
@@ -563,15 +608,16 @@ export function UserManagement() {
                           <Button
                             size="sm"
                             onClick={() => handlePromoteToAuthor(user)}
-                            disabled={processingUsers.has(user.id)}
+                            disabled={processingUsers.has(user.id) || user.status !== 'pending'}
+                            variant={user.status !== 'pending' ? "outline" : "default"}
                           >
-                            {processingUsers.has(user.id) ? "Memproses..." : "Setujui"}
+                            {processingUsers.has(user.id) ? "Memproses..." : user.status === 'pending' ? "Setujui" : "Sudah Disetujui"}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleRejectSeller(user)}
-                            disabled={processingUsers.has(user.id)}
+                            disabled={processingUsers.has(user.id) || user.status !== 'pending'}
                           >
                             {processingUsers.has(user.id) ? "Memproses..." : "Tolak"}
                           </Button>

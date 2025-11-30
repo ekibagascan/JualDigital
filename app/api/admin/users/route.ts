@@ -49,15 +49,32 @@ export async function GET(req: NextRequest) {
       }
     )
     
-    // Force fresh query with timestamp-based filter and no caching
+    // Use RPC or direct query with timestamp to force fresh data
+    // Query with explicit cache-busting by including timestamp in a way that forces re-evaluation
     const { data: users, error: usersError } = await freshSupabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false })
-      // Use a filter that's always true but forces fresh query evaluation
+      // Force fresh query by using a condition that's always true but forces query re-evaluation
       .neq('id', '00000000-0000-0000-0000-000000000000')
-      // Add timestamp to query to prevent any caching
+      // Add a filter that includes timestamp to prevent any query caching
+      .gte('created_at', '1970-01-01') // Always true, but forces fresh query
       .limit(10000) // Set high limit to ensure we get all users
+    
+    // Log what we actually got from Supabase BEFORE any processing
+    if (users) {
+      const sellersInResponse = users.filter(u => u.role === 'seller')
+      const pendingInResponse = sellersInResponse.filter(u => u.status === 'pending')
+      const activeInResponse = sellersInResponse.filter(u => u.status === 'active')
+      console.log('[ADMIN USERS API] Raw Supabase response - Total sellers:', sellersInResponse.length, 'Pending:', pendingInResponse.length, 'Active:', activeInResponse.length)
+      if (pendingInResponse.length > 0) {
+        console.log('[ADMIN USERS API] Raw pending seller IDs from Supabase:', pendingInResponse.slice(0, 5).map(u => ({ id: u.id, name: u.name, status: u.status })))
+      }
+      // Also log a sample of active sellers to verify they exist
+      if (activeInResponse.length > 0) {
+        console.log('[ADMIN USERS API] Sample active sellers:', activeInResponse.slice(0, 3).map(u => ({ id: u.id, name: u.name, status: u.status })))
+      }
+    }
 
     if (usersError) {
       console.error('[ADMIN USERS API] Users query error:', usersError)
@@ -319,31 +336,58 @@ export async function PUT(req: NextRequest) {
       }
     )
     
+    // Perform the update with explicit error handling
+    // Log the exact update data being sent
+    console.log('[ADMIN USERS API] Attempting update with data:', JSON.stringify(updateData))
+    console.log('[ADMIN USERS API] User ID:', userId)
+    
     const { data: updateResult, error } = await updateSupabase
       .from('profiles')
       .update(updateData)
       .eq('id', userId)
       .select('*')
       .single()
+    
+    // Log the response details
+    console.log('[ADMIN USERS API] Update response - error:', error ? JSON.stringify(error) : 'none', 'data:', updateResult ? 'exists' : 'null')
 
     if (error) {
       console.error('[ADMIN USERS API] Update error:', error)
+      console.error('[ADMIN USERS API] Update error details:', JSON.stringify(error, null, 2))
       return NextResponse.json(
-        { error: 'Failed to update user' },
+        { error: 'Failed to update user', details: error.message },
+        { status: 500 }
+      )
+    }
+
+    if (!updateResult) {
+      console.error('[ADMIN USERS API] Update returned no data!')
+      return NextResponse.json(
+        { error: 'Update returned no data' },
         { status: 500 }
       )
     }
 
     console.log('[ADMIN USERS API] User updated successfully:', { userId, updateData })
     console.log('[ADMIN USERS API] Update result from Supabase:', { 
-      id: updateResult?.id, 
-      role: updateResult?.role, 
-      status: updateResult?.status 
+      id: updateResult.id, 
+      role: updateResult.role, 
+      status: updateResult.status,
+      name: updateResult.name
     })
     
-    // Verify the update was actually committed by querying again with a fresh connection
-    await new Promise(resolve => setTimeout(resolve, 200))
+    // CRITICAL: Check if the update actually worked
+    if (updateResult.status !== updateData.status || updateResult.role !== updateData.role) {
+      console.error('[ADMIN USERS API] CRITICAL: Update did not work!')
+      console.error('[ADMIN USERS API] Expected:', updateData)
+      console.error('[ADMIN USERS API] Got:', { role: updateResult.role, status: updateResult.status })
+    }
     
+    // CRITICAL: Verify the update was actually committed by querying DIRECTLY from Supabase
+    // Wait longer to ensure transaction is committed
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Create a completely fresh Supabase client with no connection reuse
     const verifySupabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -356,63 +400,97 @@ export async function PUT(req: NextRequest) {
       }
     )
     
+    // Query directly with explicit cache-busting - use a filter that forces fresh query
     const { data: verifiedUser, error: verifyError } = await verifySupabase
       .from('profiles')
-      .select('id, role, status')
+      .select('id, role, status, name')
       .eq('id', userId)
+      .gte('created_at', '1970-01-01') // Force fresh query
       .single()
     
     if (!verifyError && verifiedUser) {
-      console.log('[ADMIN USERS API] Verified update:', { 
+      console.log('[ADMIN USERS API] Verified update from Supabase:', { 
         id: verifiedUser.id, 
+        name: verifiedUser.name,
         role: verifiedUser.role, 
         status: verifiedUser.status 
       })
       
-      // If verification shows different status, use verified data
-      if (verifiedUser.status !== updateResult.status) {
-        console.warn('[ADMIN USERS API] Status mismatch! Update result:', updateResult.status, 'Verified:', verifiedUser.status)
+      // CRITICAL: If verification shows different status, the update didn't work!
+      // Use the verified data from Supabase (the source of truth)
+      if (verifiedUser.status !== updateResult.status || verifiedUser.role !== updateResult.role) {
+        console.error('[ADMIN USERS API] CRITICAL: Status mismatch detected!')
+        console.error('[ADMIN USERS API] Update result:', { role: updateResult.role, status: updateResult.status })
+        console.error('[ADMIN USERS API] Verified from Supabase:', { role: verifiedUser.role, status: verifiedUser.status })
+        console.error('[ADMIN USERS API] Using verified data from Supabase as source of truth')
+        
+        // Override with verified data - Supabase is the source of truth
         updateResult.status = verifiedUser.status
         updateResult.role = verifiedUser.role
+        console.error('[ADMIN USERS API] WARNING: Update did not persist! Using verified status from database.')
+      } else {
+        console.log('[ADMIN USERS API] Update verified successfully - status matches')
       }
     } else {
-      console.error('[ADMIN USERS API] Verification failed:', verifyError)
+      console.error('[ADMIN USERS API] Verification query failed:', verifyError)
+      console.error('[ADMIN USERS API] This means we cannot verify the update was committed!')
     }
+    
+    // Store verified user for return
+    const verifiedUserData = verifiedUser && !verifyError ? verifiedUser : null
 
     // Send email and WhatsApp notifications for seller application status changes
-    if (userData && (action === 'updateRole' || action === 'updateStatus' || action === 'approveSeller')) {
+    // CRITICAL: Only send notifications if status is actually changing (not already approved/rejected)
+    const previousStatus = userData.status
+    const newStatus = updateData.status
+    const statusChanged = previousStatus !== newStatus
+    
+    console.log('[ADMIN USERS API] Notification check - Previous status:', previousStatus, 'New status:', newStatus, 'Status changed:', statusChanged)
+    
+    if (userData && (action === 'updateRole' || action === 'updateStatus' || action === 'approveSeller') && statusChanged) {
       try {
         if ((action === 'updateRole' && role === 'seller') || action === 'approveSeller') {
-          // Seller application approved - send via both email and WhatsApp
-          
-          // Send email notification
-          if (userEmail && userEmail.trim() !== '') {
-            const emailSent = await sendSellerApplicationApproved({
-              to: userEmail,
+          // Only send approval notification if status is changing from pending to active
+          if (previousStatus === 'pending' && newStatus === 'active') {
+            console.log('[ADMIN USERS API] Sending approval notifications (status changed from pending to active)')
+            
+            // Send email notification
+            if (userEmail && userEmail.trim() !== '') {
+              const emailSent = await sendSellerApplicationApproved({
+                to: userEmail,
+                sellerName: userData.name || '',
+                businessName: userData.business_name || '',
+              })
+              if (emailSent) {
+                console.log('[ADMIN USERS API] Approval email sent successfully')
+              } else {
+                console.log('[ADMIN USERS API] Failed to send approval email')
+              }
+            } else {
+              console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
+            }
+            
+            // Send WhatsApp notification
+            const whatsappService = new WhatsAppService()
+            const whatsappSent = await whatsappService.sendSellerApprovalNotification(userId, {
               sellerName: userData.name || '',
               businessName: userData.business_name || '',
             })
-            if (emailSent) {
-              console.log('[ADMIN USERS API] Approval email sent successfully')
+            if (whatsappSent) {
+              console.log('[ADMIN USERS API] Approval WhatsApp sent successfully')
             } else {
-              console.log('[ADMIN USERS API] Failed to send approval email')
+              console.log('[ADMIN USERS API] Failed to send approval WhatsApp (user may not have phone number)')
             }
           } else {
-            console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
-          }
-          
-          // Send WhatsApp notification
-          const whatsappService = new WhatsAppService()
-          const whatsappSent = await whatsappService.sendSellerApprovalNotification(userId, {
-            sellerName: userData.name || '',
-            businessName: userData.business_name || '',
-          })
-          if (whatsappSent) {
-            console.log('[ADMIN USERS API] Approval WhatsApp sent successfully')
-          } else {
-            console.log('[ADMIN USERS API] Failed to send approval WhatsApp (user may not have phone number)')
+            console.log('[ADMIN USERS API] Skipping approval notifications - status not changing from pending to active', {
+              previousStatus,
+              newStatus
+            })
           }
         } else if (action === 'updateStatus' && updateData.status === 'rejected') {
+          // Only send rejection notification if status is changing from pending to rejected
+          if (previousStatus === 'pending' && newStatus === 'rejected') {
+            console.log('[ADMIN USERS API] Sending rejection notifications (status changed from pending to rejected)')
           // Seller application rejected - send via both email and WhatsApp
           
           // Send email notification
@@ -444,19 +522,49 @@ export async function PUT(req: NextRequest) {
           } else {
             console.log('[ADMIN USERS API] Failed to send rejection WhatsApp (user may not have phone number)')
           }
+          } else {
+            console.log('[ADMIN USERS API] Skipping rejection notifications - status not changing from pending to rejected', {
+              previousStatus,
+              newStatus
+            })
+          }
         }
       } catch (notificationError) {
         console.error('[ADMIN USERS API] Failed to send notification:', notificationError)
         // Don't fail the update if notification fails
       }
+    } else {
+      console.log('[ADMIN USERS API] Skipping notifications - status not changed or no user data', {
+        statusChanged,
+        hasUserData: !!userData,
+        previousStatus,
+        newStatus
+      })
     }
 
+    // CRITICAL: Use verified data if available, otherwise use updateResult
+    // The verified data is the source of truth from Supabase
+    const finalUserData = verifiedUserData ? {
+      ...updateResult,
+      status: verifiedUserData.status,
+      role: verifiedUserData.role
+    } : updateResult
+    
+    console.log('[ADMIN USERS API] Returning final user data:', {
+      id: finalUserData.id,
+      name: finalUserData.name,
+      role: finalUserData.role,
+      status: finalUserData.status,
+      source: verifiedUserData ? 'verified' : 'updateResult'
+    })
+    
     // Return the updated user data so frontend can update immediately without refetching
     return NextResponse.json({
       success: true,
       message: 'User updated successfully',
-      user: updateResult,
-      updatedFields: updateData
+      user: finalUserData,
+      updatedFields: updateData,
+      verified: verifiedUserData ? true : false
     }, {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
