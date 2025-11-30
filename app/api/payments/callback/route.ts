@@ -9,8 +9,17 @@ import { WhatsAppService } from '@/lib/whatsapp-service'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    console.log('[WEBHOOK] Received webhook from Xendit:', body)
-    console.log('[WEBHOOK] Full webhook payload:', JSON.stringify(body, null, 2))
+
+    // Xendit webhooks can have different structures:
+    // 1. Event-based: { event: "invoice.paid", data: { ... } }
+    // 2. Direct invoice data: { external_id, status, ... }
+    let invoiceData = body
+    
+    // If webhook has 'event' field, extract data from 'data' field or use body directly
+    if (body.event) {
+      // Xendit sends invoice data in 'data' field for event-based webhooks
+      invoiceData = body.data || body
+    }
 
     // Extract payment information from webhook
     const { 
@@ -18,16 +27,16 @@ export async function POST(req: NextRequest) {
       status, 
       payment_id,
       invoice_id,
-      amount,
-      paid_amount,
-      paid_at,
-      payment_channel,
-      payment_method
-    } = body
+      id // Xendit invoice ID
+    } = invoiceData
 
-    if (!external_id) {
-      console.error('[WEBHOOK] Missing external_id in webhook payload')
-      return NextResponse.json({ error: 'Missing external_id' }, { status: 400 })
+    // Use invoice_id or id if external_id is not available
+    const orderId = external_id || id
+    const paymentId = payment_id || invoice_id || id
+
+    if (!orderId) {
+      console.error('[WEBHOOK] Missing external_id or id in webhook payload')
+      return NextResponse.json({ error: 'Missing external_id or id' }, { status: 400 })
     }
 
     // Create Supabase client with service role key to bypass RLS
@@ -38,76 +47,76 @@ export async function POST(req: NextRequest) {
 
     const orderService = new OrderService(supabase as unknown as SupabaseClient)
 
-    // Map Xendit status to our order status
+    // Determine status from event or status field
     let orderStatus = 'pending'
-    if (status === 'PAID') {
-      orderStatus = 'paid'
-    } else if (status === 'EXPIRED') {
-      orderStatus = 'expired'
-    } else if (status === 'FAILED') {
-      orderStatus = 'failed'
+    
+    // Check event type first (more reliable)
+    if (body.event) {
+      if (body.event === 'invoice.paid' || body.event === 'invoices.paid') {
+        orderStatus = 'paid'
+      } else if (body.event === 'invoice.expired' || body.event === 'invoices.expired') {
+        orderStatus = 'expired'
+      } else if (body.event === 'invoice.failed' || body.event === 'invoices.failed') {
+        orderStatus = 'failed'
+      }
+    }
+    
+    // Fallback to status field if event didn't set it
+    if (orderStatus === 'pending' && status) {
+      if (status === 'PAID' || status === 'paid') {
+        orderStatus = 'paid'
+      } else if (status === 'EXPIRED' || status === 'expired') {
+        orderStatus = 'expired'
+      } else if (status === 'FAILED' || status === 'failed') {
+        orderStatus = 'failed'
+      }
     }
 
-    console.log('[WEBHOOK] Updating order status:', {
-      orderId: external_id,
-      status: orderStatus,
-      paymentId: payment_id || invoice_id,
-      amount,
-      paidAmount: paid_amount,
-      paidAt: paid_at,
-      paymentChannel: payment_channel,
-      paymentMethod: payment_method
-    })
+    // First, verify the order exists
+    const { data: existingOrder, error: checkError } = await supabase
+      .from('orders')
+      .select('id, status')
+      .eq('id', orderId)
+      .single()
 
-    console.log('[WEBHOOK] About to update order with ID:', external_id)
-    console.log('[WEBHOOK] Order status to set:', orderStatus)
+    if (checkError || !existingOrder) {
+      console.error('[WEBHOOK] Order not found:', orderId)
+      // Return 200 to prevent Xendit from retrying for non-existent orders
+      return NextResponse.json({ 
+        success: false,
+        error: 'Order not found',
+        orderId 
+      }, { status: 200 })
+    }
 
     // Update order status in database
     await orderService.updateOrderStatus(
-      external_id, 
+      orderId, 
       orderStatus, 
-      payment_id || invoice_id
+      paymentId
     )
-
-    console.log('[WEBHOOK] Order status updated successfully')
 
     // After updating order status, if paid and user_id exists, send download email
     if (orderStatus === 'paid') {
-      console.log('[WEBHOOK] Order is paid, checking if user email should be sent...')
-      
       // Fetch order and order items
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .select('id, order_number, user_id, guest_email, status, note')
-        .eq('id', external_id)
+        .eq('id', orderId)
         .single()
       
-      console.log('[WEBHOOK] Order data:', order)
-      console.log('[WEBHOOK] Order error:', orderError)
-      
       if (!orderError && order && order.user_id) {
-        console.log('[WEBHOOK] Order has user_id, fetching user email...')
-        
         // Fetch user email from auth.users table (Supabase stores emails here)
         const { data: user, error: userError } = await supabase.auth.admin.getUserById(order.user_id)
         
-        console.log('[WEBHOOK] User data:', user)
-        console.log('[WEBHOOK] User error:', userError)
-        
         if (!userError && user && user.user && user.user.email) {
-          console.log('[WEBHOOK] User email found:', user.user.email)
-          
           // Fetch order items and product download links
           const { data: items, error: itemsError } = await supabase
             .from('order_items')
             .select('id, product_id, product_title:product_title, products:product_id(download_link, file_url, title)')
             .eq('order_id', order.id)
           
-          console.log('[WEBHOOK] Order items:', items)
-          console.log('[WEBHOOK] Items error:', itemsError)
-          
           if (!itemsError && items && items.length > 0) {
-            console.log('[WEBHOOK] Preparing to send email...')
             
             // Compose download links with styled buttons
             const downloadButtons = items.map(item => {
@@ -209,36 +218,24 @@ export async function POST(req: NextRequest) {
               return `${product?.title || item.product_title}: ${product?.download_link || product?.file_url ? process.env.NEXT_PUBLIC_APP_URL + '/api/download/' + item.id : ''}`
             }).join('\n')}`
             
-            console.log('[WEBHOOK] Sending email to:', user.user.email)
-            console.log('[WEBHOOK] Email subject:', `Link Download Pesanan #${order.order_number}`)
-            
-            const emailResult = await sendDownloadEmail({
+            await sendDownloadEmail({
               to: user.user.email,
               subject: `Link Download Pesanan #${order.order_number}`,
               text,
               html,
             })
-            
-            console.log('[WEBHOOK] Email send result:', emailResult)
-          } else {
-            console.log('[WEBHOOK] No order items found or error:', itemsError)
           }
-        } else {
-          console.log('[WEBHOOK] No user email found or error:', userError)
         }
-      } else {
-        console.log('[WEBHOOK] Order has no user_id (guest order) or error:', orderError)
       }
 
       // Send WhatsApp notifications to sellers when payment is successful
-      console.log('[WEBHOOK] Sending WhatsApp notifications to sellers...')
       const whatsappService = new WhatsAppService()
       
       // Fetch order items with seller information
       const { data: orderItems, error: itemsError } = await supabase
         .from('order_items')
         .select('id, product_id, seller_id, product_title, price, quantity')
-        .eq('order_id', external_id)
+        .eq('order_id', orderId)
       
       if (!itemsError && orderItems && orderItems.length > 0) {
         // Group items by seller
@@ -263,13 +260,13 @@ export async function POST(req: NextRequest) {
             try {
               const { data: user } = await supabase.auth.admin.getUserById(order.user_id)
               buyerName = user?.user?.user_metadata?.name || user?.user?.email
-            } catch (error) {
-              console.log('[WEBHOOK] Could not fetch buyer name:', error)
+            } catch {
+              // Silently fail buyer name fetch
             }
           }
 
           await whatsappService.sendOrderNotification(sellerId, {
-            orderNumber: order?.order_number || external_id,
+            orderNumber: order?.order_number || orderId,
             productTitle: productTitles,
             amount: totalAmount,
             buyerName,
@@ -278,13 +275,7 @@ export async function POST(req: NextRequest) {
             paymentStatus: 'paid'
           })
         }
-        
-        console.log('[WEBHOOK] WhatsApp notifications sent to sellers')
-      } else {
-        console.log('[WEBHOOK] No order items found for WhatsApp notifications:', itemsError)
       }
-    } else {
-      console.log('[WEBHOOK] Order is not paid, skipping email and WhatsApp notifications')
     }
 
     return NextResponse.json({ 
@@ -293,10 +284,24 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (error) {
-    console.error('[WEBHOOK] Error processing webhook:', error)
+    console.error('[WEBHOOK] Error processing webhook:', error instanceof Error ? error.message : 'Unknown error')
+    
+    // Determine if error is retryable
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const isRetryable = errorMessage.includes('database') || 
+                       errorMessage.includes('connection') || 
+                       errorMessage.includes('timeout') ||
+                       errorMessage.includes('network')
+    
+    // Return 500 for retryable errors (database, network issues)
+    // Return 200 for non-retryable errors (business logic, validation)
+    const statusCode = isRetryable ? 500 : 200
+    
     return NextResponse.json({ 
-      error: 'Failed to process webhook' 
-    }, { status: 500 })
+      error: 'Failed to process webhook',
+      message: errorMessage,
+      retryable: isRetryable
+    }, { status: statusCode })
   }
 }
  
