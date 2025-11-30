@@ -7,6 +7,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   trailingSlash: true,
+  skipTrailingSlashRedirect: true, // Prevent redirects on POST requests (fixes webhook issues)
   images: {
     unoptimized: true,
     domains: ["vovqicbfzjgxeizmkxuf.supabase.co", "lh3.googleusercontent.com"],
