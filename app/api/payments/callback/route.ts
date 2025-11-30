@@ -6,12 +6,28 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendDownloadEmail } from '@/lib/email-service'
 import { WhatsAppService } from '@/lib/whatsapp-service'
 
+// OPTIONS handler for CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  })
+}
+
 // GET handler for Xendit webhook verification
 export async function GET() {
   return NextResponse.json({ 
     status: 'ok',
     message: 'Webhook endpoint is active',
     endpoint: '/api/payments/callback'
+  }, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
   })
 }
 
@@ -300,6 +316,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       message: 'Order status updated' 
+    }, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
     })
 
   } catch (error) {
@@ -320,7 +340,12 @@ export async function POST(req: NextRequest) {
       error: 'Failed to process webhook',
       message: errorMessage,
       retryable: isRetryable
-    }, { status: statusCode })
+    }, { 
+      status: statusCode,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
   }
 }
  
