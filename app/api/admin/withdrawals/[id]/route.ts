@@ -117,6 +117,42 @@ export async function PUT(
         }
 
         const updatedWithdrawal = updatedWithdrawals[0]
+        
+        // Verify the update was actually committed by querying again with a fresh connection
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        const verifySupabase = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          {
+            cookies: {
+              get(name: string) {
+                return req.cookies.get(name)?.value
+              },
+            },
+          }
+        )
+        
+        const { data: verifiedWithdrawal, error: verifyError } = await verifySupabase
+          .from('withdrawals')
+          .select('*')
+          .eq('id', params.id)
+          .single()
+        
+        if (!verifyError && verifiedWithdrawal) {
+          console.log('[ADMIN WITHDRAWAL API] Verified update from Supabase:', { 
+            id: verifiedWithdrawal.id, 
+            status: verifiedWithdrawal.status 
+          })
+          
+          // Use verified data as source of truth
+          if (verifiedWithdrawal.status !== updatedWithdrawal.status) {
+            console.warn('[ADMIN WITHDRAWAL API] Status mismatch! Update result:', updatedWithdrawal.status, 'Verified:', verifiedWithdrawal.status)
+            updatedWithdrawal.status = verifiedWithdrawal.status
+          }
+        } else {
+          console.error('[ADMIN WITHDRAWAL API] Verification query failed:', verifyError)
+        }
 
         // Send email notification for approved withdrawal
         try {
@@ -151,8 +187,15 @@ export async function PUT(
         }
 
         return NextResponse.json({ 
+          success: true,
           withdrawal: updatedWithdrawal,
           transferId: transferResult.transferId
+        }, {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
         })
 
       } catch (error) {
@@ -249,7 +292,16 @@ export async function PUT(
         // Don't fail the withdrawal update if email fails
       }
 
-      return NextResponse.json({ withdrawal: updatedWithdrawal })
+      return NextResponse.json({ 
+        success: true,
+        withdrawal: updatedWithdrawal 
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      })
     }
 
   } catch (error) {

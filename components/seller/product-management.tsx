@@ -60,6 +60,31 @@ export function ProductManagement() {
     }
 
     fetchProducts()
+
+    // Auto-refresh products every 30 seconds
+    const interval = setInterval(() => {
+      fetchProducts()
+    }, 30000)
+
+    // Refresh when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchProducts()
+      }
+    }
+
+    const handleFocus = () => {
+      fetchProducts()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [user])
 
   const filteredProducts = useMemo(() => {

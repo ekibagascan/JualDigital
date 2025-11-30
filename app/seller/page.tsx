@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { supabase } from "@/lib/supabase-client"
@@ -60,6 +60,49 @@ export default function SellerDashboard() {
         fetchProfileRole()
     }, [user?.id])
 
+    type SellerDashboardResponse = {
+        stats: {
+            totalProducts: number;
+            totalSales: number;
+            totalOrders: number;
+            totalRevenue: number;
+            growthPercentage: number;
+        };
+        recentProducts: Array<{ id: string; title: string; price: number; image_url?: string; status?: string; created_at?: string }>;
+    };
+    const loadSellerData = useCallback(async () => {
+        if (!user?.id) return
+
+        try {
+            const response = await fetch(`/api/seller/dashboard?t=${Date.now()}&r=${Math.random()}`, {
+                headers: {
+                    'x-user-id': user.id,
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            })
+
+            if (response.ok) {
+                const data: SellerDashboardResponse = await response.json()
+                setStats(data.stats)
+                setRecentProducts(data.recentProducts || [])
+                console.log('[SELLER DASHBOARD] Data refreshed:', {
+                    totalProducts: data.stats.totalProducts,
+                    totalOrders: data.stats.totalOrders,
+                    totalRevenue: data.stats.totalRevenue,
+                    recentProductsCount: data.recentProducts?.length || 0
+                })
+            } else {
+                console.error('[SELLER DASHBOARD] API error:', response.status, response.statusText)
+            }
+        } catch (error: unknown) {
+            console.error('Error loading seller data:', error instanceof Error ? error.message : error)
+        } finally {
+            setIsLoading(false)
+        }
+    }, [user?.id])
+
     useEffect(() => {
         if (!loading && !profileLoading) {
             if (!user) {
@@ -74,41 +117,44 @@ export default function SellerDashboard() {
 
             loadSellerData()
         }
-    }, [user, loading, profileRole, profileLoading, router])
+    }, [user, loading, profileRole, profileLoading, router, loadSellerData])
 
-    type SellerDashboardResponse = {
-        stats: {
-            totalProducts: number;
-            totalSales: number;
-            totalOrders: number;
-            totalRevenue: number;
-            growthPercentage: number;
-        };
-        recentProducts: Array<{ id: string; title: string; price: number; image_url?: string; status?: string; created_at?: string }>;
-    };
-    const loadSellerData = async () => {
-        try {
-            const response = await fetch(`/api/seller/dashboard?t=${Date.now()}&r=${Math.random()}`, {
-                headers: {
-                    'x-user-id': user?.id || '',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
-                }
-            })
+    // Auto-refresh dashboard data every 30 seconds to keep stats up-to-date
+    useEffect(() => {
+        if (!user || !profileRole || profileRole.toLowerCase() !== 'seller') return
 
-            if (response.ok) {
-                const data: SellerDashboardResponse = await response.json()
-                setStats(data.stats)
-                setRecentProducts(data.recentProducts || [])
-            } else {
-                console.error('[SELLER DASHBOARD] API error:', response.status, response.statusText)
+        const interval = setInterval(() => {
+            console.log('[SELLER DASHBOARD] Auto-refreshing data...')
+            loadSellerData()
+        }, 30000) // 30 seconds
+
+        return () => clearInterval(interval)
+    }, [user, profileRole, loadSellerData])
+
+    // Refresh when page becomes visible (user switches back to tab)
+    useEffect(() => {
+        if (!user || !profileRole || profileRole.toLowerCase() !== 'seller') return
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('[SELLER DASHBOARD] Page visible, refreshing data...')
+                loadSellerData()
             }
-        } catch (error: unknown) {
-            console.error('Error loading seller data:', error instanceof Error ? error.message : error)
-        } finally {
-            setIsLoading(false)
         }
-    }
+
+        const handleFocus = () => {
+            console.log('[SELLER DASHBOARD] Window focused, refreshing data...')
+            loadSellerData()
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        window.addEventListener('focus', handleFocus)
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+            window.removeEventListener('focus', handleFocus)
+        }
+    }, [user, profileRole, loadSellerData])
 
     if (loading || isLoading || profileLoading) {
         return (

@@ -160,16 +160,52 @@ export function WithdrawalManagementAdmin() {
         updateData.rejection_reason = rejectionReason
       }
 
+      // Optimistic UI update - immediately update the local state
+      setWithdrawals(prevWithdrawals =>
+        prevWithdrawals.map(w =>
+          w.id === selectedWithdrawal.id
+            ? { ...w, status: status as 'pending' | 'approved' | 'rejected' | 'completed', rejection_reason: updateData.rejection_reason }
+            : w
+        )
+      )
+
       const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
         },
         body: JSON.stringify(updateData),
       })
 
       if (!response.ok) {
+        // Revert optimistic update on error
+        setWithdrawals(prevWithdrawals =>
+          prevWithdrawals.map(w =>
+            w.id === selectedWithdrawal.id
+              ? { ...w, status: selectedWithdrawal.status, rejection_reason: selectedWithdrawal.rejection_reason }
+              : w
+          )
+        )
         throw new Error('Failed to update withdrawal status')
+      }
+
+      const result = await response.json()
+      console.log('[WITHDRAWAL MANAGEMENT] Update response:', result)
+
+      // Update local state immediately with the response data (optimistic update)
+      if (result.withdrawal) {
+        setWithdrawals(prevWithdrawals =>
+          prevWithdrawals.map(w =>
+            w.id === selectedWithdrawal.id
+              ? { ...w, ...result.withdrawal }
+              : w
+          )
+        )
+        console.log('[WITHDRAWAL MANAGEMENT] Updated local state immediately with:', {
+          id: result.withdrawal.id,
+          status: result.withdrawal.status
+        })
       }
 
       const actionText = approvalAction === "approve" ? "disetujui" : "ditolak"
@@ -178,7 +214,7 @@ export function WithdrawalManagementAdmin() {
         description: `Penarikan ${selectedWithdrawal.id} berhasil ${actionText}.`,
       })
 
-      // Refresh withdrawals with a small delay to ensure database is updated
+      // Also refresh data after a short delay to ensure everything is in sync
       setTimeout(async () => {
         try {
           const refreshResponse = await fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
@@ -195,7 +231,7 @@ export function WithdrawalManagementAdmin() {
         } catch (error) {
           console.error('Error refreshing withdrawals:', error)
         }
-      }, 500) // 500ms delay
+      }, 300) // Reduced delay since we have optimistic updates
 
       setIsApprovalDialogOpen(false)
       setRejectionReason("")
