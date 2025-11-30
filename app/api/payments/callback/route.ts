@@ -32,6 +32,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Log incoming request immediately
+  console.log('[WEBHOOK] POST request received at:', new Date().toISOString())
+  console.log('[WEBHOOK] Request headers:', Object.fromEntries(req.headers.entries()))
+  
   // Return immediate response with CORS headers
   const responseHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -40,14 +44,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Read body first before any processing
+    // Read body first (must be done before returning)
     let body: Record<string, unknown> | null = null
     try {
       const text = await req.text()
+      console.log('[WEBHOOK] Request body length:', text.length)
       if (text && text.trim() !== '') {
         body = JSON.parse(text) as Record<string, unknown>
+        console.log('[WEBHOOK] Body parsed successfully, has external_id:', !!body.external_id)
       }
-    } catch {
+    } catch (error) {
+      console.log('[WEBHOOK] Empty or invalid body:', error instanceof Error ? error.message : 'Unknown')
       // Empty or invalid body - return success for verification
       return NextResponse.json({ 
         status: 'ok',
@@ -57,11 +64,38 @@ export async function POST(req: NextRequest) {
 
     // If no body, return success (Xendit verification)
     if (!body) {
+      console.log('[WEBHOOK] No body, returning success for verification')
       return NextResponse.json({ 
         status: 'ok',
         message: 'Webhook endpoint ready'
       }, { headers: responseHeaders })
     }
+
+    console.log('[WEBHOOK] Processing webhook in background for:', body.external_id || body.id)
+
+    // Process webhook in background (don't block response)
+    processWebhook(body).catch(error => {
+      console.error('[WEBHOOK] Background processing error:', error)
+    })
+
+    // Return immediate success
+    console.log('[WEBHOOK] Returning immediate success response')
+    return NextResponse.json({ 
+      status: 'ok',
+      message: 'Webhook received, processing...'
+    }, { headers: responseHeaders })
+  } catch (error) {
+    console.error('[WEBHOOK] Error in POST handler:', error)
+    // If anything fails, still return success so Xendit doesn't retry
+    return NextResponse.json({ 
+      status: 'ok',
+      message: 'Webhook received'
+    }, { headers: responseHeaders })
+  }
+}
+
+async function processWebhook(body: Record<string, unknown>) {
+  try {
 
     // Xendit webhooks can have different structures:
     // 1. Event-based: { event: "invoice.paid", data: { ... } }
@@ -87,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     if (!orderId) {
       console.error('[WEBHOOK] Missing external_id or id in webhook payload')
-      return NextResponse.json({ error: 'Missing external_id or id' }, { status: 400 })
+      return // Skip processing if no order ID
     }
 
     // Create Supabase client with service role key to bypass RLS
@@ -329,37 +363,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Order status updated' 
-    }, {
-      headers: responseHeaders,
-    })
+    // Processing complete (no return needed - this is background)
+    console.log('[WEBHOOK] Background processing completed for order:', orderId)
 
   } catch (error) {
     console.error('[WEBHOOK] Error processing webhook:', error instanceof Error ? error.message : 'Unknown error')
-    
-    // Determine if error is retryable
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const isRetryable = errorMessage.includes('database') || 
-                       errorMessage.includes('connection') || 
-                       errorMessage.includes('timeout') ||
-                       errorMessage.includes('network')
-    
-    // Return 500 for retryable errors (database, network issues)
-    // Return 200 for non-retryable errors (business logic, validation)
-    const statusCode = isRetryable ? 500 : 200
-    
-    return NextResponse.json({ 
-      error: 'Failed to process webhook',
-      message: errorMessage,
-      retryable: isRetryable
-    }, { 
-      status: statusCode,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-      },
-    })
+    // Don't return anything - this is background processing
   }
 }
  
