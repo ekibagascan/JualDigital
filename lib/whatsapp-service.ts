@@ -435,6 +435,46 @@ _Jual Digital - Platform Jual Beli Digital Terpercaya_`
   }
 
   /**
+   * Check Fonnte device connection status
+   */
+  async checkFonnteDeviceStatus(): Promise<{ connected: boolean; message: string }> {
+    if (!process.env.FONNTE_API_KEY) {
+      return { connected: false, message: 'Fonnte API key not configured' }
+    }
+
+    try {
+      // Fonnte status endpoint (if available)
+      const response = await fetch('https://api.fonnte.com/device', {
+        method: 'GET',
+        headers: {
+          'Authorization': process.env.FONNTE_API_KEY!,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return { 
+          connected: data.status === 'connected' || data.connected === true,
+          message: data.message || 'Device status checked'
+        }
+      }
+
+      // If status endpoint doesn't exist, try sending a test message to check
+      // (We'll use a different approach - just return unknown status)
+      return { 
+        connected: false, 
+        message: 'Unable to check device status. Try sending a test message.' 
+      }
+    } catch (error) {
+      console.error('[WHATSAPP] Error checking Fonnte device status:', error)
+      return { 
+        connected: false, 
+        message: 'Error checking device status' 
+      }
+    }
+  }
+
+  /**
    * Send via Fonnte API (Indonesian WhatsApp API service)
    */
   private async sendViaFonnte(phone: string, message: string): Promise<boolean> {
@@ -461,7 +501,23 @@ _Jual Digital - Platform Jual Beli Digital Terpercaya_`
         console.log('[WHATSAPP] Fonnte message sent successfully')
         return true
       } else {
-        console.error('[WHATSAPP] Fonnte API error:', responseData)
+        // Check for specific error types
+        const errorReason = responseData.reason || responseData.message || 'Unknown error'
+        const isDeviceDisconnected = errorReason.includes('disconnected device') || 
+                                     errorReason.includes('device') && errorReason.includes('disconnect')
+        
+        if (isDeviceDisconnected) {
+          console.error('[WHATSAPP] ⚠️ Fonnte device is DISCONNECTED!')
+          console.error('[WHATSAPP] ⚠️ Please reconnect your WhatsApp device in Fonnte dashboard')
+          console.error('[WHATSAPP] ⚠️ Error details:', {
+            reason: errorReason,
+            requestid: responseData.requestid,
+            status: responseData.status,
+            phone: phone
+          })
+        } else {
+          console.error('[WHATSAPP] Fonnte API error:', responseData)
+        }
         return false
       }
     } catch (error) {

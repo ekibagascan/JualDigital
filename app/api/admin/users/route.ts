@@ -289,35 +289,35 @@ export async function PUT(req: NextRequest) {
       updateData.status = status
     }
 
-    // Get user details before updating for email notifications
+    // Get email from auth.users table first (always exists)
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId)
+    
+    if (authError) {
+      console.error('[ADMIN USERS API] Auth user fetch error:', authError)
+      return NextResponse.json(
+        { error: 'User not found in auth system' },
+        { status: 404 }
+      )
+    }
+
+    const userEmail = authUser?.user?.email || ''
+
+    // Get user details from profiles (may not exist yet)
     const { data: userData, error: userError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
 
-    if (userError) {
-      console.error('[ADMIN USERS API] User fetch error:', userError)
-      return NextResponse.json(
-        { error: 'Failed to fetch user data' },
-        { status: 500 }
-      )
-    }
-
-    // Get email from auth.users table since profiles.email might be empty for OAuth users
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId)
-    
-    if (authError) {
-      console.error('[ADMIN USERS API] Auth user fetch error:', authError)
-    }
-
-    const userEmail = authUser?.user?.email || userData?.email || ''
+    // If profile doesn't exist, that's okay - we'll create it with upsert
+    const profileExists = !userError && userData
 
     console.log('[ADMIN USERS API] User data for email:', {
-      id: userData?.id,
+      id: userId,
       email: userEmail,
-      name: userData?.name,
-      business_name: userData?.business_name
+      name: userData?.name || authUser?.user?.user_metadata?.full_name || '',
+      business_name: userData?.business_name || '',
+      profileExists
     })
 
     console.log('[ADMIN USERS API] Updating user:', { userId, updateData })
@@ -336,15 +336,55 @@ export async function PUT(req: NextRequest) {
       }
     )
     
-    // Perform the update with explicit error handling
-    // Log the exact update data being sent
-    console.log('[ADMIN USERS API] Attempting update with data:', JSON.stringify(updateData))
+    // Use UPSERT instead of UPDATE to handle cases where profile doesn't exist yet
+    // This will create the profile if it doesn't exist, or update if it does
+    console.log('[ADMIN USERS API] Attempting upsert with data:', JSON.stringify(updateData))
     console.log('[ADMIN USERS API] User ID:', userId)
+    
+    // Prepare upsert data - include id and preserve existing data if profile exists
+    const upsertData: Record<string, unknown> = {
+      id: userId,
+      updated_at: new Date().toISOString(),
+    }
+    
+    // If profile exists, preserve all existing fields (except what we're updating)
+    if (profileExists && userData) {
+      // Preserve existing data
+      Object.assign(upsertData, {
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone,
+        address: userData.address,
+        city: userData.city,
+        business_name: userData.business_name,
+        business_category: userData.business_category,
+        business_description: userData.business_description,
+        website: userData.website,
+        social_media: userData.social_media,
+        shop_logo: userData.shop_logo,
+        bank_name: userData.bank_name,
+        account_number: userData.account_number,
+        account_name: userData.account_name,
+        avatar_url: userData.avatar_url,
+        bio: userData.bio,
+        role: userData.role,
+        status: userData.status,
+      })
+    } else {
+      // If profile doesn't exist, set defaults from auth user
+      upsertData.name = authUser?.user?.user_metadata?.full_name || authUser?.user?.email?.split('@')[0] || ''
+      upsertData.email = userEmail
+      // Set default role/status if not in updateData
+      if (!updateData.role) upsertData.role = 'buyer'
+      if (!updateData.status) upsertData.status = 'pending'
+    }
+    
+    // Apply the update data (this will override preserved values)
+    Object.assign(upsertData, updateData)
     
     const { data: updateResult, error } = await updateSupabase
       .from('profiles')
-      .update(updateData)
-      .eq('id', userId)
+      .upsert(upsertData, { onConflict: 'id' })
       .select('*')
       .single()
     
@@ -441,13 +481,14 @@ export async function PUT(req: NextRequest) {
 
     // Send email and WhatsApp notifications for seller application status changes
     // CRITICAL: Only send notifications if status is actually changing (not already approved/rejected)
-    const previousStatus = userData.status
-    const newStatus = updateData.status
+    // Use updateResult (the new/updated profile) and userData (the old profile if it existed)
+    const previousStatus = userData?.status || 'pending' // Default to pending if profile didn't exist
+    const newStatus = updateResult.status
     const statusChanged = previousStatus !== newStatus
     
     console.log('[ADMIN USERS API] Notification check - Previous status:', previousStatus, 'New status:', newStatus, 'Status changed:', statusChanged)
     
-    if (userData && (action === 'updateRole' || action === 'updateStatus' || action === 'approveSeller') && statusChanged) {
+    if (updateResult && (action === 'updateRole' || action === 'updateStatus' || action === 'approveSeller') && statusChanged) {
       try {
         if ((action === 'updateRole' && role === 'seller') || action === 'approveSeller') {
           // Only send approval notification if status is changing from pending to active
@@ -458,8 +499,8 @@ export async function PUT(req: NextRequest) {
             if (userEmail && userEmail.trim() !== '') {
               const emailSent = await sendSellerApplicationApproved({
                 to: userEmail,
-                sellerName: userData.name || '',
-                businessName: userData.business_name || '',
+                sellerName: updateResult.name || '',
+                businessName: updateResult.business_name || '',
               })
               if (emailSent) {
                 console.log('[ADMIN USERS API] Approval email sent successfully')
@@ -473,8 +514,8 @@ export async function PUT(req: NextRequest) {
             // Send WhatsApp notification
             const whatsappService = new WhatsAppService()
             const whatsappSent = await whatsappService.sendSellerApprovalNotification(userId, {
-              sellerName: userData.name || '',
-              businessName: userData.business_name || '',
+              sellerName: updateResult.name || '',
+              businessName: updateResult.business_name || '',
             })
             if (whatsappSent) {
               console.log('[ADMIN USERS API] Approval WhatsApp sent successfully')
@@ -493,30 +534,30 @@ export async function PUT(req: NextRequest) {
             console.log('[ADMIN USERS API] Sending rejection notifications (status changed from pending to rejected)')
           // Seller application rejected - send via both email and WhatsApp
           
-          // Send email notification
-          if (userEmail && userEmail.trim() !== '') {
-            const emailSent = await sendSellerApplicationRejected({
-              to: userEmail,
-              sellerName: userData.name || '',
-              businessName: userData.business_name || '',
-              reason: rejectionReason || 'Aplikasi tidak memenuhi kriteria yang diperlukan',
-            })
-            if (emailSent) {
-              console.log('[ADMIN USERS API] Rejection email sent successfully')
+            // Send email notification
+            if (userEmail && userEmail.trim() !== '') {
+              const emailSent = await sendSellerApplicationRejected({
+                to: userEmail,
+                sellerName: updateResult.name || '',
+                businessName: updateResult.business_name || '',
+                reason: rejectionReason || 'Aplikasi tidak memenuhi kriteria yang diperlukan',
+              })
+              if (emailSent) {
+                console.log('[ADMIN USERS API] Rejection email sent successfully')
+              } else {
+                console.log('[ADMIN USERS API] Failed to send rejection email')
+              }
             } else {
-              console.log('[ADMIN USERS API] Failed to send rejection email')
+              console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
             }
-          } else {
-            console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
-          }
-          
-          // Send WhatsApp notification
-          const whatsappService = new WhatsAppService()
-          const whatsappSent = await whatsappService.sendSellerRejectionNotification(userId, {
-            sellerName: userData.name || '',
-            businessName: userData.business_name || '',
-            reason: 'Aplikasi tidak memenuhi kriteria yang diperlukan',
-          })
+            
+            // Send WhatsApp notification
+            const whatsappService = new WhatsAppService()
+            const whatsappSent = await whatsappService.sendSellerRejectionNotification(userId, {
+              sellerName: updateResult.name || '',
+              businessName: updateResult.business_name || '',
+              reason: 'Aplikasi tidak memenuhi kriteria yang diperlukan',
+            })
           if (whatsappSent) {
             console.log('[ADMIN USERS API] Rejection WhatsApp sent successfully')
           } else {
