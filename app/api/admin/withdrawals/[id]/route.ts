@@ -116,7 +116,7 @@ export async function PUT(
           updateData: JSON.stringify(updateData)
         })
         
-        let updatedWithdrawals
+        let updatedWithdrawals: Record<string, unknown>[] | null = null
         let updateError
         try {
           const result = await supabase
@@ -158,7 +158,7 @@ export async function PUT(
           )
         }
 
-        const updatedWithdrawal = updatedWithdrawals[0]
+        const updatedWithdrawal = updatedWithdrawals[0] as Record<string, unknown>
         
         // Verify the update was actually committed by querying again with a fresh connection
         // Wait a bit longer for Supabase replication
