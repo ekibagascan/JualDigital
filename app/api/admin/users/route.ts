@@ -511,17 +511,17 @@ export async function PUT(req: NextRequest) {
               console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
             }
             
-            // Send WhatsApp notification
-            const whatsappService = new WhatsAppService()
-            const whatsappSent = await whatsappService.sendSellerApprovalNotification(userId, {
-              sellerName: updateResult.name || '',
-              businessName: updateResult.business_name || '',
-            })
-            if (whatsappSent) {
-              console.log('[ADMIN USERS API] Approval WhatsApp sent successfully')
-            } else {
-              console.log('[ADMIN USERS API] Failed to send approval WhatsApp (user may not have phone number)')
-            }
+            // WhatsApp notification disabled
+            // const whatsappService = new WhatsAppService()
+            // const whatsappSent = await whatsappService.sendSellerApprovalNotification(userId, {
+            //   sellerName: updateResult.name || '',
+            //   businessName: updateResult.business_name || '',
+            // })
+            // if (whatsappSent) {
+            //   console.log('[ADMIN USERS API] Approval WhatsApp sent successfully')
+            // } else {
+            //   console.log('[ADMIN USERS API] Failed to send approval WhatsApp (user may not have phone number)')
+            // }
           } else {
             console.log('[ADMIN USERS API] Skipping approval notifications - status not changing from pending to active', {
               previousStatus,

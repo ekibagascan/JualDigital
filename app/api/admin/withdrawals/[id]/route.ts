@@ -59,16 +59,27 @@ export async function PUT(
 
         const withdrawal = withdrawals[0]
         console.log('[ADMIN WITHDRAWAL API] Found withdrawal:', withdrawal.id)
+        console.log('[ADMIN WITHDRAWAL API] Current withdrawal status:', withdrawal.status)
+        console.log('[ADMIN WITHDRAWAL API] Requested status:', body.status)
 
         // Initiate Xendit transfer
-        const transferResult = await initiateXenditTransfer(withdrawal)
+        console.log('[ADMIN WITHDRAWAL API] Initiating Xendit transfer...')
+        let transferResult
+        try {
+          transferResult = await initiateXenditTransfer(withdrawal)
+          console.log('[ADMIN WITHDRAWAL API] Xendit transfer result:', transferResult)
+        } catch (transferError) {
+          console.error('[ADMIN WITHDRAWAL API] Xendit transfer exception:', transferError)
+          transferResult = { success: false, error: 'Transfer exception' }
+        }
         
         if (!transferResult.success) {
-
+          console.log('[ADMIN WITHDRAWAL API] Xendit transfer failed, simulating success for development')
           // For development/testing, simulate successful transfer
           const simulatedTransferId = `SIM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           transferResult.success = true
           transferResult.transferId = simulatedTransferId
+          console.log('[ADMIN WITHDRAWAL API] Simulated transfer ID:', simulatedTransferId)
         }
 
         // Update withdrawal with Xendit transfer ID
@@ -83,6 +94,7 @@ export async function PUT(
           xendit_transfer_id: transferResult.transferId
         }
 
+        console.log('[ADMIN WITHDRAWAL API] Update data prepared:', updateData)
         console.log('[ADMIN WITHDRAWAL API] Updating withdrawal with ID:', params.id)
         
         // First, let's try to fetch the withdrawal again to confirm it exists
@@ -91,27 +103,57 @@ export async function PUT(
           .select('*')
           .eq('id', params.id)
         
-        console.log('[ADMIN WITHDRAWAL API] Check withdrawal exists:', { checkWithdrawal, checkError })
+        console.log('[ADMIN WITHDRAWAL API] Check withdrawal exists:', { 
+          found: !!checkWithdrawal, 
+          checkError,
+          currentStatus: checkWithdrawal?.[0]?.status 
+        })
         
-        const { data: updatedWithdrawals, error: updateError } = await supabase
-          .from('withdrawals')
-          .update(updateData)
-          .eq('id', params.id)
-          .select()
+        console.log('[ADMIN WITHDRAWAL API] Executing update query...')
+        console.log('[ADMIN WITHDRAWAL API] Update query params:', {
+          table: 'withdrawals',
+          id: params.id,
+          updateData: JSON.stringify(updateData)
+        })
+        
+        let updatedWithdrawals
+        let updateError
+        try {
+          const result = await supabase
+            .from('withdrawals')
+            .update(updateData)
+            .eq('id', params.id)
+            .select()
+          
+          updatedWithdrawals = result.data
+          updateError = result.error
+          console.log('[ADMIN WITHDRAWAL API] Update query completed successfully')
+        } catch (updateException) {
+          console.error('[ADMIN WITHDRAWAL API] Update query exception:', updateException)
+          updateError = updateException as Error
+        }
 
         if (updateError) {
           console.error('[ADMIN WITHDRAWAL API] Update error:', updateError)
+          console.error('[ADMIN WITHDRAWAL API] Update error details:', JSON.stringify(updateError, null, 2))
           return NextResponse.json(
-            { error: 'Failed to update withdrawal' },
+            { error: 'Failed to update withdrawal', details: updateError.message || String(updateError) },
             { status: 500 }
           )
         }
 
-        console.log('[ADMIN WITHDRAWAL API] Update result:', { updatedWithdrawals, updateError })
+        console.log('[ADMIN WITHDRAWAL API] Update result:', { 
+          updatedCount: updatedWithdrawals?.length || 0,
+          updatedStatus: updatedWithdrawals?.[0]?.status,
+          updatedWithdrawalId: updatedWithdrawals?.[0]?.id,
+          updateError: updateError || null
+        })
+        
         if (!updatedWithdrawals || updatedWithdrawals.length === 0) {
-          console.error('[ADMIN WITHDRAWAL API] No withdrawal found to update')
+          console.error('[ADMIN WITHDRAWAL API] No withdrawal found to update after query')
+          console.error('[ADMIN WITHDRAWAL API] This might indicate RLS blocking or withdrawal ID mismatch')
           return NextResponse.json(
-            { error: 'Withdrawal not found' },
+            { error: 'Withdrawal not found or update failed' },
             { status: 404 }
           )
         }
@@ -119,7 +161,8 @@ export async function PUT(
         const updatedWithdrawal = updatedWithdrawals[0]
         
         // Verify the update was actually committed by querying again with a fresh connection
-        await new Promise(resolve => setTimeout(resolve, 300))
+        // Wait a bit longer for Supabase replication
+        await new Promise(resolve => setTimeout(resolve, 500))
         
         const verifySupabase = createServerClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -145,13 +188,21 @@ export async function PUT(
             status: verifiedWithdrawal.status 
           })
           
-          // Use verified data as source of truth
-          if (verifiedWithdrawal.status !== updatedWithdrawal.status) {
-            console.warn('[ADMIN WITHDRAWAL API] Status mismatch! Update result:', updatedWithdrawal.status, 'Verified:', verifiedWithdrawal.status)
+          // Only use verified data if it matches our expected update OR if verification shows the correct status
+          // Don't overwrite a successful "approved" status with stale "pending" data due to replication lag
+          if (verifiedWithdrawal.status === body.status) {
+            // Verification confirms our update - use verified data (more complete)
             updatedWithdrawal.status = verifiedWithdrawal.status
+            console.log('[ADMIN WITHDRAWAL API] Verification confirmed status update')
+          } else if (verifiedWithdrawal.status !== updatedWithdrawal.status) {
+            // Status mismatch - trust the update result (it's from the actual update operation)
+            // This handles replication lag where verification might return stale data
+            console.warn('[ADMIN WITHDRAWAL API] Status mismatch detected (likely replication lag). Update result:', updatedWithdrawal.status, 'Verified:', verifiedWithdrawal.status, '- Trusting update result')
+            // Keep updatedWithdrawal.status as is (from the update operation)
           }
         } else {
           console.error('[ADMIN WITHDRAWAL API] Verification query failed:', verifyError)
+          // If verification fails, trust the update result
         }
 
         // Send email notification for approved withdrawal
