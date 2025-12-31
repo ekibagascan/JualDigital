@@ -1,6 +1,6 @@
 run = "npm start"
 
-[deploy]
+[deployment]
 run = ["npm", "start"]
 build = ["sh", "-c", "npm install && npm run build"]
 
