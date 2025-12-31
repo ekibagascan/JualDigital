@@ -1,6 +1,7 @@
-deploy.run = ["sh", "-c", "npm run build && npm start"]
-
 run = ["npm", "start"]
+
+[deploy]
+run = ["sh", "-c", "npm run build && npm start"]
 
 language = "nodejs"
 entrypoint = "package.json"
