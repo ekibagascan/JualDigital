@@ -1,15 +1,9 @@
 deploy.run = ["npm", "start"]
-deploy.restart.run = ["npm", "start"]
 
 run = ["npm", "run", "dev"]
 
-modules = ["nodejs-20"]
-
 language = "nodejs"
 entrypoint = "package.json"
-alwaysOn = false
-
-interpreter = ["nodejs", "-r", "@babel/register"]
 
 onBoot = "npm install"
 
@@ -18,3 +12,4 @@ language = "nodejs"
 ignoredPackages = ["**/node_modules"]
 packageSearch = true
 packageIgnore = ["**/node_modules"]
+
