@@ -6,7 +6,3 @@ build = "npm install && npm run build"
 
 [packager]
 language = "nodejs"
-
-[languages.nodejs.bins]
-node = "node"
-npm = "npm"
