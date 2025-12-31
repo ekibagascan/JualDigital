@@ -148,6 +148,11 @@ export class ProductService {
         .single()
 
       if (error) {
+        // PGRST116 means no rows found - this is expected for non-existent products
+        if (error.code === 'PGRST116') {
+          console.log('Product not found:', id)
+          return null
+        }
         console.error('Error fetching product:', error)
         return null
       }

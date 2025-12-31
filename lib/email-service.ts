@@ -1,15 +1,15 @@
-import sgMail from '@sendgrid/mail'
+import { MailerSend, EmailParams, Sender, Recipient } from 'mailersend'
 
-interface SendGridError {
+interface MailerSendError {
   message?: string
-  code?: string
-  response?: {
-    body?: unknown
-  }
+  statusCode?: number
+  body?: unknown
 }
 
-// Initialize SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY!)
+// Initialize MailerSend
+const mailerSend = new MailerSend({
+  apiKey: process.env.MAILERSEND_API_KEY!,
+})
 
 export async function sendDownloadEmail({
   to,
@@ -22,25 +22,54 @@ export async function sendDownloadEmail({
   text: string
   html: string
 }) {
-  const msg = {
-    to,
-    from: process.env.SENDGRID_FROM_EMAIL!,
-    subject,
-    text,
-    html,
-  }
-  
   try {
-      await sgMail.send(msg)
-    return true
+    const sentFrom = new Sender(
+      process.env.MAILERSEND_FROM_EMAIL!,
+      process.env.MAILERSEND_FROM_NAME || 'Jual Digital'
+    )
+
+    const recipients = [new Recipient(to)]
+
+    const emailParams = new EmailParams()
+      .setFrom(sentFrom)
+      .setTo(recipients)
+      .setSubject(subject)
+      .setHtml(html)
+      .setText(text)
+
+    const response = await mailerSend.email.send(emailParams)
+    
+    if (response.statusCode === 202) {
+      return true
+    } else {
+      console.error('[EMAIL SERVICE] Unexpected response status:', response.statusCode)
+      return false
+    }
   } catch (error: unknown) {
-    console.error('[EMAIL SERVICE] Failed to send email:', error)
-    const sendGridError = error as SendGridError
-    console.error('[EMAIL SERVICE] Error details:', {
-      message: sendGridError.message || 'Unknown error',
-      code: sendGridError.code,
-      response: sendGridError.response?.body
-    })
+    console.error('[EMAIL SERVICE] Failed to send email via MailerSend:', error)
+    
+    // Handle different error types from MailerSend SDK
+    if (error && typeof error === 'object') {
+      const mailerSendError = error as MailerSendError & { response?: { statusCode?: number; body?: unknown; headers?: unknown } }
+      
+      // Check if it's an axios-like error with response
+      if (mailerSendError.response) {
+        console.error('[EMAIL SERVICE] MailerSend API error:', {
+          statusCode: mailerSendError.response.statusCode,
+          body: mailerSendError.response.body,
+          headers: mailerSendError.response.headers
+        })
+      } else {
+        console.error('[EMAIL SERVICE] Error details:', {
+          message: mailerSendError.message || 'Unknown error',
+          statusCode: mailerSendError.statusCode,
+          body: mailerSendError.body
+        })
+      }
+    } else {
+      console.error('[EMAIL SERVICE] Unknown error type:', error)
+    }
+    
     return false
   }
 }

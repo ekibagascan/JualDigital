@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const sgMail = require("@sendgrid/mail");
+const { MailerSend, EmailParams, Sender, Recipient } = require("mailersend");
 require("dotenv").config();
 
-// Initialize SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Initialize MailerSend
+const mailerSend = new MailerSend({
+  apiKey: process.env.MAILERSEND_API_KEY,
+});
 
 // Import the complete email list from the generated JSON file
 const fs = require("fs");
@@ -178,15 +180,36 @@ async function sendJualDigitalAnnouncement(email, name) {
     </html>
   `;
 
-  const msg = {
-    to: email,
-    from: process.env.SENDGRID_FROM_EMAIL,
-    subject:
-      "🚀 Jual Digital Telah Diluncurkan! Platform Marketplace Digital Terbaru",
-    html: htmlContent,
-  };
+  try {
+    const sentFrom = new Sender(
+      process.env.MAILERSEND_FROM_EMAIL,
+      process.env.MAILERSEND_FROM_NAME || "Jual Digital"
+    );
 
-  return sgMail.send(msg);
+    const recipients = [new Recipient(email)];
+
+    const emailParams = new EmailParams()
+      .setFrom(sentFrom)
+      .setTo(recipients)
+      .setSubject(
+        "🚀 Jual Digital Telah Diluncurkan! Platform Marketplace Digital Terbaru"
+      )
+      .setHtml(htmlContent);
+
+    const response = await mailerSend.email.send(emailParams);
+
+    if (response.statusCode === 202) {
+      return true;
+    } else {
+      console.error(
+        `Failed to send email to ${email}: Status ${response.statusCode}`
+      );
+      return false;
+    }
+  } catch (error) {
+    console.error(`Error sending email to ${email}:`, error);
+    return false;
+  }
 }
 
 // Main function to send emails to all users (unused - kept for reference)
@@ -248,13 +271,13 @@ function showBatchInfo() {
 }
 
 // Check if required environment variables are set
-if (!process.env.SENDGRID_API_KEY) {
-  console.error("❌ SENDGRID_API_KEY environment variable is required");
+if (!process.env.MAILERSEND_API_KEY) {
+  console.error("❌ MAILERSEND_API_KEY environment variable is required");
   process.exit(1);
 }
 
-if (!process.env.SENDGRID_FROM_EMAIL) {
-  console.error("❌ SENDGRID_FROM_EMAIL environment variable is required");
+if (!process.env.MAILERSEND_FROM_EMAIL) {
+  console.error("❌ MAILERSEND_FROM_EMAIL environment variable is required");
   process.exit(1);
 }
 
@@ -306,7 +329,5 @@ if (batchNumber) {
   console.log("   Day 5: Batch 5 (87 emails)");
   console.log("   Day 6: Batch 6 (86 emails)");
   console.log("");
-  console.log(
-    "⚠️  Remember: SendGrid free tier allows only 100 emails per day!"
-  );
+  console.log("⚠️  Remember: Check MailerSend rate limits for your plan!");
 }

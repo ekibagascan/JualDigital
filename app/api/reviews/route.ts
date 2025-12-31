@@ -114,6 +114,10 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (productError) {
+      // PGRST116 means product not found
+      if (productError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+      }
       console.error('[API/REVIEWS] Error fetching product:', productError)
       return NextResponse.json({ error: 'Failed to fetch product information' }, { status: 500 })
     }

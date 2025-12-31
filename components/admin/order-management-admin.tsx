@@ -82,12 +82,53 @@ export function OrderManagementAdmin() {
         }
     }, [mounted])
 
+    // Auto-refresh every 30 seconds
+    useEffect(() => {
+        if (!mounted) return
+
+        const interval = setInterval(() => {
+            fetchOrders()
+        }, 30000)
+
+        return () => clearInterval(interval)
+    }, [mounted])
+
+    // Refresh on page visibility change and window focus
+    useEffect(() => {
+        if (!mounted) return
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchOrders()
+            }
+        }
+
+        const handleFocus = () => {
+            fetchOrders()
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        window.addEventListener('focus', handleFocus)
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+            window.removeEventListener('focus', handleFocus)
+        }
+    }, [mounted])
+
     const fetchOrders = async () => {
         try {
             setLoading(true)
             setError(null)
 
-            const response = await fetch('/api/admin/orders/')
+            // Add cache-busting timestamp and no-cache headers
+            const response = await fetch(`/api/admin/orders/?t=${Date.now()}`, {
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            })
             if (!response.ok) {
                 throw new Error('Failed to fetch orders')
             }
@@ -119,11 +160,41 @@ export function OrderManagementAdmin() {
     }
 
     const handleUpdateStatus = async (order: Order, newStatus: string) => {
+        const oldStatus = order.status
+        
         try {
+            // Optimistic UI update - immediately update the local state
+            setOrders(prevOrders =>
+                prevOrders.map(o =>
+                    o.id === order.id ? { ...o, status: newStatus } : o
+                )
+            )
+
+            // Optimistic stats update
+            setStats(prev => {
+                const newStats = { ...prev }
+                
+                // Remove from old status
+                if (oldStatus === 'pending') newStats.pendingOrders = Math.max(0, newStats.pendingOrders - 1)
+                if (oldStatus === 'paid') newStats.paidOrders = Math.max(0, newStats.paidOrders - 1)
+                if (oldStatus === 'cancelled') newStats.cancelledOrders = Math.max(0, newStats.cancelledOrders - 1)
+                
+                // Add to new status
+                if (newStatus === 'pending') newStats.pendingOrders += 1
+                if (newStatus === 'paid') {
+                    newStats.paidOrders += 1
+                    newStats.totalRevenue += order.total_amount
+                }
+                if (newStatus === 'cancelled') newStats.cancelledOrders += 1
+                
+                return newStats
+            })
+
             const response = await fetch(`/api/admin/orders/${order.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache',
                 },
                 body: JSON.stringify({
                     status: newStatus
@@ -131,7 +202,46 @@ export function OrderManagementAdmin() {
             })
 
             if (!response.ok) {
+                // Revert optimistic update on error
+                setOrders(prevOrders =>
+                    prevOrders.map(o =>
+                        o.id === order.id ? { ...o, status: oldStatus } : o
+                    )
+                )
+                setStats(prev => {
+                    const revertedStats = { ...prev }
+                    
+                    // Revert old status
+                    if (oldStatus === 'pending') revertedStats.pendingOrders += 1
+                    if (oldStatus === 'paid') {
+                        revertedStats.paidOrders += 1
+                        revertedStats.totalRevenue += order.total_amount
+                    }
+                    if (oldStatus === 'cancelled') revertedStats.cancelledOrders += 1
+                    
+                    // Revert new status
+                    if (newStatus === 'pending') revertedStats.pendingOrders = Math.max(0, revertedStats.pendingOrders - 1)
+                    if (newStatus === 'paid') {
+                        revertedStats.paidOrders = Math.max(0, revertedStats.paidOrders - 1)
+                        revertedStats.totalRevenue = Math.max(0, revertedStats.totalRevenue - order.total_amount)
+                    }
+                    if (newStatus === 'cancelled') revertedStats.cancelledOrders = Math.max(0, revertedStats.cancelledOrders - 1)
+                    
+                    return revertedStats
+                })
                 throw new Error('Failed to update order status')
+            }
+
+            const result = await response.json()
+            console.log('[ORDER MANAGEMENT] Update response:', result)
+
+            // Update local state with the response data
+            if (result.order) {
+                setOrders(prevOrders =>
+                    prevOrders.map(o =>
+                        o.id === order.id ? { ...o, status: result.order.status } : o
+                    )
+                )
             }
 
             toast({
@@ -139,18 +249,10 @@ export function OrderManagementAdmin() {
                 description: `Pesanan ${order.order_number} berhasil diubah menjadi ${getStatusLabel(newStatus)}.`,
             })
 
-            // Update local state
-            setOrders(orders.map(o =>
-                o.id === order.id ? { ...o, status: newStatus } : o
-            ))
-
-            // Update stats
-            setStats(prev => ({
-                ...prev,
-                pendingOrders: newStatus === 'pending' ? prev.pendingOrders + 1 : prev.pendingOrders - 1,
-                paidOrders: newStatus === 'paid' ? prev.paidOrders + 1 : prev.paidOrders - 1,
-                cancelledOrders: newStatus === 'cancelled' ? prev.cancelledOrders + 1 : prev.cancelledOrders - 1,
-            }))
+            // Refresh data after a short delay to ensure everything is in sync
+            setTimeout(async () => {
+                await fetchOrders()
+            }, 300)
         } catch (error) {
             console.error('Failed to update order status:', error)
             toast({

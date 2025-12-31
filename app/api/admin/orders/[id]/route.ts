@@ -157,7 +157,13 @@ export async function PUT(
       )
     }
 
-    return NextResponse.json({ order })
+    return NextResponse.json({ order }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    })
 
   } catch (error) {
     console.error('[ADMIN ORDER API] Error:', error)

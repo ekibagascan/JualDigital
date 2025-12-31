@@ -37,10 +37,18 @@ export async function GET(
       .single()
 
     if (productError) {
+      // PGRST116 means product not found (no rows returned)
+      if (productError.code === 'PGRST116') {
+        console.log('[ADMIN PRODUCT API] Product not found:', params.id)
+        return NextResponse.json(
+          { error: 'Product not found' },
+          { status: 404 }
+        )
+      }
       console.error('[ADMIN PRODUCT API] Product query error:', productError)
       return NextResponse.json(
-        { error: 'Product not found' },
-        { status: 404 }
+        { error: 'Failed to fetch product' },
+        { status: 500 }
       )
     }
 

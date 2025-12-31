@@ -284,7 +284,7 @@ export function UserManagement() {
       // Remove user from processing set
       setProcessingUsers(prev => {
         const newSet = new Set(prev)
-        newSet.delete(selectedUser?.id || '')
+        newSet.delete(user.id)
         return newSet
       })
     }
@@ -298,12 +298,15 @@ export function UserManagement() {
   const handleConfirmRejection = async () => {
     if (!selectedUser) return
 
+    // Store user ID before any operations
+    const userIdToProcess = selectedUser.id
+
     // Prevent multiple clicks
-    if (processingUsers.has(selectedUser.id)) return
+    if (processingUsers.has(userIdToProcess)) return
 
     try {
       // Add user to processing set
-      setProcessingUsers(prev => new Set(prev).add(selectedUser.id))
+      setProcessingUsers(prev => new Set(prev).add(userIdToProcess))
 
       // Optimistic UI update - immediately remove from list (since filter only shows pending)
       // The user will disappear from the pending list because status changes to 'rejected'
@@ -368,6 +371,8 @@ export function UserManagement() {
         console.log('[USER MANAGEMENT] User should now disappear from pending list (status changed to rejected)')
       }
 
+      const rejectedUserName = selectedUser.name
+
       // Close dialog and reset
       setIsRejectDialogOpen(false)
       setRejectionReason("")
@@ -380,7 +385,7 @@ export function UserManagement() {
 
       toast({
         title: "Aplikasi ditolak",
-        description: `Aplikasi seller ${selectedUser?.name} telah ditolak.`,
+        description: `Aplikasi seller ${rejectedUserName} telah ditolak.`,
       })
     } catch (error) {
       console.error('Error rejecting seller application:', error)
@@ -396,10 +401,10 @@ export function UserManagement() {
         variant: "destructive",
       })
     } finally {
-      // Remove user from processing set
+      // Remove user from processing set using the stored ID
       setProcessingUsers(prev => {
         const newSet = new Set(prev)
-        newSet.delete(selectedUser?.id || '')
+        newSet.delete(userIdToProcess)
         return newSet
       })
     }

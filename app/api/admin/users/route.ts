@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/lib/email-service'
 import { WhatsAppService } from '@/lib/whatsapp-service'
 
@@ -323,16 +324,16 @@ export async function PUT(req: NextRequest) {
     console.log('[ADMIN USERS API] Updating user:', { userId, updateData })
     
     // Update and return the FULL updated user data in one query
-    // Use a fresh Supabase client to avoid any connection-level caching
-    const updateSupabase = createServerClient(
+    // Use createClient (not createServerClient) with service role key to properly bypass RLS
+    // createServerClient from @supabase/ssr may still apply RLS policies
+    const updateSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
-        cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
-          },
-        },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
       }
     )
     
@@ -428,15 +429,15 @@ export async function PUT(req: NextRequest) {
     await new Promise(resolve => setTimeout(resolve, 500))
     
     // Create a completely fresh Supabase client with no connection reuse
-    const verifySupabase = createServerClient(
+    // Use createClient (not createServerClient) with service role key to properly bypass RLS
+    const verifySupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
-        cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
-          },
-        },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
       }
     )
     
