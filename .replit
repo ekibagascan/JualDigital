@@ -1,17 +1,14 @@
-run = ["npm", "start"]
+run = "npm start"
 
 [deploy]
-run = ["sh", "-c", "npm run build && npm start"]
-
-language = "nodejs"
-entrypoint = "package.json"
-modules = ["nodejs"]
-
-onBoot = "npm install && npm run build"
+run = "npm start"
+build = "npm install && npm run build"
 
 [packager]
 language = "nodejs"
-ignoredPackages = ["**/node_modules"]
-packageSearch = true
-packageIgnore = ["**/node_modules"]
 
+[languages.nodejs]
+bins = {
+  node = "node",
+  npm = "npm"
+}
