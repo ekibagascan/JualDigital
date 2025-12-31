@@ -4,6 +4,7 @@ run = ["npm", "run", "dev"]
 
 language = "nodejs"
 entrypoint = "package.json"
+modules = ["nodejs-20"]
 
 onBoot = "npm install"
 
