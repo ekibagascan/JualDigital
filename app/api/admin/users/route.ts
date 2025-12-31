@@ -36,22 +36,23 @@ export async function GET(req: NextRequest) {
     const randomId = Math.random().toString(36).substring(7)
     console.log('[ADMIN USERS API] Fetching users at:', new Date().toISOString(), 'timestamp:', timestamp, 'random:', randomId)
     
-    // Force a completely fresh query by using multiple cache-busting techniques
-    // Create a new Supabase client instance to avoid any connection-level caching
-    const freshSupabase = createServerClient(
+    // Use createClient with service role key to bypass ALL caching and RLS
+    // This ensures we get the absolute latest data from Supabase
+    const freshSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
-        cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
-          },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
         },
+        db: {
+          schema: 'public'
+        }
       }
     )
     
-    // Use RPC or direct query with timestamp to force fresh data
-    // Query with explicit cache-busting by including timestamp in a way that forces re-evaluation
+    // Query with explicit cache-busting - use a random parameter to force fresh query
     const { data: users, error: usersError } = await freshSupabase
       .from('profiles')
       .select('*')

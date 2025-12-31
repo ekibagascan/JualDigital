@@ -80,10 +80,51 @@ export function UserManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [processingUsers, setProcessingUsers] = useState<Set<string>>(new Set())
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    fetchUsers()
+    setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (mounted) {
+      fetchUsers()
+    }
+  }, [mounted])
+
+  // Auto-refresh every 10 seconds to keep data fresh (more aggressive)
+  useEffect(() => {
+    if (!mounted) return
+
+    const interval = setInterval(() => {
+      fetchUsers()
+    }, 10000) // 10 seconds - more frequent updates
+
+    return () => clearInterval(interval)
+  }, [mounted])
+
+  // Refresh on page visibility change and window focus
+  useEffect(() => {
+    if (!mounted) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchUsers()
+      }
+    }
+
+    const handleFocus = () => {
+      fetchUsers()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [mounted])
 
   const fetchUsers = async () => {
     try {
@@ -258,10 +299,18 @@ export function UserManagement() {
         console.log('[USER MANAGEMENT] User should now disappear from pending list (status changed to active)')
       }
 
-      // Also refresh data after a short delay to ensure everything is in sync
+      // Force immediate refresh to get fresh data from Supabase
+      await fetchUsers()
+      
+      // Also refresh again after a short delay to catch any replication lag
       setTimeout(async () => {
         await fetchUsers()
-      }, 500)
+      }, 1000)
+      
+      // One more refresh after 3 seconds to be absolutely sure
+      setTimeout(async () => {
+        await fetchUsers()
+      }, 3000)
 
       toast({
         title: "Aplikasi disetujui",
@@ -566,12 +615,22 @@ export function UserManagement() {
                 Tinjau dan setujui aplikasi pengguna yang ingin menjadi seller
               </p>
             </div>
-            <Button
-              variant={showPendingSellers ? "default" : "outline"}
-              onClick={() => setShowPendingSellers(!showPendingSellers)}
-            >
-              {showPendingSellers ? "Sembunyikan" : "Tampilkan"} Aplikasi Tertunda
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchUsers()}
+                disabled={loading}
+              >
+                {loading ? "Memuat..." : "Refresh"}
+              </Button>
+              <Button
+                variant={showPendingSellers ? "default" : "outline"}
+                onClick={() => setShowPendingSellers(!showPendingSellers)}
+              >
+                {showPendingSellers ? "Sembunyikan" : "Tampilkan"} Aplikasi Tertunda
+              </Button>
+            </div>
           </div>
 
           {showPendingSellers && (
