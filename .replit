@@ -4,5 +4,8 @@ run = "npm start"
 run = "npm start"
 build = "npm install && npm run build"
 
+language = "nodejs"
+entrypoint = "package.json"
+
 [packager]
 language = "nodejs"
