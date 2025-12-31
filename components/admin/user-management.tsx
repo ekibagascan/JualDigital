@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Users, Search, MoreHorizontal, Edit, Trash2, Ban, CheckCircle, Mail, Shield, User, Clock, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -81,6 +81,8 @@ export function UserManagement() {
   const [error, setError] = useState<string | null>(null)
   const [processingUsers, setProcessingUsers] = useState<Set<string>>(new Set())
   const [mounted, setMounted] = useState(false)
+  // Track optimistically updated users to preserve their state during refresh
+  const optimisticUpdatesRef = useRef<Map<string, { role: string; status: string }>>(new Map())
 
   useEffect(() => {
     setMounted(true)
@@ -159,7 +161,30 @@ export function UserManagement() {
         rejected: allSellers.filter(u => u.status === 'rejected').length,
         other: allSellers.filter(u => !['active', 'pending', 'rejected'].includes(u.status || '')).map(u => ({ id: u.id, name: u.name, status: u.status }))
       })
-      setUsers(data.users)
+      
+      // Merge with existing state - preserve optimistic updates
+      setUsers(prevUsers => {
+        const mergedUsers = data.users.map(apiUser => {
+          // Check if this user has an optimistic update
+          const optimisticUpdate = optimisticUpdatesRef.current.get(apiUser.id)
+          if (optimisticUpdate) {
+            // If API still shows old status, keep optimistic update
+            if (optimisticUpdate.status === 'active' && apiUser.status === 'pending') {
+              console.log('[USER MANAGEMENT] Keeping optimistic update for', apiUser.id, 'API still shows pending')
+              const existingUser = prevUsers.find(u => u.id === apiUser.id)
+              if (existingUser && existingUser.status === 'active') {
+                return existingUser
+              }
+            } else if (apiUser.status === optimisticUpdate.status) {
+              // API caught up, remove from optimistic updates
+              optimisticUpdatesRef.current.delete(apiUser.id)
+            }
+          }
+          return apiUser
+        })
+        return mergedUsers
+      })
+      
       setStats(data.stats)
     } catch (error) {
       console.error('Failed to fetch users:', error)
@@ -235,6 +260,9 @@ export function UserManagement() {
       // Add user to processing set
       setProcessingUsers(prev => new Set(prev).add(user.id))
 
+      // Track this optimistic update
+      optimisticUpdatesRef.current.set(user.id, { role: 'seller', status: 'active' })
+      
       // Optimistic UI update - immediately remove from list (since filter only shows pending)
       // The user will disappear from the pending list because status changes to 'active'
       setUsers(prevUsers =>
@@ -299,18 +327,27 @@ export function UserManagement() {
         console.log('[USER MANAGEMENT] User should now disappear from pending list (status changed to active)')
       }
 
-      // Force immediate refresh to get fresh data from Supabase
-      await fetchUsers()
-      
-      // Also refresh again after a short delay to catch any replication lag
+      // Don't refresh immediately - let the optimistic update work
+      // Only refresh after a delay to catch replication lag, but preserve optimistic state
       setTimeout(async () => {
         await fetchUsers()
-      }, 1000)
-      
-      // One more refresh after 3 seconds to be absolutely sure
+        // Remove from processing set after refresh
+        setProcessingUsers(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(user.id)
+          return newSet
+        })
+      }, 2000)
+
+      // One more refresh after 5 seconds to be absolutely sure
       setTimeout(async () => {
         await fetchUsers()
-      }, 3000)
+        // Clear optimistic update if API has caught up
+        const currentUser = users.find(u => u.id === user.id)
+        if (currentUser && currentUser.status === 'active') {
+          optimisticUpdatesRef.current.delete(user.id)
+        }
+      }, 5000)
 
       toast({
         title: "Aplikasi disetujui",
@@ -637,10 +674,18 @@ export function UserManagement() {
             <div className="space-y-4">
               {(() => {
                 // Filter for pending seller applications - only show users with role='seller' and status='pending'
-                const pendingSellers = users.filter(user =>
-                  user.role === 'seller' && user.status === 'pending'
-                )
+                // Use strict equality and ensure we're checking the actual values
+                const pendingSellers = users.filter(user => {
+                  const isSeller = user.role === 'seller'
+                  const isPending = user.status === 'pending'
+                  const result = isSeller && isPending
+                  if (isSeller && !isPending) {
+                    console.log('[USER MANAGEMENT] Seller not pending:', { id: user.id, name: user.name, role: user.role, status: user.status })
+                  }
+                  return result
+                })
                 console.log('[USER MANAGEMENT] Filtered pending sellers:', pendingSellers.length, 'out of', users.length, 'total users')
+                console.log('[USER MANAGEMENT] All users statuses:', users.filter(u => u.role === 'seller').map(u => ({ id: u.id, name: u.name, role: u.role, status: u.status, statusType: typeof u.status })))
                 console.log('[USER MANAGEMENT] Pending sellers details:', pendingSellers.map(u => ({ id: u.id, name: u.name, status: u.status })))
                 return pendingSellers.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
