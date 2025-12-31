@@ -1,6 +1,6 @@
 deploy.run = ["npm", "start"]
 
-run = ["npm", "run", "dev"]
+run = ["npm", "start"]
 
 language = "nodejs"
 entrypoint = "package.json"
