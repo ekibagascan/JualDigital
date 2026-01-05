@@ -30,7 +30,6 @@ function PaymentInstructionsContent() {
     const [uploading, setUploading] = useState(false)
     const [proofFile, setProofFile] = useState<File | null>(null)
     const [transferAmount, setTransferAmount] = useState("")
-    const [transferDate, setTransferDate] = useState("")
     const [transferNote, setTransferNote] = useState("")
     const [copied, setCopied] = useState(false)
 
@@ -103,7 +102,7 @@ function PaymentInstructionsContent() {
     }
 
     const handleSubmitProof = async () => {
-        if (!proofFile || !transferAmount || !transferDate) {
+        if (!proofFile || !transferAmount) {
             toast({
                 title: "Error",
                 description: "Harap lengkapi semua field yang wajib",
@@ -118,7 +117,7 @@ function PaymentInstructionsContent() {
             formData.append("orderId", orderId!)
             formData.append("proof", proofFile)
             formData.append("transferAmount", transferAmount)
-            formData.append("transferDate", transferDate)
+            formData.append("transferDate", new Date().toISOString().split("T")[0])
             formData.append("transferNote", transferNote)
 
             const res = await fetch("/api/payments/upload-proof", {
@@ -193,148 +192,139 @@ function PaymentInstructionsContent() {
     return (
         <>
             <Header />
-            <div className="container py-10 max-w-3xl">
-                <Button
-                    variant="ghost"
-                    onClick={() => router.back()}
-                    className="mb-4"
-                >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Kembali
-                </Button>
+            <div className="min-h-screen flex items-center justify-center py-10 px-4">
+                <div className="w-full max-w-2xl">
+                    <Button
+                        variant="ghost"
+                        onClick={() => router.back()}
+                        className="mb-4"
+                    >
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Kembali
+                    </Button>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Instruksi Pembayaran</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                            <p className="text-sm text-yellow-900 dark:text-yellow-100">
-                                <strong>Catatan:</strong> Karena masalah teknis untuk sementara pembayaran menggunakan metode manual 🙏🏻.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h3 className="font-semibold mb-2">Total Pembayaran</h3>
-                            <p className="text-2xl font-bold">{formatCurrency(totalAmount)}</p>
-                            <p className="text-sm text-muted-foreground mt-1">Order: {order.order_number}</p>
-                        </div>
-
-                        <div className="border rounded-lg p-4 bg-muted">
-                            <h3 className="font-semibold mb-3">Transfer ke Rekening Bank</h3>
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <span>Bank:</span>
-                                    <span className="font-semibold">{bankAccount.bank}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span>No. Rekening:</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-semibold font-mono">{bankAccount.accountNumber}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={copyAccountNumber}
-                                            className="h-8 w-8 p-0"
-                                        >
-                                            {copied ? (
-                                                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                                            ) : (
-                                                <Copy className="w-4 h-4" />
-                                            )}
-                                        </Button>
-                                    </div>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span>Nama:</span>
-                                    <span className="font-semibold">{bankAccount.accountName}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <h3 className="font-semibold">Upload Bukti Pembayaran</h3>
-
-                            <div>
-                                <Label htmlFor="amount">Jumlah Transfer *</Label>
-                                <Input
-                                    id="amount"
-                                    type="number"
-                                    value={transferAmount}
-                                    onChange={(e) => setTransferAmount(e.target.value)}
-                                    placeholder="Masukkan jumlah transfer"
-                                    className="mt-1"
-                                />
-                            </div>
-
-                            <div>
-                                <Label htmlFor="date">Tanggal Transfer *</Label>
-                                <Input
-                                    id="date"
-                                    type="date"
-                                    value={transferDate}
-                                    onChange={(e) => setTransferDate(e.target.value)}
-                                    max={new Date().toISOString().split("T")[0]}
-                                    className="mt-1"
-                                />
-                            </div>
-
-                            <div>
-                                <Label htmlFor="note">Catatan (Opsional)</Label>
-                                <Textarea
-                                    id="note"
-                                    value={transferNote}
-                                    onChange={(e) => setTransferNote(e.target.value)}
-                                    placeholder="Tambahkan catatan jika perlu (contoh: nomor pesanan)"
-                                    className="mt-1"
-                                />
-                            </div>
-
-                            <div>
-                                <Label htmlFor="proof">Bukti Transfer (Screenshot/Photo) *</Label>
-                                <Input
-                                    id="proof"
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileChange}
-                                    className="mt-1"
-                                />
-                                {proofFile && (
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        File: {proofFile.name} ({(proofFile.size / 1024).toFixed(2)} KB)
-                                    </p>
-                                )}
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Format: JPG, PNG, atau GIF. Maksimal 5MB
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Instruksi Pembayaran</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                                <p className="text-sm text-yellow-900 dark:text-yellow-100">
+                                    <strong>Catatan:</strong> Karena masalah teknis untuk sementara pembayaran menggunakan metode manual 🙏🏻.
                                 </p>
                             </div>
 
-                            <Button
-                                className="w-full"
-                                onClick={handleSubmitProof}
-                                disabled={uploading || !proofFile || !transferAmount || !transferDate}
-                            >
-                                {uploading ? (
-                                    <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                        Mengupload...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload className="w-4 h-4 mr-2" />
-                                        Kirim Bukti Pembayaran
-                                    </>
-                                )}
-                            </Button>
-                        </div>
+                            <div>
+                                <h3 className="font-semibold mb-2">Total Pembayaran</h3>
+                                <p className="text-2xl font-bold">{formatCurrency(totalAmount)}</p>
+                                <p className="text-sm text-muted-foreground mt-1">Order: {order.order_number}</p>
+                            </div>
 
-                        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                            <p className="text-sm text-blue-900 dark:text-blue-100">
-                                <strong>Catatan Penting:</strong> Setelah admin memverifikasi pembayaran Anda, produk digital akan dikirim ke email Anda. Proses verifikasi biasanya memakan waktu 1-24 jam.
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
+                            <div className="border rounded-lg p-4 bg-muted">
+                                <h3 className="font-semibold mb-3">Transfer ke Rekening Bank</h3>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between">
+                                        <span>Bank:</span>
+                                        <span className="font-semibold">{bankAccount.bank}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span>No. Rekening:</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold font-mono">{bankAccount.accountNumber}</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={copyAccountNumber}
+                                                className="h-8 w-8 p-0"
+                                            >
+                                                {copied ? (
+                                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                                ) : (
+                                                    <Copy className="w-4 h-4" />
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Nama:</span>
+                                        <span className="font-semibold">{bankAccount.accountName}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="font-semibold">Upload Bukti Pembayaran</h3>
+
+                                <div>
+                                    <Label htmlFor="amount">Jumlah Transfer *</Label>
+                                    <Input
+                                        id="amount"
+                                        type="number"
+                                        value={transferAmount}
+                                        onChange={(e) => setTransferAmount(e.target.value)}
+                                        placeholder="Masukkan jumlah transfer"
+                                        className="mt-1"
+                                    />
+                                </div>
+
+
+                                <div>
+                                    <Label htmlFor="note">Catatan (Opsional)</Label>
+                                    <Textarea
+                                        id="note"
+                                        value={transferNote}
+                                        onChange={(e) => setTransferNote(e.target.value)}
+                                        placeholder="Tambahkan catatan jika perlu (contoh: nomor pesanan)"
+                                        className="mt-1"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="proof">Bukti Transfer (Screenshot/Photo) *</Label>
+                                    <Input
+                                        id="proof"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleFileChange}
+                                        className="mt-1"
+                                    />
+                                    {proofFile && (
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            File: {proofFile.name} ({(proofFile.size / 1024).toFixed(2)} KB)
+                                        </p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Format: JPG, PNG, atau GIF. Maksimal 5MB
+                                    </p>
+                                </div>
+
+                                <Button
+                                    className="w-full"
+                                    onClick={handleSubmitProof}
+                                    disabled={uploading || !proofFile || !transferAmount}
+                                >
+                                    {uploading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                            Mengupload...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Kirim Bukti Pembayaran
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+
+                            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                <p className="text-sm text-blue-900 dark:text-blue-100">
+                                    <strong>Catatan Penting:</strong> Setelah admin memverifikasi pembayaran Anda, produk digital akan dikirim ke email Anda. Proses verifikasi biasanya memakan waktu 1-24 jam.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
             <Footer />
         </>
