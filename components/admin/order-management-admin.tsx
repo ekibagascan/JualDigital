@@ -19,7 +19,8 @@ import {
     CheckCircle,
     XCircle,
     AlertCircle,
-    Loader2
+    Loader2,
+    FileImage
 } from "lucide-react"
 
 interface Order {
@@ -32,6 +33,10 @@ interface Order {
     userName: string
     userEmail: string
     items: OrderItem[]
+    payment_provider?: string
+    payment_proof_url?: string
+    payment_proof_amount?: number
+    payment_proof_date?: string
 }
 
 interface OrderItem {
@@ -498,6 +503,12 @@ export function OrderManagementAdmin() {
                                             <div className="flex items-center space-x-2">
                                                 {getStatusIcon(order.status)}
                                                 {getStatusBadge(order.status)}
+                                                {order.payment_provider === 'manual' && order.payment_proof_url && order.status === 'pending' && (
+                                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                        <FileImage className="w-3 h-3 mr-1" />
+                                                        Bukti Tersedia
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell>{formatDate(order.created_at)}</TableCell>
