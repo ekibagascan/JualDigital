@@ -9,3 +9,6 @@ entrypoint = "package.json"
 
 [packager]
 language = "nodejs"
+
+[env]
+PORT = "5000"
