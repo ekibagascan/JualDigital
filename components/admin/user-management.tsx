@@ -161,7 +161,7 @@ export function UserManagement() {
         rejected: allSellers.filter(u => u.status === 'rejected').length,
         other: allSellers.filter(u => !['active', 'pending', 'rejected'].includes(u.status || '')).map(u => ({ id: u.id, name: u.name, status: u.status }))
       })
-      
+
       // Merge with existing state - preserve optimistic updates
       setUsers(prevUsers => {
         const mergedUsers = data.users.map(apiUser => {
@@ -184,7 +184,7 @@ export function UserManagement() {
         })
         return mergedUsers
       })
-      
+
       setStats(data.stats)
     } catch (error) {
       console.error('Failed to fetch users:', error)
@@ -262,7 +262,7 @@ export function UserManagement() {
 
       // Track this optimistic update
       optimisticUpdatesRef.current.set(user.id, { role: 'seller', status: 'active' })
-      
+
       // Optimistic UI update - immediately remove from list (since filter only shows pending)
       // The user will disappear from the pending list because status changes to 'active'
       setUsers(prevUsers =>

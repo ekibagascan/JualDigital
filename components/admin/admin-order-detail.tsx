@@ -43,6 +43,11 @@ interface Order {
     userName: string
     userEmail: string
     items: OrderItem[]
+    payment_proof_url?: string
+    payment_proof_amount?: number
+    payment_proof_date?: string
+    payment_proof_note?: string
+    payment_provider?: string
 }
 
 interface AdminOrderDetailProps {
@@ -119,6 +124,92 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
             toast({
                 title: "Gagal mengubah status",
                 description: "Terjadi kesalahan saat mengubah status pesanan.",
+                variant: "destructive",
+            })
+        } finally {
+            setUpdating(false)
+        }
+    }
+
+    const handleConfirmPayment = async () => {
+        if (!order) return
+
+        try {
+            setUpdating(true)
+
+            const response = await fetch('/api/admin/payments/confirm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    orderId: order.id,
+                    action: 'confirm',
+                }),
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Failed to confirm payment')
+            }
+
+            toast({
+                title: "Pembayaran dikonfirmasi",
+                description: "Pembayaran berhasil dikonfirmasi dan email download telah dikirim ke customer.",
+            })
+
+            // Refresh order data
+            await fetchOrder()
+        } catch (error) {
+            console.error('Failed to confirm payment:', error)
+            toast({
+                title: "Gagal mengonfirmasi pembayaran",
+                description: error instanceof Error ? error.message : "Terjadi kesalahan saat mengonfirmasi pembayaran.",
+                variant: "destructive",
+            })
+        } finally {
+            setUpdating(false)
+        }
+    }
+
+    const handleRejectPayment = async () => {
+        if (!order) return
+
+        if (!confirm('Apakah Anda yakin ingin menolak pembayaran ini?')) {
+            return
+        }
+
+        try {
+            setUpdating(true)
+
+            const response = await fetch('/api/admin/payments/confirm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    orderId: order.id,
+                    action: 'reject',
+                }),
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Failed to reject payment')
+            }
+
+            toast({
+                title: "Pembayaran ditolak",
+                description: "Pembayaran telah ditolak.",
+            })
+
+            // Refresh order data
+            await fetchOrder()
+        } catch (error) {
+            console.error('Failed to reject payment:', error)
+            toast({
+                title: "Gagal menolak pembayaran",
+                description: error instanceof Error ? error.message : "Terjadi kesalahan saat menolak pembayaran.",
                 variant: "destructive",
             })
         } finally {
@@ -299,6 +390,73 @@ export function AdminOrderDetail({ orderId }: AdminOrderDetailProps) {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Payment Proof Section */}
+            {order.payment_provider === 'manual' && order.payment_proof_url && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Bukti Pembayaran</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="border rounded-lg p-4 bg-muted">
+                            <img
+                                src={order.payment_proof_url}
+                                alt="Payment proof"
+                                className="max-w-full h-auto rounded cursor-pointer"
+                                onClick={() => window.open(order.payment_proof_url, '_blank')}
+                            />
+                        </div>
+                        {order.payment_proof_amount && (
+                            <div>
+                                <span className="text-sm text-muted-foreground">Jumlah Transfer: </span>
+                                <span className="font-semibold">{formatCurrency(order.payment_proof_amount)}</span>
+                            </div>
+                        )}
+                        {order.payment_proof_date && (
+                            <div>
+                                <span className="text-sm text-muted-foreground">Tanggal Transfer: </span>
+                                <span className="font-semibold">{formatDate(order.payment_proof_date)}</span>
+                            </div>
+                        )}
+                        {order.payment_proof_note && (
+                            <div>
+                                <span className="text-sm text-muted-foreground">Catatan: </span>
+                                <span>{order.payment_proof_note}</span>
+                            </div>
+                        )}
+                        {order.status === 'pending' && (
+                            <div className="flex gap-2 pt-4">
+                                <Button
+                                    onClick={handleConfirmPayment}
+                                    disabled={updating}
+                                    className="flex-1"
+                                >
+                                    {updating ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Memproses...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle className="w-4 h-4 mr-2" />
+                                            Konfirmasi Pembayaran
+                                        </>
+                                    )}
+                                </Button>
+                                <Button
+                                    onClick={handleRejectPayment}
+                                    disabled={updating}
+                                    variant="destructive"
+                                    className="flex-1"
+                                >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Tolak Pembayaran
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Order Items */}
             <Card>

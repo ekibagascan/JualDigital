@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { createInvoice } from './xendit'
+// Xendit integration removed - using manual payment instead
+// import { createInvoice } from './xendit'
 import { WhatsAppService } from '@/lib/whatsapp-service'
 
 export interface OrderItem {
@@ -99,8 +100,8 @@ export class OrderService {
           tax_amount: orderData.tax_amount,
           platform_fee: 0, // No platform fee for now
           status: 'pending',
-          payment_method: orderData.payment_method,
-          payment_provider: 'xendit',
+          payment_method: orderData.payment_method || 'BANK_TRANSFER',
+          payment_provider: 'manual',
           note: orderData.note || null, // Add note if provided
         })
         .select()
@@ -165,62 +166,27 @@ export class OrderService {
       // WhatsApp notifications will be sent after payment is successful via webhook
       // await this.sendSellerNotifications(order.id, orderItems, order.order_number, orderData)
 
-      // 4. Create Xendit invoice (hosted checkout page)
-      const invoiceItems = orderItems.map(item => ({
-        name: item.product_title,
-        quantity: item.quantity,
-        price: item.price,
-      }))
+      // 4. Skip Xendit - use manual payment instead
+      // Generate payment instructions URL
+      const paymentUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/payment/instructions?order_id=${order.id}`
 
-      // Get user email if user_id is provided
-      let payerEmail = orderData.guest_email || 'guest@example.com'
-      if (orderData.user_id) {
-        try {
-          const { data: user } = await this.supabase.auth.admin.getUserById(orderData.user_id)
-          if (user && user.user && user.user.email) {
-            payerEmail = user.user.email
-          }
-        } catch (error) {
-          console.log('[ORDER CREATION] Could not fetch user email, using fallback:', error)
-        }
-      }
-
-      const invoiceData = {
-        external_id: order.id,
-        amount: orderData.total_amount + orderData.tax_amount,
-        payer_email: payerEmail,
-        description: `Order ${order.order_number} - Digital Products`,
-        items: invoiceItems,
-        should_send_email: false,
-        success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/payment/success?order_id=${order.id}`,
-        failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/payment/failed?order_id=${order.id}`,
-        currency: 'IDR',
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/api/payments/callback`,
-      }
-      console.log('[XENDIT INVOICE DEBUG] Invoice request:', invoiceData)
-      console.log('[XENDIT INVOICE DEBUG] External ID being sent to Xendit:', order.id)
-      const invoiceResponse = await createInvoice(invoiceData)
-      console.log('[XENDIT INVOICE DEBUG] Full invoiceResponse:', invoiceResponse)
-
-      // 5. Update order with invoice info
+      // 5. Update order with payment instructions URL
       const { error: updateError } = await this.supabase
         .from('orders')
         .update({
-          payment_id: invoiceResponse.id,
-          transaction_id: invoiceResponse.id,
-          invoice_url: invoiceResponse.invoice_url,
+          invoice_url: paymentUrl,
         })
         .eq('id', order.id)
 
       if (updateError) {
         console.error('Order update error:', updateError)
       } else {
-        console.log('Order updated with invoice_url:', invoiceResponse.invoice_url)
+        console.log('Order updated with payment instructions URL:', paymentUrl)
       }
 
       return {
         order,
-        paymentUrl: invoiceResponse.invoice_url,
+        paymentUrl,
       }
     } catch (error) {
       console.error('Order service error:', error)
