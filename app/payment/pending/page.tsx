@@ -68,38 +68,39 @@ function PaymentPendingContent() {
 
     if (!order) {
         return (
-            <>
-                <Header />
-                <div className="container py-10">
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="text-center">
-                                <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-                                <h2 className="text-xl font-semibold mb-2">Pesanan Tidak Ditemukan</h2>
-                                <Button onClick={() => router.push("/")}>Kembali ke Beranda</Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-                <Footer />
-            </>
+      <>
+        <Header />
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <h2 className="text-xl font-semibold mb-2">Pesanan Tidak Ditemukan</h2>
+                <Button onClick={() => router.push("/")}>Kembali ke Beranda</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <Footer />
+      </>
         )
     }
 
-    return (
-        <>
-            <Header />
-            <div className="container py-10 max-w-2xl">
-                <Button
-                    variant="ghost"
-                    onClick={() => router.push("/")}
-                    className="mb-4"
-                >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Kembali ke Beranda
-                </Button>
+  return (
+    <>
+      <Header />
+      <div className="min-h-screen flex items-center justify-center py-10 px-4">
+        <div className="w-full max-w-2xl">
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/")}
+            className="mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Kembali ke Beranda
+          </Button>
 
-                <Card>
+          <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Clock className="w-5 h-5" />
