@@ -65,9 +65,9 @@ export async function POST(req: NextRequest) {
     const fileExt = proof.name.split('.').pop() || 'jpg'
     const fileName = `payment-proofs/${orderId}-${Date.now()}.${fileExt}`
 
-    // Upload to Supabase Storage (use 'files' bucket if 'payment-proofs' doesn't exist)
+    // Upload to Supabase Storage - use 'products' bucket (we know it exists and is public)
     const { error: uploadError } = await supabase.storage
-      .from('files')
+      .from('products')
       .upload(fileName, proof, {
         cacheControl: '3600',
         upsert: false,
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
-      .from('files')
+      .from('products')
       .getPublicUrl(fileName)
 
     // Update order with payment proof information
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       console.error('[UPLOAD PROOF] Update error:', updateError)
       // Try to delete uploaded file if update fails
       await supabase.storage
-        .from('files')
+        .from('products')
         .remove([fileName])
       
       return NextResponse.json(
