@@ -65,9 +65,9 @@ export async function POST(req: NextRequest) {
     const fileExt = proof.name.split('.').pop() || 'jpg'
     const fileName = `payment-proofs/${orderId}-${Date.now()}.${fileExt}`
 
-    // Upload to Supabase Storage - use 'products' bucket (we know it exists and is public)
+    // Upload to Supabase Storage - use 'files' bucket
     const { error: uploadError } = await supabase.storage
-      .from('products')
+      .from('files')
       .upload(fileName, proof, {
         cacheControl: '3600',
         upsert: false,
@@ -81,15 +81,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get public URL
+    // Get public URL - if bucket is not public, use signed URL instead
     const { data: { publicUrl } } = supabase.storage
-      .from('products')
+      .from('files')
       .getPublicUrl(fileName)
+    
+    // If public URL doesn't work, generate a signed URL (valid for 1 year)
+    let proofUrl = publicUrl
+    if (!publicUrl || publicUrl.includes('undefined')) {
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('files')
+        .createSignedUrl(fileName, 31536000) // 1 year
+      
+      if (!signedError && signedData) {
+        proofUrl = signedData.signedUrl
+      }
+    }
 
     // Update order with payment proof information
     // Note: These fields may need to be added to the orders table
     const updateData: Record<string, unknown> = {
-      payment_proof_url: publicUrl,
+      payment_proof_url: proofUrl,
       payment_proof_amount: parseFloat(transferAmount),
       payment_proof_date: transferDate,
     }
@@ -107,7 +119,7 @@ export async function POST(req: NextRequest) {
       console.error('[UPLOAD PROOF] Update error:', updateError)
       // Try to delete uploaded file if update fails
       await supabase.storage
-        .from('products')
+        .from('files')
         .remove([fileName])
       
       return NextResponse.json(
@@ -119,7 +131,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Payment proof uploaded successfully',
-      proofUrl: publicUrl,
+      proofUrl: proofUrl,
     })
   } catch (error) {
     console.error('[UPLOAD PROOF] Error:', error)

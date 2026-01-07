@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 // Xendit integration removed - using manual payment instead
 // import { createInvoice } from './xendit'
 import { WhatsAppService } from '@/lib/whatsapp-service'
+import { getPaymentMethodSetting } from '@/lib/settings-service'
 
 export interface OrderItem {
   product_id: string
@@ -88,8 +89,10 @@ export class OrderService {
         }
       }
 
-      // 1. Create order in Supabase
-      
+      // 1. Get payment method setting
+      const paymentMethod = await getPaymentMethodSetting(this.supabase)
+
+      // 2. Create order in Supabase
       const { data: order, error: orderError } = await this.supabase
         .from('orders')
         .insert({
@@ -101,7 +104,7 @@ export class OrderService {
           platform_fee: 0, // No platform fee for now
           status: 'pending',
           payment_method: orderData.payment_method || 'BANK_TRANSFER',
-          payment_provider: 'manual',
+          payment_provider: paymentMethod, // Use configured payment method
           note: orderData.note || null, // Add note if provided
         })
         .select()
@@ -114,8 +117,9 @@ export class OrderService {
 
       console.log('[ORDER CREATION] Created order with ID:', order.id)
       console.log('[ORDER CREATION] Order number:', order.order_number)
+      console.log('[ORDER CREATION] Payment provider:', paymentMethod)
 
-      // 2. Fetch products to get seller_id and title
+      // 3. Fetch products to get seller_id and title
       const productIds = orderData.items.map(item => item.product_id)
       console.log('Fetching products with IDs:', productIds)
       
@@ -137,7 +141,7 @@ export class OrderService {
       const productMap = Object.fromEntries(products.map(p => [p.id, p]))
       console.log('Product map:', productMap)
 
-      // 3. Create order items
+      // 4. Create order items
       const orderItems = orderData.items.map(item => {
         const product = productMap[item.product_id]
         return {
@@ -166,27 +170,145 @@ export class OrderService {
       // WhatsApp notifications will be sent after payment is successful via webhook
       // await this.sendSellerNotifications(order.id, orderItems, order.order_number, orderData)
 
-      // 4. Skip Xendit - use manual payment instead
-      // Generate payment instructions URL
-      const paymentUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/payment/instructions?order_id=${order.id}`
+      // 5. Create payment based on configured method
+      if (paymentMethod === 'doku') {
+        // Create DOKU Checkout session
+        const { createDokuCheckout } = await import('@/lib/doku')
+      
+      // Get customer information
+      let customerName = orderData.guest_name || 'Customer'
+      let customerEmail = orderData.guest_email || ''
+      const customerId = orderData.user_id || undefined
 
-      // 5. Update order with payment instructions URL
-      const { error: updateError } = await this.supabase
-        .from('orders')
-        .update({
-          invoice_url: paymentUrl,
-        })
-        .eq('id', order.id)
-
-      if (updateError) {
-        console.error('Order update error:', updateError)
-      } else {
-        console.log('Order updated with payment instructions URL:', paymentUrl)
+      // If user_id exists, try to get user details
+      if (orderData.user_id) {
+        try {
+          const { data: user } = await this.supabase.auth.admin.getUserById(orderData.user_id)
+          if (user?.user) {
+            customerName = user.user.user_metadata?.name || user.user.email?.split('@')[0] || customerName
+            customerEmail = user.user.email || customerEmail
+          }
+        } catch (error) {
+          console.error('Error fetching user:', error)
+        }
       }
 
-      return {
-        order,
-        paymentUrl,
+      if (!customerEmail) {
+        // If no email, use a placeholder (DOKU might require email)
+        customerEmail = `customer-${order.id}@jualdigital.id`
+      }
+
+      // Prepare line items for DOKU
+      const lineItems = orderData.items.map(item => ({
+        name: item.title,
+        price: item.price,
+        quantity: item.quantity,
+      }))
+
+      // Prepare payment URLs
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
+      const successUrl = `${baseUrl}/payment/success?order_id=${order.id}`
+      const failureUrl = `${baseUrl}/payment/failed?order_id=${order.id}`
+      const notificationUrl = `${baseUrl}/api/payments/doku/callback`
+
+      const totalAmount = Math.round(order.total_amount + (order.tax_amount || 0))
+
+      try {
+        // Create DOKU Checkout session
+        const checkoutResponse = await createDokuCheckout({
+          order: {
+            invoice_number: order.order_number,
+            amount: totalAmount,
+            currency: 'IDR',
+            line_items: lineItems,
+          },
+          customer: {
+            id: customerId,
+            name: customerName,
+            email: customerEmail,
+            phone: orderData.guest_phone || orderData.user_phone,
+          },
+          payment: {
+            payment_due_date: 60, // 60 minutes
+          },
+          url: {
+            success_url: successUrl,
+            failure_url: failureUrl,
+            notification_url: notificationUrl,
+          },
+        })
+
+        const checkoutUrl = checkoutResponse.response?.result?.checkout_url
+
+        if (!checkoutUrl) {
+          throw new Error('Failed to get checkout URL from DOKU')
+        }
+
+        // Update order with payment provider and checkout URL
+        const { error: updateError } = await this.supabase
+          .from('orders')
+          .update({
+            payment_provider: 'doku',
+            payment_id: checkoutResponse.response?.result?.invoice_number,
+            invoice_url: checkoutUrl,
+          })
+          .eq('id', order.id)
+
+        if (updateError) {
+          console.error('Order update error:', updateError)
+        } else {
+          console.log('Order updated with DOKU checkout URL:', checkoutUrl)
+        }
+
+        return {
+          order,
+          paymentUrl: checkoutUrl,
+        }
+      } catch (error) {
+        console.error('DOKU Checkout creation error:', error)
+        // Fallback: return a placeholder URL (should not happen in production)
+        const fallbackUrl = `${baseUrl}/payment/doku?order_id=${order.id}`
+        
+        const { error: updateError } = await this.supabase
+          .from('orders')
+          .update({
+            payment_provider: 'doku',
+            invoice_url: fallbackUrl,
+          })
+          .eq('id', order.id)
+
+        if (updateError) {
+          console.error('Order update error (fallback):', updateError)
+        }
+
+        return {
+          order,
+          paymentUrl: fallbackUrl,
+        }
+      }
+      } else {
+        // Manual payment - redirect to payment instructions
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
+        const paymentUrl = `${baseUrl}/payment/instructions?order_id=${order.id}`
+
+        // Update order with payment instructions URL
+        const { error: updateError } = await this.supabase
+          .from('orders')
+          .update({
+            invoice_url: paymentUrl,
+          })
+          .eq('id', order.id)
+
+        if (updateError) {
+          console.error('Order update error:', updateError)
+        } else {
+          console.log('Order updated with manual payment instructions URL:', paymentUrl)
+        }
+
+        return {
+          order,
+          paymentUrl,
+        }
       }
     } catch (error) {
       console.error('Order service error:', error)
