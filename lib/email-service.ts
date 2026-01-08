@@ -1,15 +1,7 @@
-import { MailerSend, EmailParams, Sender, Recipient } from 'mailersend'
+import { Resend } from 'resend'
 
-interface MailerSendError {
-  message?: string
-  statusCode?: number
-  body?: unknown
-}
-
-// Initialize MailerSend
-const mailerSend = new MailerSend({
-  apiKey: process.env.MAILERSEND_API_KEY!,
-})
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY!)
 
 export async function sendDownloadEmail({
   to,
@@ -23,49 +15,36 @@ export async function sendDownloadEmail({
   html: string
 }) {
   try {
-    const sentFrom = new Sender(
-      process.env.MAILERSEND_FROM_EMAIL!,
-      process.env.MAILERSEND_FROM_NAME || 'Jual Digital'
-    )
+    const fromEmail = process.env.RESEND_FROM_EMAIL || process.env.MAILERSEND_FROM_EMAIL || 'onboarding@resend.dev'
+    const fromName = process.env.RESEND_FROM_NAME || process.env.MAILERSEND_FROM_NAME || 'Jual Digital'
+    const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail
 
-    const recipients = [new Recipient(to)]
+    const { data, error } = await resend.emails.send({
+      from,
+      to,
+      subject,
+      html,
+      text,
+    })
 
-    const emailParams = new EmailParams()
-      .setFrom(sentFrom)
-      .setTo(recipients)
-      .setSubject(subject)
-      .setHtml(html)
-      .setText(text)
-
-    const response = await mailerSend.email.send(emailParams)
-    
-    if (response.statusCode === 202) {
-      return true
-    } else {
-      console.error('[EMAIL SERVICE] Unexpected response status:', response.statusCode)
+    if (error) {
+      console.error('[EMAIL SERVICE] Resend API error:', error)
       return false
     }
+
+    if (data) {
+      console.log('[EMAIL SERVICE] Email sent successfully:', data.id)
+      return true
+    }
+
+    return false
   } catch (error: unknown) {
-    console.error('[EMAIL SERVICE] Failed to send email via MailerSend:', error)
+    console.error('[EMAIL SERVICE] Failed to send email via Resend:', error)
     
-    // Handle different error types from MailerSend SDK
-    if (error && typeof error === 'object') {
-      const mailerSendError = error as MailerSendError & { response?: { statusCode?: number; body?: unknown; headers?: unknown } }
-      
-      // Check if it's an axios-like error with response
-      if (mailerSendError.response) {
-        console.error('[EMAIL SERVICE] MailerSend API error:', {
-          statusCode: mailerSendError.response.statusCode,
-          body: mailerSendError.response.body,
-          headers: mailerSendError.response.headers
-        })
-      } else {
-        console.error('[EMAIL SERVICE] Error details:', {
-          message: mailerSendError.message || 'Unknown error',
-          statusCode: mailerSendError.statusCode,
-          body: mailerSendError.body
-        })
-      }
+    if (error && typeof error === 'object' && 'message' in error) {
+      console.error('[EMAIL SERVICE] Error details:', {
+        message: (error as { message: string }).message,
+      })
     } else {
       console.error('[EMAIL SERVICE] Unknown error type:', error)
     }

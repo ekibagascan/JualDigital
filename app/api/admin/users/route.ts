@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/lib/email-service'
-import { WhatsAppService } from '@/lib/whatsapp-service'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
     if (returnedPendingSellers.length > 0) {
       console.log('[ADMIN USERS API] Sample pending seller IDs:', returnedPendingSellers.slice(0, 3).map(u => ({ id: u.id, name: u.name, status: u.status })))
     }
-    
+
     return NextResponse.json({
       users: processedUsers,
       stats: {
@@ -498,19 +498,19 @@ export async function PUT(req: NextRequest) {
             console.log('[ADMIN USERS API] Sending approval notifications (status changed from pending to active)')
             
             // Send email notification
-            if (userEmail && userEmail.trim() !== '') {
-              const emailSent = await sendSellerApplicationApproved({
-                to: userEmail,
+          if (userEmail && userEmail.trim() !== '') {
+            const emailSent = await sendSellerApplicationApproved({
+              to: userEmail,
                 sellerName: updateResult.name || '',
                 businessName: updateResult.business_name || '',
-              })
-              if (emailSent) {
-                console.log('[ADMIN USERS API] Approval email sent successfully')
-              } else {
-                console.log('[ADMIN USERS API] Failed to send approval email')
-              }
+            })
+            if (emailSent) {
+              console.log('[ADMIN USERS API] Approval email sent successfully')
             } else {
-              console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
+              console.log('[ADMIN USERS API] Failed to send approval email')
+            }
+          } else {
+            console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
             }
             
             // WhatsApp notification disabled
@@ -534,37 +534,37 @@ export async function PUT(req: NextRequest) {
           // Only send rejection notification if status is changing from pending to rejected
           if (previousStatus === 'pending' && newStatus === 'rejected') {
             console.log('[ADMIN USERS API] Sending rejection notifications (status changed from pending to rejected)')
-          // Seller application rejected - send via both email and WhatsApp
+          // Seller application rejected - send via email only
           
             // Send email notification
-            if (userEmail && userEmail.trim() !== '') {
-              const emailSent = await sendSellerApplicationRejected({
-                to: userEmail,
+          if (userEmail && userEmail.trim() !== '') {
+            const emailSent = await sendSellerApplicationRejected({
+              to: userEmail,
                 sellerName: updateResult.name || '',
                 businessName: updateResult.business_name || '',
                 reason: rejectionReason || 'Aplikasi tidak memenuhi kriteria yang diperlukan',
-              })
-              if (emailSent) {
-                console.log('[ADMIN USERS API] Rejection email sent successfully')
-              } else {
-                console.log('[ADMIN USERS API] Failed to send rejection email')
-              }
-            } else {
-              console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
-            }
-            
-            // Send WhatsApp notification
-            const whatsappService = new WhatsAppService()
-            const whatsappSent = await whatsappService.sendSellerRejectionNotification(userId, {
-              sellerName: updateResult.name || '',
-              businessName: updateResult.business_name || '',
-              reason: 'Aplikasi tidak memenuhi kriteria yang diperlukan',
             })
-          if (whatsappSent) {
-            console.log('[ADMIN USERS API] Rejection WhatsApp sent successfully')
+            if (emailSent) {
+              console.log('[ADMIN USERS API] Rejection email sent successfully')
+            } else {
+              console.log('[ADMIN USERS API] Failed to send rejection email')
+            }
           } else {
-            console.log('[ADMIN USERS API] Failed to send rejection WhatsApp (user may not have phone number)')
+            console.log('[ADMIN USERS API] No valid email found for user, skipping email notification')
           }
+            
+            // WhatsApp notification disabled - using Resend email only
+            // const whatsappService = new WhatsAppService()
+            // const whatsappSent = await whatsappService.sendSellerRejectionNotification(userId, {
+            //   sellerName: updateResult.name || '',
+            //   businessName: updateResult.business_name || '',
+            //   reason: 'Aplikasi tidak memenuhi kriteria yang diperlukan',
+            // })
+            // if (whatsappSent) {
+            //   console.log('[ADMIN USERS API] Rejection WhatsApp sent successfully')
+            // } else {
+            //   console.log('[ADMIN USERS API] Failed to send rejection WhatsApp (user may not have phone number)')
+            // }
           } else {
             console.log('[ADMIN USERS API] Skipping rejection notifications - status not changing from pending to rejected', {
               previousStatus,

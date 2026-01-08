@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
             console.warn('[SELLER DASHBOARD API] Invalid earnings value for item:', item.id, 'earnings:', item.seller_earnings)
           } else {
             totalRevenue += earnings
-            totalSales += item.quantity || 0
+        totalSales += item.quantity || 0
           }
         } else {
           console.warn('[SELLER DASHBOARD API] Skipping item with non-paid order:', item.id, 'order status:', order?.status)
@@ -139,10 +139,10 @@ export async function GET(req: NextRequest) {
           const earnings = typeof item.seller_earnings === 'string' 
             ? parseFloat(item.seller_earnings) 
             : (item.seller_earnings || 0)
-          const itemDate = new Date(item.created_at)
-          if (itemDate >= thisMonth) {
+        const itemDate = new Date(item.created_at)
+        if (itemDate >= thisMonth) {
             thisMonthRevenue += earnings
-          } else if (itemDate >= lastMonth && itemDate < thisMonth) {
+        } else if (itemDate >= lastMonth && itemDate < thisMonth) {
             lastMonthRevenue += earnings
           }
         }

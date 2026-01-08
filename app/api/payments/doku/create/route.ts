@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
     // Get customer information
     let customerName = order.guest_name || 'Customer'
     let customerEmail = order.guest_email || ''
-    const customerId = order.user_id || undefined
 
     // If user_id exists, try to get user details
     if (order.user_id) {
@@ -73,11 +72,13 @@ export async function POST(req: NextRequest) {
       .select('product_title, price, quantity')
       .eq('order_id', orderId)
 
+    // Truncate product names to max 255 characters for DOKU compatibility
+    // Ensure price and quantity are valid numbers
     const lineItems = (orderItems || []).map(item => ({
-      name: item.product_title || 'Product',
-      price: item.price,
-      quantity: item.quantity,
-    }))
+      name: (item.product_title || 'Product').substring(0, 255),
+      price: Math.round(Number(item.price) || 0),
+      quantity: Math.round(Number(item.quantity) || 1),
+    })).filter(item => item.price > 0 && item.quantity > 0) // Remove invalid items
 
     // Prepare payment URLs
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
@@ -88,16 +89,36 @@ export async function POST(req: NextRequest) {
     const totalAmount = Math.round(order.total_amount + (order.tax_amount || 0))
 
     // Create DOKU Checkout session
-    const checkoutResponse = await createDokuCheckout({
+    // Note: customer.id might not be accepted in sandbox, so we'll omit it if it causes issues
+    // Build checkout data - start with minimal required fields
+    const checkoutData: {
+      order: {
+        invoice_number: string
+        amount: number
+        currency: string
+        line_items?: Array<{ name: string; price: number; quantity: number }>
+      }
+      customer: {
+        name: string
+        email: string
+        id?: string
+      }
+      payment: {
+        payment_due_date: number
+      }
+      url: {
+        success_url: string
+        failure_url: string
+        notification_url: string
+      }
+    } = {
       order: {
         invoice_number: order.order_number,
         amount: totalAmount,
         currency: 'IDR',
-        line_items: lineItems,
       },
       customer: {
-        id: customerId,
-        name: customerName,
+        name: customerName.substring(0, 100), // Limit name length
         email: customerEmail,
       },
       payment: {
@@ -108,7 +129,21 @@ export async function POST(req: NextRequest) {
         failure_url: failureUrl,
         notification_url: notificationUrl,
       },
-    })
+    }
+
+    // Only add line_items if we have valid items
+    // Some DOKU sandbox environments might have issues with line_items
+    if (lineItems.length > 0) {
+      checkoutData.order.line_items = lineItems
+    }
+
+    // Only include customer.id if it's a valid format (some sandbox environments don't accept UUIDs)
+    // Try without id first, if it fails, we can add it back
+    // if (customerId && /^[a-zA-Z0-9-]+$/.test(customerId)) {
+    //   checkoutData.customer.id = customerId
+    // }
+
+    const checkoutResponse = await createDokuCheckout(checkoutData)
 
     const checkoutUrl = checkoutResponse.response?.result?.checkout_url
 

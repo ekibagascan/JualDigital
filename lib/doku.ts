@@ -16,13 +16,16 @@ export function generateDokuSignature(
   requestBody: string,
   secretKey: string
 ): string {
-  // DOKU signature format: ClientId:RequestId:RequestTarget:RequestTimestamp:RequestBody
-  const signatureString = `${clientId}:${requestId}:${requestTarget}:${requestTimestamp}:${requestBody}`
+  // Step 1: Generate Digest (base64-encoded SHA256 hash of request body)
+  const digest = crypto.createHash('sha256').update(requestBody).digest('base64')
   
-  // Create HMAC SHA256 signature
+  // Step 2: Construct signature string (each component on a new line, no trailing newline)
+  const signatureString = `Client-Id:${clientId}\nRequest-Id:${requestId}\nRequest-Timestamp:${requestTimestamp}\nRequest-Target:${requestTarget}\nDigest:${digest}`
+  
+  // Step 3: Generate HMAC SHA256 signature and encode in base64
   const hmac = crypto.createHmac('sha256', secretKey)
   hmac.update(signatureString)
-  return hmac.digest('hex')
+  return hmac.digest('base64')
 }
 
 // Verify DOKU signature from webhook
@@ -316,19 +319,16 @@ export async function createDokuCheckout(
   const requestTimestamp = getRequestTimestamp()
   const requestTarget = '/checkout/v1/payment'
   
-  // Prepare request body
-  const requestBody = JSON.stringify({
+  // Prepare request body - remove undefined/null fields
+  const requestBodyObj: Record<string, unknown> = {
     order: {
       invoice_number: checkoutData.order.invoice_number,
       amount: checkoutData.order.amount,
       currency: checkoutData.order.currency || 'IDR',
-      line_items: checkoutData.order.line_items || [],
     },
     customer: {
-      id: checkoutData.customer.id,
       name: checkoutData.customer.name,
       email: checkoutData.customer.email,
-      phone: checkoutData.customer.phone,
     },
     payment: {
       payment_due_date: checkoutData.payment.payment_due_date || 60, // 60 minutes default
@@ -338,8 +338,41 @@ export async function createDokuCheckout(
       failure_url: checkoutData.url.failure_url,
       notification_url: checkoutData.url.notification_url,
     },
-    additional_info: checkoutData.additional_info || {},
-  })
+  }
+
+  // Add optional fields only if they exist and are valid
+  // Some DOKU sandbox environments might reject line_items, so make it truly optional
+  if (checkoutData.order.line_items && Array.isArray(checkoutData.order.line_items) && checkoutData.order.line_items.length > 0) {
+    // Validate line items before adding
+    const validLineItems = checkoutData.order.line_items.filter(item => 
+      item && 
+      typeof item.name === 'string' && 
+      item.name.length > 0 && 
+      item.name.length <= 255 &&
+      typeof item.price === 'number' && 
+      item.price > 0 && 
+      typeof item.quantity === 'number' && 
+      item.quantity > 0
+    )
+    if (validLineItems.length > 0) {
+      (requestBodyObj.order as Record<string, unknown>).line_items = validLineItems
+    }
+  }
+
+  if (checkoutData.customer.id) {
+    (requestBodyObj.customer as Record<string, unknown>).id = checkoutData.customer.id
+  }
+
+  if (checkoutData.customer.phone) {
+    (requestBodyObj.customer as Record<string, unknown>).phone = checkoutData.customer.phone
+  }
+
+  if (checkoutData.additional_info && Object.keys(checkoutData.additional_info).length > 0) {
+    requestBodyObj.additional_info = checkoutData.additional_info
+  }
+
+  // Stringify request body (compact format, no spaces)
+  const requestBody = JSON.stringify(requestBodyObj)
 
   // Generate signature
   const signature = generateDokuSignature(
@@ -350,6 +383,30 @@ export async function createDokuCheckout(
     requestBody,
     DOKU_SECRET_KEY
   )
+
+  // Log request for debugging
+  console.log('[DOKU CHECKOUT] Creating checkout:', {
+    url: `${DOKU_BASE_URL}${requestTarget}`,
+    requestBody: requestBodyObj,
+    requestBodyString: requestBody,
+    headers: {
+      'Client-Id': DOKU_CLIENT_ID,
+      'Request-Id': requestId,
+      'Request-Timestamp': requestTimestamp,
+      'Signature': `HMACSHA256=${signature}`,
+    },
+  })
+  
+  // Log signature components for debugging
+  const digest = crypto.createHash('sha256').update(requestBody).digest('base64')
+  console.log('[DOKU CHECKOUT] Signature components:', {
+    clientId: DOKU_CLIENT_ID,
+    requestId,
+    requestTarget,
+    requestTimestamp,
+    digest,
+    signature,
+  })
 
   // Make API request
   const response = await fetch(`${DOKU_BASE_URL}${requestTarget}`, {
@@ -365,15 +422,54 @@ export async function createDokuCheckout(
   })
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(
-      errorData.response?.result?.message ||
-      errorData.message ||
+    const errorText = await response.text().catch(() => '')
+    let errorData: Record<string, unknown> = {}
+    try {
+      errorData = JSON.parse(errorText) as Record<string, unknown>
+    } catch {
+      errorData = { raw: errorText }
+    }
+    
+    console.error('[DOKU CHECKOUT] Request failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: `${DOKU_BASE_URL}${requestTarget}`,
+      requestBody: requestBodyObj,
+      requestBodyString: requestBody,
+      errorResponse: errorData,
+      errorText: errorText,
+      headers: {
+        'Client-Id': DOKU_CLIENT_ID,
+        'Request-Id': requestId,
+        'Request-Timestamp': requestTimestamp,
+        'Signature': `HMACSHA256=${signature}`,
+      },
+    })
+    
+    const responseData = errorData.response as Record<string, unknown> | undefined
+    const resultData = responseData?.result as Record<string, unknown> | undefined
+    const resultMessage = resultData?.message as string | undefined
+    
+    const directResult = errorData.result as Record<string, unknown> | undefined
+    const directMessage = directResult?.message as string | undefined
+    
+    const errorObj = errorData.error as Record<string, unknown> | undefined
+    const errorMessage = errorObj?.message as string | undefined
+    
+    const finalMessage = 
+      resultMessage ||
+      directMessage ||
+      (errorData.message as string | undefined) ||
+      errorMessage ||
+      errorText ||
       `DOKU API error: ${response.status} ${response.statusText}`
-    )
+    
+    throw new Error(finalMessage)
   }
 
-  return await response.json()
+  const responseData = await response.json()
+  console.log('[DOKU CHECKOUT] Success:', responseData)
+  return responseData
 }
 
 // Get payment status
