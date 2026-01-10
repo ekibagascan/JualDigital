@@ -14,8 +14,11 @@ export async function PUT(
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {
+            // Cookies are set via response object in route handlers, not here
           },
         },
       }
@@ -143,8 +146,11 @@ export async function GET(
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {
+            // Cookies are set via response object in route handlers, not here
           },
         },
       }

@@ -5,14 +5,16 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = await req.cookies
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
+          getAll() {
+            return req.cookies.getAll()
+          },
+          setAll() {
+            // Cookies are set via response object in route handlers, not here
           },
         },
       }

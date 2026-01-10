@@ -1,9 +1,26 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
-)
+// Lazy getter for Supabase client to avoid multiple GoTrueClient instances in browser
+let _browserClient: SupabaseClient | null = null
+function getBrowserClient(): SupabaseClient {
+  if (!_browserClient && typeof window !== 'undefined') {
+    // Dynamically import to avoid circular dependencies and ensure we use the shared instance
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    _browserClient = require('@/lib/supabase-client').supabase as SupabaseClient
+  }
+  return _browserClient || createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+  )
+}
+
+// Use shared browser client when in browser context, otherwise create server client
+const supabase: SupabaseClient = typeof window !== 'undefined' 
+  ? getBrowserClient()
+  : createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+    )
 
 export interface Product {
   id: string

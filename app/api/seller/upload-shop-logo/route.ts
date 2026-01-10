@@ -11,8 +11,11 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {
+            // Cookies are set via response object in route handlers, not here
           },
         },
       }
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
     const fileName = `shop-logos/${user.id}-${Date.now()}.${fileExtension}`
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(fileName, file, {
         cacheControl: '3600',

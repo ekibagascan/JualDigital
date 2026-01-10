@@ -20,8 +20,11 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
+          getAll() {
+            return req.cookies.getAll()
+          },
+          setAll() {
+            // Service role doesn't need to set cookies
           },
         },
       }

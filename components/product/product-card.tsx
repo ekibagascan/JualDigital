@@ -299,21 +299,21 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
       <CardContent className="p-2 sm:p-4">
         <div className="space-y-2 sm:space-y-3">
           <div>
-            <Link href={`/product/${product.id}`} className="block">
-              <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
+            <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
+              <Link href={`/product/${product.id}`} className="hover:text-primary">
                 {product.title}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                oleh{" "}
-                <Link
-                  href={`/toko/${product.seller_id}`}
-                  className="hover:text-primary transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {sellerName || product.author}
-                </Link>
-              </p>
-            </Link>
+              </Link>
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              oleh{" "}
+              <Link
+                href={`/toko/${product.seller_id}`}
+                className="hover:text-primary transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {sellerName || product.author}
+              </Link>
+            </p>
           </div>
 
           <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>

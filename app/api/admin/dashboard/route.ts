@@ -32,8 +32,11 @@ export async function GET(req: NextRequest) {
       serviceRoleKey,
       {
         cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
+          getAll() {
+            return req.cookies.getAll()
+          },
+          setAll() {
+            // Service role doesn't need to set cookies
           },
         },
       }

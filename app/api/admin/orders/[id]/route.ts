@@ -22,8 +22,11 @@ export async function GET(
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
+          getAll() {
+            return req.cookies.getAll()
+          },
+          setAll() {
+            // Service role doesn't need to set cookies
           },
         },
       }
@@ -131,8 +134,11 @@ export async function PUT(
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
+          getAll() {
+            return req.cookies.getAll()
+          },
+          setAll() {
+            // Service role doesn't need to set cookies
           },
         },
       }
