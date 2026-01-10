@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
       .eq('key', 'payment_method')
       .single()
 
-    // Default to 'doku' if not set
-    const defaultPaymentMethod = 'doku'
+    // Always return 'manual' - Doku has been removed
+    const defaultPaymentMethod = 'manual'
 
     if (error && error.code !== 'PGRST116') {
       console.error('[SETTINGS API] Error fetching settings:', error)
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-      payment_method: settings?.value || defaultPaymentMethod,
+      payment_method: defaultPaymentMethod, // Always manual
     })
   } catch (error) {
     console.error('[SETTINGS API] Error:', error)
@@ -66,9 +66,10 @@ export async function PUT(req: NextRequest) {
     const body = await req.json()
     const { payment_method } = body
 
-    if (!payment_method || !['doku', 'manual'].includes(payment_method)) {
+    // Only allow manual payment - Doku has been removed
+    if (payment_method && payment_method !== 'manual') {
       return NextResponse.json(
-        { error: 'Invalid payment_method. Must be "doku" or "manual"' },
+        { error: 'Invalid payment_method. Only "manual" is supported (Doku has been removed)' },
         { status: 400 }
       )
     }
@@ -78,13 +79,13 @@ export async function PUT(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Upsert settings (insert or update)
+    // Upsert settings (insert or update) - always set to manual
     const { data, error } = await supabase
       .from('settings')
       .upsert(
         {
           key: 'payment_method',
-          value: payment_method,
+          value: 'manual',
           updated_at: new Date().toISOString(),
         },
         {
@@ -104,7 +105,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      payment_method: data.value,
+      payment_method: 'manual',
     })
   } catch (error) {
     console.error('[SETTINGS API] Error:', error)

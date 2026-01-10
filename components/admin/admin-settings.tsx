@@ -27,7 +27,6 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { useEffect } from "react"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 interface Banner {
   id: string
@@ -66,8 +65,8 @@ export function AdminSettings() {
     maintenanceMode: false,
   })
 
-  // Payment Settings
-  const [paymentMethod, setPaymentMethod] = useState<'doku' | 'manual'>('doku')
+  // Payment Settings - Only manual payment (Doku removed)
+  const [paymentMethod, setPaymentMethod] = useState<'manual'>('manual')
 
   // Load settings on mount
   useEffect(() => {
@@ -621,50 +620,22 @@ export function AdminSettings() {
               <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Pilih metode pembayaran default yang akan digunakan untuk semua pesanan baru.
+                    Metode pembayaran yang digunakan untuk semua pesanan baru.
                   </p>
-                  <RadioGroup
-                    value={paymentMethod}
-                    onValueChange={(value) => setPaymentMethod(value as 'doku' | 'manual')}
-                  >
-                    <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="doku" id="doku" />
-                      <Label htmlFor="doku" className="flex-1 cursor-pointer">
-                        <div>
-                          <div className="font-semibold">DOKU Payment Gateway</div>
-                          <div className="text-sm text-muted-foreground">
-                            Menggunakan DOKU Checkout untuk pembayaran otomatis. Mendukung Virtual Account, E-Wallet, Credit Card, dan QR Code.
-                          </div>
-                        </div>
-                      </Label>
+                  <div className="p-4 border rounded-lg bg-muted/50">
+                    <div>
+                      <div className="font-semibold">Manual Payment</div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        Pelanggan mengupload bukti transfer dan admin mengkonfirmasi secara manual.
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="manual" id="manual" />
-                      <Label htmlFor="manual" className="flex-1 cursor-pointer">
-                        <div>
-                          <div className="font-semibold">Manual Payment</div>
-                          <div className="text-sm text-muted-foreground">
-                            Pelanggan mengupload bukti transfer dan admin mengkonfirmasi secara manual.
-                          </div>
-                        </div>
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-                {paymentMethod === 'doku' && (
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="text-sm text-blue-900 dark:text-blue-100">
-                      <strong>Catatan:</strong> Pastikan DOKU API credentials sudah dikonfigurasi di environment variables (DOKU_CLIENT_ID, DOKU_SECRET_KEY, DOKU_SHARED_KEY).
-                    </p>
                   </div>
-                )}
-                {paymentMethod === 'manual' && (
                   <div className="p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                     <p className="text-sm text-yellow-900 dark:text-yellow-100">
-                      <strong>Catatan:</strong> Dengan metode manual, admin perlu mengkonfirmasi setiap pembayaran secara manual di halaman pesanan.
+                      <strong>Catatan:</strong> Dengan metode manual, admin perlu mengkonfirmasi setiap pembayaran secara manual di halaman pesanan. DOKU payment gateway telah dihapus.
                     </p>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
 

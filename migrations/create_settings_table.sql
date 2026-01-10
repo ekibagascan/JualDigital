@@ -40,6 +40,6 @@ CREATE POLICY "Service role can delete settings"
 
 -- Insert default payment method setting
 INSERT INTO settings (key, value)
-VALUES ('payment_method', 'doku')
+VALUES ('payment_method', 'manual')
 ON CONFLICT (key) DO NOTHING;
 
