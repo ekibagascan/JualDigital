@@ -2,6 +2,8 @@ import { SupabaseClient } from '@supabase/supabase-js'
 // Xendit integration removed - using manual payment instead
 // import { createInvoice } from './xendit'
 import { WhatsAppService } from '@/lib/whatsapp-service'
+import { getPaymentMethodSetting } from './settings-service'
+import { createSnapTransaction } from './midtrans'
 
 export interface OrderItem {
   product_id: string
@@ -88,7 +90,11 @@ export class OrderService {
         }
       }
 
-      // 1. Create order in Supabase
+      // 1. Get payment method setting
+      const paymentMethod = await getPaymentMethodSetting(this.supabase)
+      console.log('[ORDER CREATION] Payment method setting:', paymentMethod)
+
+      // 2. Create order in Supabase
       const { data: order, error: orderError } = await this.supabase
         .from('orders')
         .insert({
@@ -100,7 +106,7 @@ export class OrderService {
           platform_fee: 0, // No platform fee for now
           status: 'pending',
           payment_method: orderData.payment_method || 'BANK_TRANSFER',
-          payment_provider: 'manual', // Always use manual payment
+          payment_provider: paymentMethod, // Use configured payment method
           note: orderData.note || null, // Add note if provided
         })
         .select()
@@ -113,7 +119,7 @@ export class OrderService {
 
       console.log('[ORDER CREATION] Created order with ID:', order.id)
       console.log('[ORDER CREATION] Order number:', order.order_number)
-      console.log('[ORDER CREATION] Payment provider: manual')
+      console.log('[ORDER CREATION] Payment provider:', paymentMethod)
 
       // 3. Fetch products to get seller_id and title
       const productIds = orderData.items.map(item => item.product_id)
@@ -166,23 +172,83 @@ export class OrderService {
       // WhatsApp notifications will be sent after payment is successful via webhook
       // await this.sendSellerNotifications(order.id, orderItems, order.order_number, orderData)
 
-      // 5. Create payment - using manual payment only
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
-      const paymentUrl = `${baseUrl}/payment/instructions?order_id=${order.id}`
+      // 5. Create payment based on payment method
+      let paymentUrl: string | undefined
 
-      // Update order with payment instructions URL
-      const { error: updateError } = await this.supabase
-        .from('orders')
-        .update({
-          payment_provider: 'manual',
-          invoice_url: paymentUrl,
+      if (paymentMethod === 'midtrans') {
+        // Create Midtrans Snap transaction
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
+        
+        const customerName = orderData.guest_name || 
+          (orderData.user_id ? 'Customer' : 'Guest')
+        const customerEmail = orderData.guest_email || 
+          (orderData.user_id ? undefined : undefined)
+        const customerPhone = orderData.guest_phone || 
+          orderData.user_phone || undefined
+
+        // Calculate total from items to ensure it matches
+        const itemsTotal = orderData.items.reduce((sum, item) => sum + (Math.round(item.price) * item.quantity), 0)
+        
+        const snapTransaction = await createSnapTransaction({
+          transaction_details: {
+            order_id: order.order_number, // Use order_number as Midtrans order_id
+            gross_amount: itemsTotal, // Use calculated total from items
+          },
+          customer_details: {
+            first_name: customerName.split(' ')[0] || customerName,
+            last_name: customerName.split(' ').slice(1).join(' ') || undefined,
+            email: customerEmail,
+            phone: customerPhone,
+          },
+          item_details: orderData.items.map(item => ({
+            id: item.product_id,
+            price: Math.round(item.price),
+            quantity: item.quantity,
+            name: item.title.length > 50 ? item.title.substring(0, 47) + '...' : item.title,
+          })),
+          callbacks: {
+            finish: `${baseUrl}/payment/midtrans/finish?order_id=${order.id}`,
+            error: `${baseUrl}/payment/midtrans/error?order_id=${order.id}`,
+            pending: `${baseUrl}/payment/midtrans/pending?order_id=${order.id}`,
+          },
         })
-        .eq('id', order.id)
 
-      if (updateError) {
-        console.error('Order update error:', updateError)
+        // Update order with Midtrans transaction token
+        const { error: updateError } = await this.supabase
+          .from('orders')
+          .update({
+            payment_provider: 'midtrans',
+            transaction_id: snapTransaction.token,
+            invoice_url: snapTransaction.redirect_url,
+          })
+          .eq('id', order.id)
+
+        if (updateError) {
+          console.error('Order update error:', updateError)
+          throw new Error('Failed to update order with Midtrans transaction')
+        }
+
+        console.log('Order updated with Midtrans transaction token:', snapTransaction.token)
+        paymentUrl = snapTransaction.redirect_url
       } else {
-        console.log('Order updated with manual payment instructions URL:', paymentUrl)
+        // Manual payment
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
+        paymentUrl = `${baseUrl}/payment/instructions?order_id=${order.id}`
+
+        // Update order with payment instructions URL
+        const { error: updateError } = await this.supabase
+          .from('orders')
+          .update({
+            payment_provider: 'manual',
+            invoice_url: paymentUrl,
+          })
+          .eq('id', order.id)
+
+        if (updateError) {
+          console.error('Order update error:', updateError)
+        } else {
+          console.log('Order updated with manual payment instructions URL:', paymentUrl)
+        }
       }
 
       return {

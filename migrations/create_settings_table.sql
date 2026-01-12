@@ -38,8 +38,8 @@ CREATE POLICY "Service role can delete settings"
   FOR DELETE
   USING (true);
 
--- Insert default payment method setting
+-- Insert default payment method setting (midtrans as default)
 INSERT INTO settings (key, value)
-VALUES ('payment_method', 'manual')
+VALUES ('payment_method', 'midtrans')
 ON CONFLICT (key) DO NOTHING;
 

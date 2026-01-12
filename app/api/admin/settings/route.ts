@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
       .eq('key', 'payment_method')
       .single()
 
-    // Always return 'manual' - Doku has been removed
-    const defaultPaymentMethod = 'manual'
+    // Default to midtrans
+    const defaultPaymentMethod = 'midtrans'
 
     if (error && error.code !== 'PGRST116') {
       console.error('[SETTINGS API] Error fetching settings:', error)
@@ -39,8 +39,14 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // Validate payment method from database
+    const paymentMethod = settings?.value as 'midtrans' | 'manual' | undefined
+    const validPaymentMethod = (paymentMethod === 'midtrans' || paymentMethod === 'manual')
+      ? paymentMethod
+      : defaultPaymentMethod
+
     return NextResponse.json({
-      payment_method: defaultPaymentMethod, // Always manual
+      payment_method: validPaymentMethod,
     })
   } catch (error) {
     console.error('[SETTINGS API] Error:', error)
@@ -66,10 +72,10 @@ export async function PUT(req: NextRequest) {
     const body = await req.json()
     const { payment_method } = body
 
-    // Only allow manual payment - Doku has been removed
-    if (payment_method && payment_method !== 'manual') {
+    // Validate payment method
+    if (payment_method && payment_method !== 'midtrans' && payment_method !== 'manual') {
       return NextResponse.json(
-        { error: 'Invalid payment_method. Only "manual" is supported (Doku has been removed)' },
+        { error: 'Invalid payment_method. Must be "midtrans" or "manual"' },
         { status: 400 }
       )
     }
@@ -79,13 +85,16 @@ export async function PUT(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Upsert settings (insert or update) - always set to manual
+    // Use provided payment_method or default to midtrans
+    const finalPaymentMethod = payment_method || 'midtrans'
+
+    // Upsert settings (insert or update)
     const { data, error } = await supabase
       .from('settings')
       .upsert(
         {
           key: 'payment_method',
-          value: 'manual',
+          value: finalPaymentMethod,
           updated_at: new Date().toISOString(),
         },
         {
@@ -105,7 +114,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      payment_method: 'manual',
+      payment_method: finalPaymentMethod,
     })
   } catch (error) {
     console.error('[SETTINGS API] Error:', error)

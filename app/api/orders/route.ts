@@ -1,12 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-export const dynamic = 'force-dynamic'
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const orderNumber = searchParams.get('order_number')
+
+    // If order_number is provided, fetch by order_number
+    if (orderNumber) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            product_title,
+            price,
+            quantity,
+            created_at,
+            seller_id,
+            products:product_id (
+              title,
+              image_url
+            )
+          )
+        `)
+        .eq('order_number', orderNumber)
+        .single()
+
+      if (error || !order) {
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+      }
+
+      return NextResponse.json({ order })
+    }
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -55,4 +88,4 @@ export async function GET(request: NextRequest) {
     console.error('[ORDERS API] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

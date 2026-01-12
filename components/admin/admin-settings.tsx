@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   ImageIcon,
   Star,
@@ -65,8 +66,8 @@ export function AdminSettings() {
     maintenanceMode: false,
   })
 
-  // Payment Settings - Only manual payment (Doku removed)
-  const [paymentMethod, setPaymentMethod] = useState<'manual'>('manual')
+  // Payment Settings - Midtrans or Manual
+  const [paymentMethod, setPaymentMethod] = useState<'midtrans' | 'manual'>('midtrans')
 
   // Load settings on mount
   useEffect(() => {
@@ -622,19 +623,30 @@ export function AdminSettings() {
                   <p className="text-sm text-muted-foreground">
                     Metode pembayaran yang digunakan untuk semua pesanan baru.
                   </p>
-                  <div className="p-4 border rounded-lg bg-muted/50">
-                    <div>
-                      <div className="font-semibold">Manual Payment</div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        Pelanggan mengupload bukti transfer dan admin mengkonfirmasi secara manual.
-                      </div>
+                  <RadioGroup
+                    value={paymentMethod}
+                    onValueChange={(value) => setPaymentMethod(value as 'midtrans' | 'manual')}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted/50">
+                      <RadioGroupItem value="midtrans" id="midtrans" className="mt-1" />
+                      <Label htmlFor="midtrans" className="flex-1 cursor-pointer">
+                        <div className="font-semibold">Midtrans Payment</div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Pembayaran diproses otomatis melalui Midtrans.
+                        </div>
+                      </Label>
                     </div>
-                  </div>
-                  <div className="p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <p className="text-sm text-yellow-900 dark:text-yellow-100">
-                      <strong>Catatan:</strong> Dengan metode manual, admin perlu mengkonfirmasi setiap pembayaran secara manual di halaman pesanan. DOKU payment gateway telah dihapus.
-                    </p>
-                  </div>
+                    <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted/50">
+                      <RadioGroupItem value="manual" id="manual" className="mt-1" />
+                      <Label htmlFor="manual" className="flex-1 cursor-pointer">
+                        <div className="font-semibold">Manual Payment</div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Admin mengkonfirmasi pembayaran secara manual.
+                        </div>
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
               </CardContent>
             </Card>
