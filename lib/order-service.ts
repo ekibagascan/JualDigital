@@ -2,8 +2,9 @@ import { SupabaseClient } from '@supabase/supabase-js'
 // Xendit integration removed - using manual payment instead
 // import { createInvoice } from './xendit'
 import { WhatsAppService } from '@/lib/whatsapp-service'
-import { getPaymentMethodSetting } from './settings-service'
+import { getPaymentSettings } from './settings-service'
 import { createSnapTransaction } from './midtrans'
+import { createCryptoPayment } from './bci-payment'
 
 export interface OrderItem {
   product_id: string
@@ -90,9 +91,25 @@ export class OrderService {
         }
       }
 
-      // 1. Get payment method setting
-      const paymentMethod = await getPaymentMethodSetting(this.supabase)
-      console.log('[ORDER CREATION] Payment method setting:', paymentMethod)
+      // 1. Get payment settings
+      const paymentSettings = await getPaymentSettings(this.supabase)
+      console.log('[ORDER CREATION] Payment settings:', paymentSettings)
+      
+      // Determine which payment method to use based on user selection or default
+      const selectedPaymentType = orderData.payment_method?.startsWith('crypto_') ? 'crypto' : 
+                                  orderData.payment_method?.startsWith('fiat_') ? 'fiat' :
+                                  paymentSettings.defaultMethod
+      
+      const useCrypto = selectedPaymentType === 'crypto' && paymentSettings.cryptoEnabled
+      const useFiat = selectedPaymentType === 'fiat' && paymentSettings.fiatEnabled
+      
+      // Fallback if selected method is not enabled
+      const finalPaymentType = useCrypto ? 'crypto' : 
+                              useFiat ? 'fiat' : 
+                              paymentSettings.cryptoEnabled ? 'crypto' : 'fiat'
+      
+      const paymentMethod = finalPaymentType === 'crypto' ? 'bci' : 
+                           paymentSettings.fiatMethod
 
       // 2. Create order in Supabase
       const { data: order, error: orderError } = await this.supabase
@@ -175,7 +192,46 @@ export class OrderService {
       // 5. Create payment based on payment method
       let paymentUrl: string | undefined
 
-      if (paymentMethod === 'midtrans') {
+      if (finalPaymentType === 'crypto' && paymentMethod === 'bci') {
+        // Create BCI crypto payment
+        const totalAmount = Math.round(orderData.total_amount + orderData.tax_amount)
+        
+        const productTitles = orderData.items.map(item => item.title).join(', ')
+        const description = productTitles.length > 100 
+          ? productTitles.substring(0, 97) + '...' 
+          : productTitles || 'Product purchase'
+
+        try {
+          const cryptoPayment = await createCryptoPayment({
+            orderId: order.order_number,
+            amount: totalAmount,
+            token: 'IDRT', // Default to IDRT, can be made configurable
+            description: description,
+          })
+
+          // Update order with BCI payment details
+          const { error: updateError } = await this.supabase
+            .from('orders')
+            .update({
+              payment_provider: 'bci',
+              payment_method: 'CRYPTO',
+              transaction_id: cryptoPayment.paymentId,
+              invoice_url: cryptoPayment.paymentLink,
+            })
+            .eq('id', order.id)
+
+          if (updateError) {
+            console.error('Order update error:', updateError)
+            throw new Error('Failed to update order with BCI payment')
+          }
+
+          console.log('[ORDER CREATION] Created BCI payment:', cryptoPayment.paymentId)
+          paymentUrl = cryptoPayment.paymentLink
+        } catch (cryptoError) {
+          console.error('[ORDER CREATION] Error creating crypto payment:', cryptoError)
+          throw new Error(`Failed to create crypto payment: ${cryptoError instanceof Error ? cryptoError.message : 'Unknown error'}`)
+        }
+      } else if (paymentMethod === 'midtrans') {
         // Create Midtrans Snap transaction
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
         
@@ -230,7 +286,7 @@ export class OrderService {
 
         console.log('Order updated with Midtrans transaction token:', snapTransaction.token)
         paymentUrl = snapTransaction.redirect_url
-      } else {
+      } else if (paymentMethod === 'manual') {
         // Manual payment
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
         paymentUrl = `${baseUrl}/payment/instructions?order_id=${order.id}`

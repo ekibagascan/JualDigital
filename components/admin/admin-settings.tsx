@@ -66,8 +66,12 @@ export function AdminSettings() {
     maintenanceMode: false,
   })
 
-  // Payment Settings - Midtrans or Manual
-  const [paymentMethod, setPaymentMethod] = useState<'midtrans' | 'manual'>('midtrans')
+  // Payment Settings
+  const [paymentFiatEnabled, setPaymentFiatEnabled] = useState(true)
+  const [paymentFiatMethod, setPaymentFiatMethod] = useState<'midtrans' | 'manual'>('midtrans')
+  const [paymentCryptoEnabled, setPaymentCryptoEnabled] = useState(true)
+  const [paymentDefaultMethod, setPaymentDefaultMethod] = useState<'crypto' | 'fiat'>('crypto')
+  const [paymentMethod, setPaymentMethod] = useState<'midtrans' | 'manual'>('midtrans') // Legacy
 
   // Load settings on mount
   useEffect(() => {
@@ -78,6 +82,18 @@ export function AdminSettings() {
           const data = await res.json()
           if (data.payment_method) {
             setPaymentMethod(data.payment_method)
+          }
+          if (data.payment_fiat_enabled !== undefined) {
+            setPaymentFiatEnabled(data.payment_fiat_enabled)
+          }
+          if (data.payment_fiat_method) {
+            setPaymentFiatMethod(data.payment_fiat_method)
+          }
+          if (data.payment_crypto_enabled !== undefined) {
+            setPaymentCryptoEnabled(data.payment_crypto_enabled)
+          }
+          if (data.payment_default_method) {
+            setPaymentDefaultMethod(data.payment_default_method)
           }
         }
       } catch (error) {
@@ -137,14 +153,18 @@ export function AdminSettings() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      // Save payment method setting
+      // Save payment settings
       const settingsRes = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          payment_method: paymentMethod,
+          payment_method: paymentMethod, // Legacy support
+          payment_fiat_enabled: paymentFiatEnabled,
+          payment_fiat_method: paymentFiatMethod,
+          payment_crypto_enabled: paymentCryptoEnabled,
+          payment_default_method: paymentDefaultMethod,
         }),
       })
 
@@ -615,39 +635,121 @@ export function AdminSettings() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <CreditCard className="mr-2 h-5 w-5" />
-                  Metode Pembayaran Default
+                  Pengaturan Pembayaran
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Metode pembayaran yang digunakan untuk semua pesanan baru.
-                  </p>
+              <CardContent className="space-y-6">
+                {/* Crypto Payment */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold flex items-center gap-2">
+                        💰 Crypto Payment (BCI Gateway)
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Pembayaran menggunakan cryptocurrency (IDRT/USDC) melalui BCI Payment Gateway
+                      </p>
+                    </div>
+                    <Switch
+                      checked={paymentCryptoEnabled}
+                      onCheckedChange={setPaymentCryptoEnabled}
+                    />
+                  </div>
+                  {paymentCryptoEnabled && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded text-sm">
+                      <p className="text-blue-800 dark:text-blue-200">
+                        ⚙️ Konfigurasi: Set BCI_API_KEY dan BCI_API_SECRET di environment variables
+                      </p>
+                      <p className="text-blue-700 dark:text-blue-300 mt-1 text-xs">
+                        Webhook URL: {process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/api/payments/bci/callback
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Fiat Payment */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold flex items-center gap-2">
+                        💳 Fiat Payment
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Pembayaran menggunakan mata uang fiat (Rupiah)
+                      </p>
+                    </div>
+                    <Switch
+                      checked={paymentFiatEnabled}
+                      onCheckedChange={setPaymentFiatEnabled}
+                    />
+                  </div>
+                  {paymentFiatEnabled && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">Metode Fiat:</p>
+                      <RadioGroup
+                        value={paymentFiatMethod}
+                        onValueChange={(value) => setPaymentFiatMethod(value as 'midtrans' | 'manual')}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                          <RadioGroupItem value="midtrans" id="fiat-midtrans" className="mt-1" />
+                          <Label htmlFor="fiat-midtrans" className="flex-1 cursor-pointer">
+                            <div className="font-semibold text-sm">Midtrans Payment</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Pembayaran diproses otomatis melalui Midtrans.
+                            </div>
+                          </Label>
+                        </div>
+                        <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                          <RadioGroupItem value="manual" id="fiat-manual" className="mt-1" />
+                          <Label htmlFor="fiat-manual" className="flex-1 cursor-pointer">
+                            <div className="font-semibold text-sm">Manual Payment</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Admin mengkonfirmasi pembayaran secara manual.
+                            </div>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+                </div>
+
+                {/* Default Payment Method */}
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                  <p className="text-sm font-medium">Metode Pembayaran Default:</p>
                   <RadioGroup
-                    value={paymentMethod}
-                    onValueChange={(value) => setPaymentMethod(value as 'midtrans' | 'manual')}
-                    className="space-y-3"
+                    value={paymentDefaultMethod}
+                    onValueChange={(value) => setPaymentDefaultMethod(value as 'crypto' | 'fiat')}
+                    className="space-y-2"
                   >
-                    <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="midtrans" id="midtrans" className="mt-1" />
-                      <Label htmlFor="midtrans" className="flex-1 cursor-pointer">
-                        <div className="font-semibold">Midtrans Payment</div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          Pembayaran diproses otomatis melalui Midtrans.
+                    <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-background">
+                      <RadioGroupItem value="crypto" id="default-crypto" className="mt-1" />
+                      <Label htmlFor="default-crypto" className="flex-1 cursor-pointer">
+                        <div className="font-semibold text-sm">Crypto (Default)</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Crypto payment akan menjadi pilihan default untuk customer
                         </div>
                       </Label>
                     </div>
-                    <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="manual" id="manual" className="mt-1" />
-                      <Label htmlFor="manual" className="flex-1 cursor-pointer">
-                        <div className="font-semibold">Manual Payment</div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          Admin mengkonfirmasi pembayaran secara manual.
+                    <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-background">
+                      <RadioGroupItem value="fiat" id="default-fiat" className="mt-1" />
+                      <Label htmlFor="default-fiat" className="flex-1 cursor-pointer">
+                        <div className="font-semibold text-sm">Fiat (Default)</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Fiat payment akan menjadi pilihan default untuk customer
                         </div>
                       </Label>
                     </div>
                   </RadioGroup>
                 </div>
+
+                {!paymentCryptoEnabled && !paymentFiatEnabled && (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      ⚠️ Peringatan: Setidaknya satu metode pembayaran harus diaktifkan
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

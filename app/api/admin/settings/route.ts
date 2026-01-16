@@ -20,33 +20,35 @@ export async function GET(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get settings from database (using a simple key-value approach)
-    // If settings table doesn't exist, we'll use a JSONB column in a settings row
+    // Get all payment-related settings
     const { data: settings, error } = await supabase
       .from('settings')
-      .select('*')
-      .eq('key', 'payment_method')
-      .single()
-
-    // Default to midtrans
-    const defaultPaymentMethod = 'midtrans'
+      .select('key, value')
+      .in('key', [
+        'payment_method',
+        'payment_fiat_enabled',
+        'payment_fiat_method',
+        'payment_crypto_enabled',
+        'payment_default_method'
+      ])
 
     if (error && error.code !== 'PGRST116') {
       console.error('[SETTINGS API] Error fetching settings:', error)
-      return NextResponse.json(
-        { payment_method: defaultPaymentMethod },
-        { status: 200 }
-      )
     }
 
-    // Validate payment method from database
-    const paymentMethod = settings?.value as 'midtrans' | 'manual' | undefined
-    const validPaymentMethod = (paymentMethod === 'midtrans' || paymentMethod === 'manual')
-      ? paymentMethod
-      : defaultPaymentMethod
+    const settingsMap = new Map(
+      (settings || []).map(item => [item.key, item.value])
+    )
+
+    // Legacy support: if only old payment_method exists, migrate it
+    const legacyPaymentMethod = settingsMap.get('payment_method') as 'midtrans' | 'manual' | undefined
 
     return NextResponse.json({
-      payment_method: validPaymentMethod,
+      payment_method: legacyPaymentMethod || 'midtrans', // Legacy support
+      payment_fiat_enabled: settingsMap.get('payment_fiat_enabled') !== 'false' && settingsMap.get('payment_fiat_enabled') !== false,
+      payment_fiat_method: settingsMap.get('payment_fiat_method') || legacyPaymentMethod || 'midtrans',
+      payment_crypto_enabled: settingsMap.get('payment_crypto_enabled') !== 'false' && settingsMap.get('payment_crypto_enabled') !== false,
+      payment_default_method: settingsMap.get('payment_default_method') || 'crypto',
     })
   } catch (error) {
     console.error('[SETTINGS API] Error:', error)
@@ -70,51 +72,114 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { payment_method } = body
-
-    // Validate payment method
-    if (payment_method && payment_method !== 'midtrans' && payment_method !== 'manual') {
-      return NextResponse.json(
-        { error: 'Invalid payment_method. Must be "midtrans" or "manual"' },
-        { status: 400 }
-      )
-    }
+    const {
+      payment_method, // Legacy support
+      payment_fiat_enabled,
+      payment_fiat_method,
+      payment_crypto_enabled,
+      payment_default_method,
+    } = body
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Use provided payment_method or default to midtrans
-    const finalPaymentMethod = payment_method || 'midtrans'
+    // Prepare settings to save
+    const settingsToSave = []
 
-    // Upsert settings (insert or update)
-    const { data, error } = await supabase
-      .from('settings')
-      .upsert(
-        {
-          key: 'payment_method',
-          value: finalPaymentMethod,
+    // Legacy support: if payment_method is provided, use it for fiat_method
+    if (payment_method) {
+      if (payment_method !== 'midtrans' && payment_method !== 'manual') {
+        return NextResponse.json(
+          { error: 'Invalid payment_method. Must be "midtrans" or "manual"' },
+          { status: 400 }
+        )
+      }
+      settingsToSave.push({
+        key: 'payment_method',
+        value: payment_method,
+        updated_at: new Date().toISOString(),
+      })
+      // Also set fiat_method if not explicitly provided
+      if (payment_fiat_method === undefined) {
+        settingsToSave.push({
+          key: 'payment_fiat_method',
+          value: payment_method,
           updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'key',
-        }
-      )
-      .select()
-      .single()
+        })
+      }
+    }
 
-    if (error) {
-      console.error('[SETTINGS API] Error saving settings:', error)
-      return NextResponse.json(
-        { error: 'Failed to save settings' },
-        { status: 500 }
-      )
+    // Save new payment settings
+    if (payment_fiat_enabled !== undefined) {
+      settingsToSave.push({
+        key: 'payment_fiat_enabled',
+        value: payment_fiat_enabled === true || payment_fiat_enabled === 'true',
+        updated_at: new Date().toISOString(),
+      })
+    }
+
+    if (payment_fiat_method) {
+      if (payment_fiat_method !== 'midtrans' && payment_fiat_method !== 'manual') {
+        return NextResponse.json(
+          { error: 'Invalid payment_fiat_method. Must be "midtrans" or "manual"' },
+          { status: 400 }
+        )
+      }
+      settingsToSave.push({
+        key: 'payment_fiat_method',
+        value: payment_fiat_method,
+        updated_at: new Date().toISOString(),
+      })
+    }
+
+    if (payment_crypto_enabled !== undefined) {
+      settingsToSave.push({
+        key: 'payment_crypto_enabled',
+        value: payment_crypto_enabled === true || payment_crypto_enabled === 'true',
+        updated_at: new Date().toISOString(),
+      })
+    }
+
+    if (payment_default_method) {
+      if (payment_default_method !== 'crypto' && payment_default_method !== 'fiat') {
+        return NextResponse.json(
+          { error: 'Invalid payment_default_method. Must be "crypto" or "fiat"' },
+          { status: 400 }
+        )
+      }
+      settingsToSave.push({
+        key: 'payment_default_method',
+        value: payment_default_method,
+        updated_at: new Date().toISOString(),
+      })
+    }
+
+    // Upsert all settings
+    if (settingsToSave.length > 0) {
+      const { error: upsertError } = await supabase
+        .from('settings')
+        .upsert(settingsToSave, {
+          onConflict: 'key',
+        })
+
+      if (upsertError) {
+        console.error('[SETTINGS API] Error saving settings:', upsertError)
+        return NextResponse.json(
+          { error: 'Failed to save settings' },
+          { status: 500 }
+        )
+      }
     }
 
     return NextResponse.json({
       success: true,
-      payment_method: finalPaymentMethod,
+      payment_method: payment_method || payment_fiat_method || 'midtrans',
+      payment_fiat_enabled: payment_fiat_enabled !== false,
+      payment_fiat_method: payment_fiat_method || payment_method || 'midtrans',
+      payment_crypto_enabled: payment_crypto_enabled !== false,
+      payment_default_method: payment_default_method || 'crypto',
     })
   } catch (error) {
     console.error('[SETTINGS API] Error:', error)

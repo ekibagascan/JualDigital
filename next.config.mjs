@@ -10,7 +10,16 @@ const nextConfig = {
   skipTrailingSlashRedirect: true, // Prevent redirects on POST requests (fixes webhook issues)
   images: {
     unoptimized: true,
-    domains: ["vovqicbfzjgxeizmkxuf.supabase.co", "lh3.googleusercontent.com"],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+    ],
   },
   headers: async () => [
     {

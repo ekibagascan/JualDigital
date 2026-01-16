@@ -1,10 +1,12 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-import { Trash2, Plus, Minus, ShoppingBag, AlertTriangle } from "lucide-react"
+import { Trash2, Plus, Minus, ShoppingBag, AlertTriangle, CreditCard, Coins } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 import { useCart } from "@/components/providers/cart-provider"
 import { formatCurrency } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -17,6 +19,33 @@ export function CartContent() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [note, setNote] = useState("")
   const [ownProducts, setOwnProducts] = useState<string[]>([])
+  const [paymentSettings, setPaymentSettings] = useState({
+    fiatEnabled: true,
+    cryptoEnabled: true,
+    defaultMethod: 'crypto' as 'crypto' | 'fiat'
+  })
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'crypto' | 'fiat'>('crypto')
+
+  // Load payment settings
+  useEffect(() => {
+    const loadPaymentSettings = async () => {
+      try {
+        const res = await fetch('/api/admin/settings')
+        if (res.ok) {
+          const data = await res.json()
+          setPaymentSettings({
+            fiatEnabled: data.payment_fiat_enabled !== false,
+            cryptoEnabled: data.payment_crypto_enabled !== false,
+            defaultMethod: data.payment_default_method || 'crypto'
+          })
+          setSelectedPaymentMethod(data.payment_default_method || 'crypto')
+        }
+      } catch (error) {
+        console.error('Error loading payment settings:', error)
+      }
+    }
+    loadPaymentSettings()
+  }, [])
 
   // Check for own products when items or user changes
   useEffect(() => {
@@ -183,6 +212,47 @@ export function CartContent() {
               />
             </div>
 
+            {/* Payment Method Selection */}
+            {(paymentSettings.fiatEnabled || paymentSettings.cryptoEnabled) && (
+              <div className="mb-4 space-y-2">
+                <label className="block text-sm font-medium mb-2">Metode Pembayaran</label>
+                <RadioGroup
+                  value={selectedPaymentMethod}
+                  onValueChange={(value) => setSelectedPaymentMethod(value as 'crypto' | 'fiat')}
+                  className="space-y-2"
+                >
+                  {paymentSettings.cryptoEnabled && (
+                    <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                      <RadioGroupItem value="crypto" id="payment-crypto" className="mt-1" />
+                      <Label htmlFor="payment-crypto" className="flex-1 cursor-pointer">
+                        <div className="font-semibold text-sm flex items-center gap-2">
+                          <Coins className="h-4 w-4" />
+                          Crypto Payment (IDRT/USDC)
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Pembayaran cepat dengan cryptocurrency melalui BCI Gateway
+                        </div>
+                      </Label>
+                    </div>
+                  )}
+                  {paymentSettings.fiatEnabled && (
+                    <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                      <RadioGroupItem value="fiat" id="payment-fiat" className="mt-1" />
+                      <Label htmlFor="payment-fiat" className="flex-1 cursor-pointer">
+                        <div className="font-semibold text-sm flex items-center gap-2">
+                          <CreditCard className="h-4 w-4" />
+                          Fiat Payment (Rupiah)
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Pembayaran menggunakan mata uang fiat
+                        </div>
+                      </Label>
+                    </div>
+                  )}
+                </RadioGroup>
+              </div>
+            )}
+
             <Button
               className="w-full"
               size="lg"
@@ -208,7 +278,7 @@ export function CartContent() {
                     })),
                     total_amount: getTotalPrice(),
                     tax_amount: 0,
-                    payment_method: "INVOICE", // or any default, can be extended
+                    payment_method: selectedPaymentMethod || "crypto", // Use selected method or default to crypto
                     note, // Include the note in the order data
                   }
                   const res = await fetch("/api/checkout", {
