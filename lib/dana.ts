@@ -192,6 +192,9 @@ export async function createDanaOrder(
   const path = '/payment-gateway/v1.0/debit/payment-host-to-host.htm'
   const timestamp = generateTimestamp()
 
+  // Generate X-EXTERNAL-ID (numeric unique) - must be before requestBody
+  const externalId = generateExternalId()
+
   // Prepare request body
   const requestBody = {
     partnerReferenceNo: orderData.partnerReferenceNo,
@@ -208,9 +211,6 @@ export async function createDanaOrder(
   }
 
   const bodyString = JSON.stringify(requestBody)
-
-  // Generate X-EXTERNAL-ID (numeric unique)
-  const externalId = generateExternalId()
 
   // Generate signature
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
@@ -279,6 +279,9 @@ export async function queryPaymentStatus(
   const path = '/payment-gateway/v1.0/debit/status.htm'
   const timestamp = generateTimestamp()
 
+  // Generate X-EXTERNAL-ID (numeric unique) - must be before requestBody
+  const externalId = generateExternalId()
+
   const requestBody = {
     partnerReferenceNo,
     merchantId,
@@ -286,9 +289,6 @@ export async function queryPaymentStatus(
   }
 
   const bodyString = JSON.stringify(requestBody)
-
-  // Generate X-EXTERNAL-ID (numeric unique)
-  const externalId = generateExternalId()
 
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
