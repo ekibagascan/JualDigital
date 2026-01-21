@@ -88,6 +88,25 @@ function generateTimestamp(): string {
 }
 
 /**
+ * Format RSA key to PEM format if needed
+ */
+function formatPemKey(key: string, type: 'PRIVATE' | 'PUBLIC'): string {
+  // If key already has headers, return as is
+  if (key.includes('BEGIN')) {
+    return key
+  }
+  
+  // Format key with proper PEM headers
+  const header = `-----BEGIN ${type} KEY-----\n`
+  const footer = `\n-----END ${type} KEY-----`
+  
+  // Insert newlines every 64 characters for proper PEM format
+  const formattedKey = key.match(/.{1,64}/g)?.join('\n') || key
+  
+  return header + formattedKey + footer
+}
+
+/**
  * Generate signature for DANA API request
  * Signature is created using RSA-SHA256 with private key
  */
@@ -102,13 +121,16 @@ function generateSignature(
   const stringToSign = `${method}${path}${timestamp}${body}`
 
   try {
+    // Format private key to PEM if needed
+    const formattedKey = formatPemKey(privateKey, 'PRIVATE')
+    
     // Sign using RSA-SHA256
     const sign = crypto.createSign('RSA-SHA256')
     sign.update(stringToSign)
     sign.end()
 
     // Use private key to sign
-    const signature = sign.sign(privateKey, 'base64')
+    const signature = sign.sign(formattedKey, 'base64')
     return signature
   } catch (error) {
     console.error('[DANA] Error generating signature:', error)
@@ -280,11 +302,14 @@ export function verifyWebhookSignature(
   }
 
   try {
+    // Format public key to PEM if needed
+    const formattedKey = formatPemKey(publicKey, 'PUBLIC')
+    
     const verify = crypto.createVerify('RSA-SHA256')
     verify.update(payload)
     verify.end()
 
-    return verify.verify(publicKey, signature, 'base64')
+    return verify.verify(formattedKey, signature, 'base64')
   } catch (error) {
     console.error('[DANA] Error verifying webhook signature:', error)
     return false
