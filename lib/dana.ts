@@ -91,13 +91,17 @@ function generateTimestamp(): string {
  * Format RSA key to PEM format if needed
  */
 function formatPemKey(rawKey: string, type: 'PRIVATE' | 'PUBLIC'): string {
-  // Normalize escaped newlines and trim spaces/quotes
-  const key = rawKey.replace(/\\n/g, '\n').replace(/"/g, '').trim()
-
-  // If key already has headers, return as is
-  if (key.includes('BEGIN')) {
-    return key
+  if (!rawKey) {
+    throw new Error(`DANA ${type} key is empty`)
   }
+
+  // Normalize escaped newlines and trim spaces/quotes
+  let key = rawKey.replace(/\\n/g, '\n').replace(/"/g, '').trim()
+
+  // Remove existing headers/footers if present to normalize
+  key = key.replace(/-----BEGIN.*?-----\n?/g, '')
+  key = key.replace(/\n?-----END.*?-----/g, '')
+  key = key.replace(/\s+/g, '') // Remove all whitespace
 
   // Format key with proper PEM headers
   const header = `-----BEGIN ${type} KEY-----\n`
@@ -106,7 +110,14 @@ function formatPemKey(rawKey: string, type: 'PRIVATE' | 'PUBLIC'): string {
   // Insert newlines every 64 characters for proper PEM format
   const formattedKey = key.match(/.{1,64}/g)?.join('\n') || key
 
-  return header + formattedKey + footer
+  const result = header + formattedKey + footer
+
+  // Validate key length (RSA keys should be substantial)
+  if (key.length < 100) {
+    throw new Error(`DANA ${type} key appears to be invalid or truncated (length: ${key.length})`)
+  }
+
+  return result
 }
 
 /**
@@ -137,7 +148,10 @@ function generateSignature(
     return signature
   } catch (error) {
     console.error('[DANA] Error generating signature:', error)
-    throw new Error('Failed to generate signature')
+    if (error instanceof Error) {
+      throw new Error(`Failed to generate signature: ${error.message}`)
+    }
+    throw new Error('Failed to generate signature: Unknown error')
   }
 }
 
