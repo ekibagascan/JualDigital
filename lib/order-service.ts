@@ -110,10 +110,10 @@ export class OrderService {
 
       console.log('[ORDER CREATION] useCrypto:', useCrypto, 'useFiat:', useFiat)
 
-      // Fallback if selected method is not enabled
-      const finalPaymentType = useCrypto ? 'crypto' :
-        useFiat ? 'fiat' :
-          paymentSettings.cryptoEnabled ? 'crypto' : 'fiat'
+      // Fallback if selected method is not enabled - prioritize fiat
+      const finalPaymentType = useFiat ? 'fiat' :
+        useCrypto ? 'crypto' :
+          'fiat' // Always default to fiat if nothing is enabled
 
       const paymentMethod = finalPaymentType === 'crypto' ? 'bci' :
         paymentSettings.fiatMethod

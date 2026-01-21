@@ -38,16 +38,16 @@ export async function getPaymentSettings(
     return {
       fiatEnabled: settingsMap.get('payment_fiat_enabled') === 'true' || settingsMap.get('payment_fiat_enabled') === true,
       fiatMethod: (settingsMap.get('payment_fiat_method') as 'dana' | 'manual') || 'dana',
-      cryptoEnabled: settingsMap.get('payment_crypto_enabled') === 'true' || settingsMap.get('payment_crypto_enabled') === true || !settingsMap.has('payment_crypto_enabled'), // Default to true
+      cryptoEnabled: settingsMap.get('payment_crypto_enabled') === 'true' || settingsMap.get('payment_crypto_enabled') === true, // Only true if explicitly set
       defaultMethod: (settingsMap.get('payment_default_method') as 'crypto' | 'fiat') || 'fiat', // Default to fiat
     }
   } catch (error) {
     console.error('[SETTINGS] Error in getPaymentSettings:', error)
-    // Default settings: fiat enabled and default (DANA)
+    // Default settings: fiat enabled, crypto disabled
     return {
       fiatEnabled: true,
       fiatMethod: 'dana',
-      cryptoEnabled: true,
+      cryptoEnabled: false, // Disable crypto by default
       defaultMethod: 'fiat',
     }
   }

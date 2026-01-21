@@ -22,10 +22,10 @@ export function CartContent() {
   const [paymentSettings, setPaymentSettings] = useState({
     fiatEnabled: true,
     fiatMethod: 'dana' as 'dana' | 'manual',
-    cryptoEnabled: true,
-    defaultMethod: 'crypto' as 'crypto' | 'fiat'
+    cryptoEnabled: false, // Disable crypto by default
+    defaultMethod: 'fiat' as 'crypto' | 'fiat'
   })
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'crypto' | 'fiat'>('crypto')
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'crypto' | 'fiat'>('fiat')
 
   // Load payment settings
   useEffect(() => {
@@ -39,7 +39,7 @@ export function CartContent() {
           setPaymentSettings({
             fiatEnabled: data.payment_fiat_enabled !== false,
             fiatMethod: fiatMethod,
-            cryptoEnabled: data.payment_crypto_enabled !== false,
+            cryptoEnabled: data.payment_crypto_enabled === true || data.payment_crypto_enabled === 'true', // Only true if explicitly enabled
             defaultMethod: data.payment_default_method || 'fiat'
           })
           setSelectedPaymentMethod(data.payment_default_method || 'fiat')
@@ -216,43 +216,26 @@ export function CartContent() {
               />
             </div>
 
-            {/* Payment Method Selection */}
-            {(paymentSettings.fiatEnabled || paymentSettings.cryptoEnabled) && (
+            {/* Payment Method Selection - Only show if fiat is enabled */}
+            {paymentSettings.fiatEnabled && (
               <div className="mb-4 space-y-2">
                 <label className="block text-sm font-medium mb-2">Metode Pembayaran</label>
                 <RadioGroup
-                  value={selectedPaymentMethod}
-                  onValueChange={(value) => setSelectedPaymentMethod(value as 'crypto' | 'fiat')}
+                  value="fiat"
                   className="space-y-2"
                 >
-                  {paymentSettings.cryptoEnabled && (
-                    <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="crypto" id="payment-crypto" className="mt-1" />
-                      <Label htmlFor="payment-crypto" className="flex-1 cursor-pointer">
-                        <div className="font-semibold text-sm flex items-center gap-2">
-                          <Coins className="h-4 w-4" />
-                          Crypto Payment (IDRT/USDC)
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Pembayaran cepat dengan cryptocurrency melalui BCI Gateway
-                        </div>
-                      </Label>
-                    </div>
-                  )}
-                  {paymentSettings.fiatEnabled && (
-                    <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value="fiat" id="payment-fiat" className="mt-1" />
-                      <Label htmlFor="payment-fiat" className="flex-1 cursor-pointer">
-                        <div className="font-semibold text-sm flex items-center gap-2">
-                          <CreditCard className="h-4 w-4" />
-                          Fiat Payment (Rupiah)
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Pembayaran menggunakan mata uang fiat
-                        </div>
-                      </Label>
-                    </div>
-                  )}
+                  <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                    <RadioGroupItem value="fiat" id="payment-fiat" className="mt-1" checked={true} />
+                    <Label htmlFor="payment-fiat" className="flex-1 cursor-pointer">
+                      <div className="font-semibold text-sm flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Fiat Payment (Rupiah)
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Pembayaran menggunakan mata uang fiat
+                      </div>
+                    </Label>
+                  </div>
                 </RadioGroup>
               </div>
             )}
@@ -282,7 +265,7 @@ export function CartContent() {
                     })),
                     total_amount: getTotalPrice(),
                     tax_amount: 0,
-                    payment_method: selectedPaymentMethod || "fiat", // Use selected method or default to fiat
+                    payment_method: "fiat", // Always use fiat (crypto is disabled)
                     note, // Include the note in the order data
                   }
                   const res = await fetch("/api/checkout", {
