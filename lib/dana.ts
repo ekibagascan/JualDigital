@@ -90,19 +90,22 @@ function generateTimestamp(): string {
 /**
  * Format RSA key to PEM format if needed
  */
-function formatPemKey(key: string, type: 'PRIVATE' | 'PUBLIC'): string {
+function formatPemKey(rawKey: string, type: 'PRIVATE' | 'PUBLIC'): string {
+  // Normalize escaped newlines and trim spaces/quotes
+  const key = rawKey.replace(/\\n/g, '\n').replace(/"/g, '').trim()
+
   // If key already has headers, return as is
   if (key.includes('BEGIN')) {
     return key
   }
-  
+
   // Format key with proper PEM headers
   const header = `-----BEGIN ${type} KEY-----\n`
   const footer = `\n-----END ${type} KEY-----`
-  
+
   // Insert newlines every 64 characters for proper PEM format
   const formattedKey = key.match(/.{1,64}/g)?.join('\n') || key
-  
+
   return header + formattedKey + footer
 }
 
@@ -123,7 +126,7 @@ function generateSignature(
   try {
     // Format private key to PEM if needed
     const formattedKey = formatPemKey(privateKey, 'PRIVATE')
-    
+
     // Sign using RSA-SHA256
     const sign = crypto.createSign('RSA-SHA256')
     sign.update(stringToSign)
@@ -304,7 +307,7 @@ export function verifyWebhookSignature(
   try {
     // Format public key to PEM if needed
     const formattedKey = formatPemKey(publicKey, 'PUBLIC')
-    
+
     const verify = crypto.createVerify('RSA-SHA256')
     verify.update(payload)
     verify.end()
