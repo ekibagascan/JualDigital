@@ -248,10 +248,10 @@ export async function createDanaOrder(
         'X-EXTERNAL-ID': externalId,
         'CHANNEL-ID': 'WEB',
       })
-      throw new Error(
-        errorData.responseMessage || errorData.message ||
-        `DANA API error: ${response.status} ${response.statusText}`
-      )
+      const errorMsg = (errorData as { responseMessage?: string; message?: string }).responseMessage || 
+                      (errorData as { responseMessage?: string; message?: string }).message ||
+                      `DANA API error: ${response.status} ${response.statusText}`
+      throw new Error(errorMsg)
     }
 
     const data = await response.json()
