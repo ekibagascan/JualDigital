@@ -196,6 +196,12 @@ export async function createDanaOrder(
 
   const bodyString = JSON.stringify(requestBody)
 
+  // Generate X-EXTERNAL-ID (unique identifier for this request, 1-36 chars)
+  // Use order number or generate unique ID based on timestamp and order number
+  const externalId = orderData.partnerReferenceNo.length <= 36 
+    ? orderData.partnerReferenceNo 
+    : `${orderData.partnerReferenceNo.substring(0, 32)}-${Date.now().toString().slice(-4)}`
+
   // Generate signature
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
@@ -208,6 +214,7 @@ export async function createDanaOrder(
         'X-PARTNER-ID': partnerId,
         'X-TIMESTAMP': timestamp,
         'X-SIGNATURE': signature,
+        'X-EXTERNAL-ID': externalId,
         'CHANNEL-ID': 'WEB',
         'ORIGIN': process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id',
       },
@@ -268,6 +275,12 @@ export async function queryPaymentStatus(
   }
 
   const bodyString = JSON.stringify(requestBody)
+  
+  // Generate X-EXTERNAL-ID (unique identifier for this request, 1-36 chars)
+  const externalId = partnerReferenceNo.length <= 36 
+    ? partnerReferenceNo 
+    : `${partnerReferenceNo.substring(0, 32)}-${Date.now().toString().slice(-4)}`
+  
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
   try {
@@ -279,6 +292,7 @@ export async function queryPaymentStatus(
         'X-PARTNER-ID': partnerId,
         'X-TIMESTAMP': timestamp,
         'X-SIGNATURE': signature,
+        'X-EXTERNAL-ID': externalId,
         'CHANNEL-ID': 'WEB',
       },
       body: bodyString,
