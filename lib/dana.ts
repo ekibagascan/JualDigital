@@ -196,22 +196,29 @@ export async function createDanaOrder(
   const externalId = generateExternalId()
 
   // Prepare request body for hosted checkout
-  // Based on DANA documentation, hosted checkout needs these fields
+  // Based on DANA documentation: https://dashboard.dana.id/api-docs-v2/guide/payment-gateway/hosted-checkout
   const requestBody: Record<string, unknown> = {
     partnerReferenceNo: orderData.partnerReferenceNo,
     merchantId: merchantId,
     amount: orderData.amount,
   }
 
-  // Add redirect URLs for hosted checkout (REDIRECT scenario)
-  if (orderData.scenario === 'REDIRECT') {
-    if (orderData.webRedirectUrl) {
-      requestBody.webRedirectUrl = orderData.webRedirectUrl
-    }
-    if (orderData.finishNotifyUrl) {
-      requestBody.finishNotifyUrl = orderData.finishNotifyUrl
+  // Add additionalInfo with scenario for hosted checkout
+  const additionalInfo: Record<string, unknown> = {
+    order: {
+      scenario: orderData.scenario || 'REDIRECT', // REDIRECT for hosted checkout
     }
   }
+
+  // Add redirect URLs for hosted checkout
+  if (orderData.webRedirectUrl) {
+    additionalInfo.webRedirectUrl = orderData.webRedirectUrl
+  }
+  if (orderData.finishNotifyUrl) {
+    additionalInfo.finishNotifyUrl = orderData.finishNotifyUrl
+  }
+
+  requestBody.additionalInfo = additionalInfo
 
   // Add customer info if provided
   if (orderData.customer && Object.keys(orderData.customer).length > 0) {
