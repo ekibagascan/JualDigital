@@ -196,6 +196,7 @@ export async function createDanaOrder(
   const requestBody = {
     partnerReferenceNo: orderData.partnerReferenceNo,
     merchantId: merchantId,
+    externalId, // add external id in body as well
     amount: orderData.amount,
     validUpTo: orderData.validUpTo || undefined,
     disabledPaymentMethods: orderData.disabledPaymentMethods || [],
@@ -281,6 +282,7 @@ export async function queryPaymentStatus(
   const requestBody = {
     partnerReferenceNo,
     merchantId,
+    externalId, // add external id in body for status query too
   }
 
   const bodyString = JSON.stringify(requestBody)
