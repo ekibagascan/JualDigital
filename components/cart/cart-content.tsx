@@ -1,7 +1,7 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-import { Trash2, Plus, Minus, ShoppingBag, AlertTriangle, CreditCard, Coins } from "lucide-react"
+import { Trash2, Plus, Minus, ShoppingBag, AlertTriangle, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -25,7 +25,8 @@ export function CartContent() {
     cryptoEnabled: false, // Disable crypto by default
     defaultMethod: 'fiat' as 'crypto' | 'fiat'
   })
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'crypto' | 'fiat'>('fiat')
+  // Crypto payment is disabled, always use fiat
+  // const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'crypto' | 'fiat'>('fiat')
 
   // Load payment settings
   useEffect(() => {
@@ -42,7 +43,8 @@ export function CartContent() {
             cryptoEnabled: data.payment_crypto_enabled === true || data.payment_crypto_enabled === 'true', // Only true if explicitly enabled
             defaultMethod: data.payment_default_method || 'fiat'
           })
-          setSelectedPaymentMethod(data.payment_default_method || 'fiat')
+          // Crypto disabled, always use fiat
+          // setSelectedPaymentMethod(data.payment_default_method || 'fiat')
         }
       } catch (error) {
         console.error('Error loading payment settings:', error)
