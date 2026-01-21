@@ -196,11 +196,12 @@ export async function createDanaOrder(
 
   const bodyString = JSON.stringify(requestBody)
 
-  // Generate X-EXTERNAL-ID (unique identifier for this request, 1-36 chars)
-  // Use order number or generate unique ID based on timestamp and order number
-  const externalId = orderData.partnerReferenceNo.length <= 36 
-    ? orderData.partnerReferenceNo 
-    : `${orderData.partnerReferenceNo.substring(0, 32)}-${Date.now().toString().slice(-4)}`
+  // Generate X-EXTERNAL-ID (unique identifier 1-36 chars, alphanumeric only)
+  const baseExternal = `${orderData.partnerReferenceNo}-${Date.now().toString().slice(-6)}`
+    .replace(/[^a-zA-Z0-9]/g, '')
+  const externalId = baseExternal.length <= 36
+    ? baseExternal
+    : baseExternal.substring(0, 36)
 
   // Generate signature
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
@@ -266,7 +267,7 @@ export async function queryPaymentStatus(
     ? 'https://api.sandbox.dana.id'
     : 'https://api.dana.id'
 
-  const path = '/v1.0/payment-gateway/v1.0/debit/status.htm'
+  const path = '/payment-gateway/v1.0/debit/status.htm'
   const timestamp = generateTimestamp()
 
   const requestBody = {
@@ -275,12 +276,14 @@ export async function queryPaymentStatus(
   }
 
   const bodyString = JSON.stringify(requestBody)
-  
-  // Generate X-EXTERNAL-ID (unique identifier for this request, 1-36 chars)
-  const externalId = partnerReferenceNo.length <= 36 
-    ? partnerReferenceNo 
-    : `${partnerReferenceNo.substring(0, 32)}-${Date.now().toString().slice(-4)}`
-  
+
+  // Generate X-EXTERNAL-ID (unique identifier 1-36 chars, alphanumeric only)
+  const baseExternal = `${partnerReferenceNo}-${Date.now().toString().slice(-6)}`
+    .replace(/[^a-zA-Z0-9]/g, '')
+  const externalId = baseExternal.length <= 36
+    ? baseExternal
+    : baseExternal.substring(0, 36)
+
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
   try {
