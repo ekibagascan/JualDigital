@@ -203,31 +203,68 @@ export async function createDanaOrder(
     amount: orderData.amount,
   }
 
-  // Add additionalInfo with scenario for hosted checkout
-  const additionalInfo: Record<string, unknown> = {
-    order: {
-      scenario: orderData.scenario || 'REDIRECT', // REDIRECT for hosted checkout
+  // Add urlParams for redirect URLs (required for hosted checkout)
+  const urlParams: Array<Record<string, string>> = []
+  if (orderData.webRedirectUrl) {
+    urlParams.push({
+      url: orderData.webRedirectUrl,
+      type: 'PAY_RETURN',
+      isDeeplink: 'N'
+    })
+  }
+  if (orderData.finishNotifyUrl) {
+    urlParams.push({
+      url: orderData.finishNotifyUrl,
+      type: 'NOTIFICATION',
+      isDeeplink: 'N'
+    })
+  }
+  if (urlParams.length > 0) {
+    requestBody.urlParams = urlParams
+  }
+
+  // Build additionalInfo.order structure for hosted checkout
+  const orderInfo: Record<string, unknown> = {
+    scenario: orderData.scenario || 'REDIRECT', // REDIRECT for hosted checkout
+  }
+
+  // Add order title
+  if (orderData.orderItems && orderData.orderItems.length > 0) {
+    const firstItem = orderData.orderItems[0]
+    orderInfo.orderTitle = firstItem.name || 'Order Payment'
+  } else {
+    orderInfo.orderTitle = `Order ${orderData.partnerReferenceNo}`
+  }
+
+  // Add buyer info if customer provided
+  if (orderData.customer) {
+    const buyer: Record<string, string> = {}
+    if (orderData.customer.firstName || orderData.customer.lastName) {
+      buyer.nickname = `${orderData.customer.firstName || ''} ${orderData.customer.lastName || ''}`.trim()
+    }
+    if (orderData.customer.email) {
+      buyer.externalUserId = orderData.customer.email
+      buyer.externalUserType = 'USER'
+    }
+    if (Object.keys(buyer).length > 0) {
+      orderInfo.buyer = buyer
     }
   }
 
-  // Add redirect URLs for hosted checkout
-  if (orderData.webRedirectUrl) {
-    additionalInfo.webRedirectUrl = orderData.webRedirectUrl
-  }
-  if (orderData.finishNotifyUrl) {
-    additionalInfo.finishNotifyUrl = orderData.finishNotifyUrl
-  }
-
-  requestBody.additionalInfo = additionalInfo
-
-  // Add customer info if provided
-  if (orderData.customer && Object.keys(orderData.customer).length > 0) {
-    requestBody.customer = orderData.customer
-  }
-
-  // Add order items if provided
+  // Add goods (order items) if provided
   if (orderData.orderItems && orderData.orderItems.length > 0) {
-    requestBody.orderItems = orderData.orderItems
+    orderInfo.goods = orderData.orderItems.map((item, index) => ({
+      unit: 'pcs',
+      category: 'digital/product',
+      price: item.price,
+      merchantGoodsId: `ITEM-${index + 1}`,
+      description: item.name,
+      quantity: item.quantity?.toString() || '1'
+    }))
+  }
+
+  requestBody.additionalInfo = {
+    order: orderInfo
   }
 
   // Add optional fields
@@ -235,7 +272,7 @@ export async function createDanaOrder(
     requestBody.validUpTo = orderData.validUpTo
   }
   if (orderData.disabledPaymentMethods && orderData.disabledPaymentMethods.length > 0) {
-    requestBody.disabledPaymentMethods = orderData.disabledPaymentMethods
+    requestBody.disabledPayMethods = orderData.disabledPaymentMethods
   }
 
   const bodyString = JSON.stringify(requestBody)
