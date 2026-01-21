@@ -232,18 +232,33 @@ export async function createDanaOrder(
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error('[DANA] Create order failed:', errorData)
+      const errorText = await response.text().catch(() => '')
+      let errorData = {}
+      try {
+        errorData = JSON.parse(errorText)
+      } catch {
+        errorData = { message: errorText || 'Unknown error' }
+      }
+      console.error('[DANA] Create order failed - Status:', response.status)
+      console.error('[DANA] Create order failed - Response:', errorData)
+      console.error('[DANA] Create order failed - Headers sent:', {
+        'X-PARTNER-ID': partnerId,
+        'X-TIMESTAMP': timestamp,
+        'X-EXTERNAL-ID': externalId,
+        'CHANNEL-ID': 'WEB',
+      })
       throw new Error(
-        errorData.responseMessage ||
+        errorData.responseMessage || errorData.message ||
         `DANA API error: ${response.status} ${response.statusText}`
       )
     }
 
     const data = await response.json()
+    console.log('[DANA] Create order response:', data)
 
     if (data.responseCode !== '2005400') {
-      console.error('[DANA] Create order error:', data)
+      console.error('[DANA] Create order error - Response Code:', data.responseCode)
+      console.error('[DANA] Create order error - Full Response:', data)
       throw new Error(data.responseMessage || 'Failed to create DANA order')
     }
 
