@@ -717,7 +717,7 @@ export function AdminSettings() {
                       {paymentFiatMethod === 'dana' && (
                         <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded text-sm">
                           <p className="text-blue-800 dark:text-blue-200">
-                            ⚙️ Konfigurasi: Set DANA_PARTNER_ID, DANA_MERCHANT_ID, DANA_PRIVATE_KEY, DANA_PUBLIC_KEY, dan DANA_IS_SANDBOX di environment variables
+                            ⚙️ Konfigurasi: Set DANA_CLIENT_ID, DANA_MERCHANT_ID, DANA_PRIVATE_KEY, DANA_PUBLIC_KEY, dan DANA_IS_SANDBOX di environment variables
                           </p>
                           <p className="text-blue-700 dark:text-blue-300 mt-1 text-xs">
                             Webhook URL: {process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/api/payments/dana/callback

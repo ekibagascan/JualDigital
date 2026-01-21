@@ -83,7 +83,7 @@ function generateTimestamp(): string {
   const hours = String(jakartaTime.getUTCHours()).padStart(2, '0')
   const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, '0')
   const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, '0')
-  
+
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+07:00`
 }
 
@@ -100,13 +100,13 @@ function generateSignature(
 ): string {
   // Create string to sign: METHOD + PATH + TIMESTAMP + BODY
   const stringToSign = `${method}${path}${timestamp}${body}`
-  
+
   try {
     // Sign using RSA-SHA256
     const sign = crypto.createSign('RSA-SHA256')
     sign.update(stringToSign)
     sign.end()
-    
+
     // Use private key to sign
     const signature = sign.sign(privateKey, 'base64')
     return signature
@@ -124,22 +124,23 @@ function generateSignature(
 export async function createDanaOrder(
   orderData: DanaCreateOrderRequest
 ): Promise<DanaCreateOrderResponse> {
-  const partnerId = process.env.DANA_PARTNER_ID
+  // DANA uses Client ID as Partner ID in headers
+  const partnerId = process.env.DANA_CLIENT_ID || process.env.DANA_PARTNER_ID
   const merchantId = process.env.DANA_MERCHANT_ID || orderData.merchantId
   const privateKey = process.env.DANA_PRIVATE_KEY
-  const isSandbox = process.env.DANA_IS_SANDBOX === 'true' || !process.env.DANA_IS_SANDBOX
-  
+  const isSandbox = process.env.DANA_IS_SANDBOX === 'true' || !process.env.DANA_IS_SANDBOX || process.env.DANA_IS_SANDBOX === undefined
+
   if (!partnerId || !merchantId || !privateKey) {
-    throw new Error('DANA API credentials not configured. Please set DANA_PARTNER_ID, DANA_MERCHANT_ID, and DANA_PRIVATE_KEY in your environment variables.')
+    throw new Error('DANA API credentials not configured. Please set DANA_CLIENT_ID (or DANA_PARTNER_ID), DANA_MERCHANT_ID, and DANA_PRIVATE_KEY in your environment variables.')
   }
 
   const baseUrl = isSandbox
     ? 'https://api.sandbox.dana.id'
-    : 'https://api.dana.id' // Production URL (update based on DANA documentation)
+    : 'https://api.dana.id' // Production URL
 
   const path = '/dana/payment/v1/create-order'
   const timestamp = generateTimestamp()
-  
+
   // Prepare request body
   const requestBody = {
     partnerReferenceNo: orderData.partnerReferenceNo,
@@ -155,7 +156,7 @@ export async function createDanaOrder(
   }
 
   const bodyString = JSON.stringify(requestBody)
-  
+
   // Generate signature
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
@@ -178,13 +179,13 @@ export async function createDanaOrder(
       const errorData = await response.json().catch(() => ({}))
       console.error('[DANA] Create order failed:', errorData)
       throw new Error(
-        errorData.responseMessage || 
+        errorData.responseMessage ||
         `DANA API error: ${response.status} ${response.statusText}`
       )
     }
 
     const data = await response.json()
-    
+
     if (data.responseCode !== '2005400') {
       console.error('[DANA] Create order error:', data)
       throw new Error(data.responseMessage || 'Failed to create DANA order')
@@ -205,11 +206,12 @@ export async function createDanaOrder(
 export async function queryPaymentStatus(
   partnerReferenceNo: string
 ): Promise<DanaTransactionStatus> {
-  const partnerId = process.env.DANA_PARTNER_ID
+  // DANA uses Client ID as Partner ID in headers
+  const partnerId = process.env.DANA_CLIENT_ID || process.env.DANA_PARTNER_ID
   const merchantId = process.env.DANA_MERCHANT_ID
   const privateKey = process.env.DANA_PRIVATE_KEY
-  const isSandbox = process.env.DANA_IS_SANDBOX === 'true' || !process.env.DANA_IS_SANDBOX
-  
+  const isSandbox = process.env.DANA_IS_SANDBOX === 'true' || !process.env.DANA_IS_SANDBOX || process.env.DANA_IS_SANDBOX === undefined
+
   if (!partnerId || !merchantId || !privateKey) {
     throw new Error('DANA API credentials not configured')
   }
@@ -220,7 +222,7 @@ export async function queryPaymentStatus(
 
   const path = '/dana/payment/v1/query'
   const timestamp = generateTimestamp()
-  
+
   const requestBody = {
     partnerReferenceNo,
     merchantId,
@@ -247,7 +249,7 @@ export async function queryPaymentStatus(
       const errorData = await response.json().catch(() => ({}))
       console.error('[DANA] Query payment status failed:', errorData)
       throw new Error(
-        errorData.responseMessage || 
+        errorData.responseMessage ||
         `DANA API error: ${response.status} ${response.statusText}`
       )
     }
@@ -271,7 +273,7 @@ export function verifyWebhookSignature(
   signature: string
 ): boolean {
   const publicKey = process.env.DANA_PUBLIC_KEY
-  
+
   if (!publicKey) {
     console.warn('[DANA] Public key not configured, skipping signature verification')
     return true
@@ -281,7 +283,7 @@ export function verifyWebhookSignature(
     const verify = crypto.createVerify('RSA-SHA256')
     verify.update(payload)
     verify.end()
-    
+
     return verify.verify(publicKey, signature, 'base64')
   } catch (error) {
     console.error('[DANA] Error verifying webhook signature:', error)
