@@ -234,9 +234,9 @@ export async function createDanaOrder(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
-      let errorData = {}
+      let errorData: { responseMessage?: string; message?: string } = {}
       try {
-        errorData = JSON.parse(errorText)
+        errorData = JSON.parse(errorText) as { responseMessage?: string; message?: string }
       } catch {
         errorData = { message: errorText || 'Unknown error' }
       }
@@ -248,8 +248,8 @@ export async function createDanaOrder(
         'X-EXTERNAL-ID': externalId,
         'CHANNEL-ID': 'WEB',
       })
-      const errorMsg = (errorData as { responseMessage?: string; message?: string }).responseMessage || 
-                      (errorData as { responseMessage?: string; message?: string }).message ||
+      const errorMsg = errorData.responseMessage || 
+                      errorData.message ||
                       `DANA API error: ${response.status} ${response.statusText}`
       throw new Error(errorMsg)
     }
@@ -324,10 +324,16 @@ export async function queryPaymentStatus(
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorText = await response.text().catch(() => '')
+      let errorData: { responseMessage?: string; message?: string } = {}
+      try {
+        errorData = JSON.parse(errorText) as { responseMessage?: string; message?: string }
+      } catch {
+        errorData = { message: errorText || 'Unknown error' }
+      }
       console.error('[DANA] Query payment status failed:', errorData)
       throw new Error(
-        errorData.responseMessage ||
+        errorData.responseMessage || errorData.message ||
         `DANA API error: ${response.status} ${response.statusText}`
       )
     }
