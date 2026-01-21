@@ -121,6 +121,18 @@ function formatPemKey(rawKey: string, type: 'PRIVATE' | 'PUBLIC'): string {
 }
 
 /**
+ * Generate X-EXTERNAL-ID (numeric, 1-36 chars)
+ */
+function generateExternalId(): string {
+  // Use timestamp + random to keep numeric and unique
+  const ts = Date.now().toString() // ~13 digits
+  const rand = Math.floor(Math.random() * 1e9).toString().padStart(9, '0') // 9 digits
+  const id = `${ts}${rand}`
+  // Ensure max 36 chars
+  return id.length > 36 ? id.substring(0, 36) : id
+}
+
+/**
  * Generate signature for DANA API request
  * Signature is created using RSA-SHA256 with private key
  */
@@ -196,12 +208,8 @@ export async function createDanaOrder(
 
   const bodyString = JSON.stringify(requestBody)
 
-  // Generate X-EXTERNAL-ID (unique identifier 1-36 chars, alphanumeric only)
-  const baseExternal = `${orderData.partnerReferenceNo}-${Date.now().toString().slice(-6)}`
-    .replace(/[^a-zA-Z0-9]/g, '')
-  const externalId = baseExternal.length <= 36
-    ? baseExternal
-    : baseExternal.substring(0, 36)
+  // Generate X-EXTERNAL-ID (numeric unique)
+  const externalId = generateExternalId()
 
   // Generate signature
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
@@ -277,12 +285,8 @@ export async function queryPaymentStatus(
 
   const bodyString = JSON.stringify(requestBody)
 
-  // Generate X-EXTERNAL-ID (unique identifier 1-36 chars, alphanumeric only)
-  const baseExternal = `${partnerReferenceNo}-${Date.now().toString().slice(-6)}`
-    .replace(/[^a-zA-Z0-9]/g, '')
-  const externalId = baseExternal.length <= 36
-    ? baseExternal
-    : baseExternal.substring(0, 36)
+  // Generate X-EXTERNAL-ID (numeric unique)
+  const externalId = generateExternalId()
 
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
