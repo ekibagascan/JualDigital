@@ -195,21 +195,41 @@ export async function createDanaOrder(
   // Generate X-EXTERNAL-ID (numeric unique) - must be before requestBody
   const externalId = generateExternalId()
 
-  // Prepare request body (DANA host-to-host format)
-  // Note: externalId is in header only, not in body
+  // Prepare request body for hosted checkout
+  // Based on DANA documentation, hosted checkout needs these fields
   const requestBody: Record<string, unknown> = {
     partnerReferenceNo: orderData.partnerReferenceNo,
     merchantId: merchantId,
     amount: orderData.amount,
   }
 
-  // Add optional fields only if provided
+  // Add redirect URLs for hosted checkout (REDIRECT scenario)
+  if (orderData.scenario === 'REDIRECT') {
+    if (orderData.webRedirectUrl) {
+      requestBody.webRedirectUrl = orderData.webRedirectUrl
+    }
+    if (orderData.finishNotifyUrl) {
+      requestBody.finishNotifyUrl = orderData.finishNotifyUrl
+    }
+  }
+
+  // Add customer info if provided
+  if (orderData.customer && Object.keys(orderData.customer).length > 0) {
+    requestBody.customer = orderData.customer
+  }
+
+  // Add order items if provided
+  if (orderData.orderItems && orderData.orderItems.length > 0) {
+    requestBody.orderItems = orderData.orderItems
+  }
+
+  // Add optional fields
   if (orderData.validUpTo) {
     requestBody.validUpTo = orderData.validUpTo
   }
-
-  // For hosted checkout, we might need different fields
-  // But for now, use minimal required fields
+  if (orderData.disabledPaymentMethods && orderData.disabledPaymentMethods.length > 0) {
+    requestBody.disabledPaymentMethods = orderData.disabledPaymentMethods
+  }
 
   const bodyString = JSON.stringify(requestBody)
 
@@ -248,9 +268,9 @@ export async function createDanaOrder(
         'X-EXTERNAL-ID': externalId,
         'CHANNEL-ID': 'WEB',
       })
-      const errorMsg = errorData.responseMessage || 
-                      errorData.message ||
-                      `DANA API error: ${response.status} ${response.statusText}`
+      const errorMsg = errorData.responseMessage ||
+        errorData.message ||
+        `DANA API error: ${response.status} ${response.statusText}`
       throw new Error(errorMsg)
     }
 
