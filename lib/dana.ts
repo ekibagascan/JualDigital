@@ -133,6 +133,17 @@ function generateExternalId(): string {
 }
 
 /**
+ * Format amount to DANA-required string with two decimals (e.g. 10000.00)
+ */
+function formatAmountValue(value: string | number): string {
+  const num = typeof value === 'number' ? value : parseFloat(value)
+  if (Number.isNaN(num)) {
+    throw new Error(`Invalid amount value: ${value}`)
+  }
+  return num.toFixed(2)
+}
+
+/**
  * Generate signature for DANA API request
  * Signature is created using RSA-SHA256 with private key
  */
@@ -200,7 +211,10 @@ export async function createDanaOrder(
   const requestBody: Record<string, unknown> = {
     partnerReferenceNo: orderData.partnerReferenceNo,
     merchantId: merchantId,
-    amount: orderData.amount,
+    amount: {
+      value: formatAmountValue(orderData.amount.value),
+      currency: orderData.amount.currency,
+    },
   }
 
   // Add urlParams for redirect URLs (required for hosted checkout)
@@ -223,44 +237,59 @@ export async function createDanaOrder(
     requestBody.urlParams = urlParams
   }
 
-  // Build additionalInfo.order structure for hosted checkout
+  // Build additionalInfo.order structure for hosted checkout (REDIRECT scenario)
+  // Required fields: scenario, orderTitle, buyer, goods
   const orderInfo: Record<string, unknown> = {
-    scenario: orderData.scenario || 'REDIRECT', // REDIRECT for hosted checkout
+    scenario: 'REDIRECT', // Must be REDIRECT for hosted checkout
+    orderTitle: orderData.orderItems && orderData.orderItems.length > 0
+      ? (orderData.orderItems[0].name || `Order ${orderData.partnerReferenceNo}`)
+      : `Order ${orderData.partnerReferenceNo}`,
   }
 
-  // Add order title
-  if (orderData.orderItems && orderData.orderItems.length > 0) {
-    const firstItem = orderData.orderItems[0]
-    orderInfo.orderTitle = firstItem.name || 'Order Payment'
+  // Buyer is REQUIRED for hosted checkout
+  const buyer: Record<string, string> = {}
+  if (orderData.customer?.email) {
+    buyer.externalUserId = orderData.customer.email
+    buyer.externalUserType = 'USER'
+  } else if (orderData.customer?.phone) {
+    buyer.externalUserId = orderData.customer.phone
+    buyer.externalUserType = 'USER'
   } else {
-    orderInfo.orderTitle = `Order ${orderData.partnerReferenceNo}`
+    // Use partnerReferenceNo as fallback externalUserId if no customer info
+    buyer.externalUserId = orderData.partnerReferenceNo
+    buyer.externalUserType = 'USER'
   }
-
-  // Add buyer info if customer provided
-  if (orderData.customer) {
-    const buyer: Record<string, string> = {}
-    if (orderData.customer.firstName || orderData.customer.lastName) {
-      buyer.nickname = `${orderData.customer.firstName || ''} ${orderData.customer.lastName || ''}`.trim()
-    }
-    if (orderData.customer.email) {
-      buyer.externalUserId = orderData.customer.email
-      buyer.externalUserType = 'USER'
-    }
-    if (Object.keys(buyer).length > 0) {
-      orderInfo.buyer = buyer
-    }
+  if (orderData.customer?.firstName || orderData.customer?.lastName) {
+    buyer.nickname = `${orderData.customer.firstName || ''} ${orderData.customer.lastName || ''}`.trim()
   }
+  orderInfo.buyer = buyer
 
-  // Add goods (order items) if provided
+  // Goods is REQUIRED for hosted checkout - must have at least one item
   if (orderData.orderItems && orderData.orderItems.length > 0) {
     orderInfo.goods = orderData.orderItems.map((item, index) => ({
-      unit: 'pcs',
       category: 'digital/product',
-      price: item.price,
+      price: {
+        value: formatAmountValue(item.price.value),
+        currency: item.price.currency,
+      },
+      description: item.name.length > 200 ? item.name.substring(0, 197) + '...' : item.name,
       merchantGoodsId: `ITEM-${index + 1}`,
-      description: item.name,
-      quantity: item.quantity?.toString() || '1'
+      unit: 'pcs',
+      quantity: (item.quantity || 1).toString(),
     }))
+  } else {
+    // If no items provided, create a single generic item matching the total amount
+    orderInfo.goods = [{
+      category: 'digital/product',
+      price: {
+        value: formatAmountValue(orderData.amount.value),
+        currency: orderData.amount.currency,
+      },
+      description: `Order ${orderData.partnerReferenceNo}`,
+      merchantGoodsId: 'ITEM-1',
+      unit: 'pcs',
+      quantity: '1',
+    }]
   }
 
   requestBody.additionalInfo = {
@@ -280,6 +309,18 @@ export async function createDanaOrder(
   // Generate signature
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
+  // Log request for debugging (remove sensitive data in production)
+  console.log('[DANA] Create order request:', {
+    url: `${baseUrl}${path}`,
+    headers: {
+      'X-PARTNER-ID': partnerId,
+      'X-TIMESTAMP': timestamp,
+      'X-EXTERNAL-ID': externalId,
+      'CHANNEL-ID': 'WEB',
+    },
+    body: requestBody,
+  })
+
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
@@ -296,35 +337,42 @@ export async function createDanaOrder(
       body: bodyString,
     })
 
+    const responseText = await response.text().catch(() => '')
+    console.log('[DANA] Create order response status:', response.status)
+    console.log('[DANA] Create order response body:', responseText)
+
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-      let errorData: { responseMessage?: string; message?: string } = {}
+      let errorData: { responseCode?: string; responseMessage?: string; message?: string } = {}
       try {
-        errorData = JSON.parse(errorText) as { responseMessage?: string; message?: string }
+        errorData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string; message?: string }
       } catch {
-        errorData = { message: errorText || 'Unknown error' }
+        errorData = { message: responseText || 'Unknown error' }
       }
       console.error('[DANA] Create order failed - Status:', response.status)
-      console.error('[DANA] Create order failed - Response:', errorData)
-      console.error('[DANA] Create order failed - Headers sent:', {
-        'X-PARTNER-ID': partnerId,
-        'X-TIMESTAMP': timestamp,
-        'X-EXTERNAL-ID': externalId,
-        'CHANNEL-ID': 'WEB',
-      })
+      console.error('[DANA] Create order failed - Response Code:', errorData.responseCode)
+      console.error('[DANA] Create order failed - Response Message:', errorData.responseMessage)
+      console.error('[DANA] Create order failed - Full Response:', errorData)
       const errorMsg = errorData.responseMessage ||
         errorData.message ||
         `DANA API error: ${response.status} ${response.statusText}`
       throw new Error(errorMsg)
     }
 
-    const data = await response.json()
+    let data: DanaCreateOrderResponse
+    try {
+      data = JSON.parse(responseText) as DanaCreateOrderResponse
+    } catch (parseError) {
+      console.error('[DANA] Failed to parse response JSON:', parseError)
+      throw new Error(`Invalid response from DANA API: ${responseText.substring(0, 200)}`)
+    }
+
     console.log('[DANA] Create order response:', data)
 
     if (data.responseCode !== '2005400') {
       console.error('[DANA] Create order error - Response Code:', data.responseCode)
+      console.error('[DANA] Create order error - Response Message:', data.responseMessage)
       console.error('[DANA] Create order error - Full Response:', data)
-      throw new Error(data.responseMessage || 'Failed to create DANA order')
+      throw new Error(data.responseMessage || `Failed to create DANA order (code: ${data.responseCode})`)
     }
 
     return data
