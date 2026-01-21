@@ -195,20 +195,21 @@ export async function createDanaOrder(
   // Generate X-EXTERNAL-ID (numeric unique) - must be before requestBody
   const externalId = generateExternalId()
 
-  // Prepare request body
-  const requestBody = {
+  // Prepare request body (DANA host-to-host format)
+  // Note: externalId is in header only, not in body
+  const requestBody: Record<string, unknown> = {
     partnerReferenceNo: orderData.partnerReferenceNo,
     merchantId: merchantId,
-    externalId, // add external id in body as well
     amount: orderData.amount,
-    validUpTo: orderData.validUpTo || undefined,
-    disabledPaymentMethods: orderData.disabledPaymentMethods || [],
-    scenario: orderData.scenario || 'REDIRECT',
-    webRedirectUrl: orderData.webRedirectUrl,
-    finishNotifyUrl: orderData.finishNotifyUrl,
-    customer: orderData.customer || {},
-    orderItems: orderData.orderItems || [],
   }
+
+  // Add optional fields only if provided
+  if (orderData.validUpTo) {
+    requestBody.validUpTo = orderData.validUpTo
+  }
+
+  // For hosted checkout, we might need different fields
+  // But for now, use minimal required fields
 
   const bodyString = JSON.stringify(requestBody)
 
@@ -297,10 +298,10 @@ export async function queryPaymentStatus(
   // Generate X-EXTERNAL-ID (numeric unique) - must be before requestBody
   const externalId = generateExternalId()
 
+  // Note: externalId is in header only, not in body
   const requestBody = {
     partnerReferenceNo,
     merchantId,
-    externalId, // add external id in body for status query too
   }
 
   const bodyString = JSON.stringify(requestBody)
