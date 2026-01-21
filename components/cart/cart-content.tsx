@@ -21,6 +21,7 @@ export function CartContent() {
   const [ownProducts, setOwnProducts] = useState<string[]>([])
   const [paymentSettings, setPaymentSettings] = useState({
     fiatEnabled: true,
+    fiatMethod: 'dana' as 'dana' | 'manual',
     cryptoEnabled: true,
     defaultMethod: 'crypto' as 'crypto' | 'fiat'
   })
@@ -33,12 +34,15 @@ export function CartContent() {
         const res = await fetch('/api/admin/settings')
         if (res.ok) {
           const data = await res.json()
+          // Convert old 'midtrans' to 'dana' for backward compatibility
+          const fiatMethod = data.payment_fiat_method === 'midtrans' ? 'dana' : (data.payment_fiat_method || 'dana')
           setPaymentSettings({
             fiatEnabled: data.payment_fiat_enabled !== false,
+            fiatMethod: fiatMethod,
             cryptoEnabled: data.payment_crypto_enabled !== false,
-            defaultMethod: data.payment_default_method || 'crypto'
+            defaultMethod: data.payment_default_method || 'fiat'
           })
-          setSelectedPaymentMethod(data.payment_default_method || 'crypto')
+          setSelectedPaymentMethod(data.payment_default_method || 'fiat')
         }
       } catch (error) {
         console.error('Error loading payment settings:', error)
@@ -278,7 +282,7 @@ export function CartContent() {
                     })),
                     total_amount: getTotalPrice(),
                     tax_amount: 0,
-                    payment_method: selectedPaymentMethod || "crypto", // Use selected method or default to crypto
+                    payment_method: selectedPaymentMethod || "fiat", // Use selected method or default to fiat
                     note, // Include the note in the order data
                   }
                   const res = await fetch("/api/checkout", {

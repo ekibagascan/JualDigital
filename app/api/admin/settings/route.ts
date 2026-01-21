@@ -41,14 +41,16 @@ export async function GET(req: NextRequest) {
     )
 
     // Legacy support: if only old payment_method exists, migrate it
-    const legacyPaymentMethod = settingsMap.get('payment_method') as 'midtrans' | 'manual' | undefined
+    // Convert old 'midtrans' to 'dana' for backward compatibility
+    const legacyPaymentMethod = settingsMap.get('payment_method') as 'midtrans' | 'dana' | 'manual' | undefined
+    const migratedMethod = legacyPaymentMethod === 'midtrans' ? 'dana' : (legacyPaymentMethod || 'dana')
 
     return NextResponse.json({
-      payment_method: legacyPaymentMethod || 'midtrans', // Legacy support
+      payment_method: migratedMethod, // Legacy support
       payment_fiat_enabled: settingsMap.get('payment_fiat_enabled') !== 'false' && settingsMap.get('payment_fiat_enabled') !== false,
-      payment_fiat_method: settingsMap.get('payment_fiat_method') || legacyPaymentMethod || 'midtrans',
+      payment_fiat_method: settingsMap.get('payment_fiat_method') || migratedMethod,
       payment_crypto_enabled: settingsMap.get('payment_crypto_enabled') !== 'false' && settingsMap.get('payment_crypto_enabled') !== false,
-      payment_default_method: settingsMap.get('payment_default_method') || 'crypto',
+      payment_default_method: settingsMap.get('payment_default_method') || 'fiat',
     })
   } catch (error) {
     console.error('[SETTINGS API] Error:', error)
@@ -89,23 +91,25 @@ export async function PUT(req: NextRequest) {
     const settingsToSave = []
 
     // Legacy support: if payment_method is provided, use it for fiat_method
+    // Convert old 'midtrans' to 'dana' for backward compatibility
     if (payment_method) {
-      if (payment_method !== 'midtrans' && payment_method !== 'manual') {
+      const normalizedMethod = payment_method === 'midtrans' ? 'dana' : payment_method
+      if (normalizedMethod !== 'dana' && normalizedMethod !== 'manual') {
         return NextResponse.json(
-          { error: 'Invalid payment_method. Must be "midtrans" or "manual"' },
+          { error: 'Invalid payment_method. Must be "dana" or "manual"' },
           { status: 400 }
         )
       }
       settingsToSave.push({
         key: 'payment_method',
-        value: payment_method,
+        value: normalizedMethod,
         updated_at: new Date().toISOString(),
       })
       // Also set fiat_method if not explicitly provided
       if (payment_fiat_method === undefined) {
         settingsToSave.push({
           key: 'payment_fiat_method',
-          value: payment_method,
+          value: normalizedMethod,
           updated_at: new Date().toISOString(),
         })
       }
@@ -121,15 +125,17 @@ export async function PUT(req: NextRequest) {
     }
 
     if (payment_fiat_method) {
-      if (payment_fiat_method !== 'midtrans' && payment_fiat_method !== 'manual') {
+      // Convert old 'midtrans' to 'dana' for backward compatibility
+      const normalizedMethod = payment_fiat_method === 'midtrans' ? 'dana' : payment_fiat_method
+      if (normalizedMethod !== 'dana' && normalizedMethod !== 'manual') {
         return NextResponse.json(
-          { error: 'Invalid payment_fiat_method. Must be "midtrans" or "manual"' },
+          { error: 'Invalid payment_fiat_method. Must be "dana" or "manual"' },
           { status: 400 }
         )
       }
       settingsToSave.push({
         key: 'payment_fiat_method',
-        value: payment_fiat_method,
+        value: normalizedMethod,
         updated_at: new Date().toISOString(),
       })
     }

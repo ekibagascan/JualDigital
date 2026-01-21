@@ -32,10 +32,10 @@ interface Order {
   order_items: OrderItem[]
 }
 
-export default function MidtransFinishPage() {
+export default function DanaFinishPage() {
   const searchParams = useSearchParams()
   const orderId = searchParams.get("order_id")
-  const transactionStatus = searchParams.get("transaction_status")
+  const transactionStatus = searchParams.get("transactionStatus")
   const [loading, setLoading] = useState(true)
   const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<'success' | 'pending' | 'failed' | null>(null)
@@ -69,8 +69,8 @@ export default function MidtransFinishPage() {
         const data = await res.json()
         const fetchedOrder = data.order || (data.orders && data.orders[0])
 
-        console.log('[FINISH PAGE] Fetched order:', fetchedOrder)
-        console.log('[FINISH PAGE] Order items:', fetchedOrder?.order_items)
+        console.log('[DANA FINISH PAGE] Fetched order:', fetchedOrder)
+        console.log('[DANA FINISH PAGE] Order items:', fetchedOrder?.order_items)
 
         if (fetchedOrder) {
           setOrder(fetchedOrder)
@@ -96,10 +96,10 @@ export default function MidtransFinishPage() {
             }
           }
         } else {
-          console.warn('[FINISH PAGE] No order found in response:', data)
+          console.warn('[DANA FINISH PAGE] No order found in response:', data)
         }
       } else {
-        console.error('[FINISH PAGE] Failed to fetch order:', res.status, res.statusText)
+        console.error('[DANA FINISH PAGE] Failed to fetch order:', res.status, res.statusText)
       }
     } catch (error) {
       console.error("Error checking order status:", error)
@@ -117,21 +117,22 @@ export default function MidtransFinishPage() {
 
     let shouldPoll = false
 
-    // Check payment status from URL params first (Midtrans sends these)
+    // Check payment status from URL params first (DANA sends these)
     if (transactionStatus) {
-      if (transactionStatus === 'settlement' || transactionStatus === 'capture') {
+      const statusUpper = transactionStatus.toUpperCase()
+      if (statusUpper === 'SUCCESS' || statusUpper === 'PAID') {
         setPaymentStatus('success')
         setOrderStatus('paid')
         // Still fetch order details
         checkOrderStatus()
         return
-      } else if (transactionStatus === 'pending') {
+      } else if (statusUpper === 'PENDING') {
         setPaymentStatus('pending')
         setOrderStatus('pending')
         shouldPoll = true
         // Fetch order and start polling
         checkOrderStatus()
-      } else if (transactionStatus === 'deny' || transactionStatus === 'expire' || transactionStatus === 'cancel') {
+      } else if (statusUpper === 'FAILED' || statusUpper === 'CANCELLED' || statusUpper === 'EXPIRED') {
         setPaymentStatus('failed')
         setOrderStatus('cancelled')
         checkOrderStatus()

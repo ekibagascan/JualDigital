@@ -68,10 +68,10 @@ export function AdminSettings() {
 
   // Payment Settings
   const [paymentFiatEnabled, setPaymentFiatEnabled] = useState(true)
-  const [paymentFiatMethod, setPaymentFiatMethod] = useState<'midtrans' | 'manual'>('midtrans')
+  const [paymentFiatMethod, setPaymentFiatMethod] = useState<'dana' | 'manual'>('dana')
   const [paymentCryptoEnabled, setPaymentCryptoEnabled] = useState(true)
   const [paymentDefaultMethod, setPaymentDefaultMethod] = useState<'crypto' | 'fiat'>('crypto')
-  const [paymentMethod, setPaymentMethod] = useState<'midtrans' | 'manual'>('midtrans') // Legacy
+  const [paymentMethod, setPaymentMethod] = useState<'dana' | 'manual'>('dana') // Legacy
 
   // Load settings on mount
   useEffect(() => {
@@ -81,13 +81,17 @@ export function AdminSettings() {
         if (res.ok) {
           const data = await res.json()
           if (data.payment_method) {
-            setPaymentMethod(data.payment_method)
+            // Convert old 'midtrans' to 'dana' for backward compatibility
+            const method = data.payment_method === 'midtrans' ? 'dana' : data.payment_method
+            setPaymentMethod(method)
           }
           if (data.payment_fiat_enabled !== undefined) {
             setPaymentFiatEnabled(data.payment_fiat_enabled)
           }
           if (data.payment_fiat_method) {
-            setPaymentFiatMethod(data.payment_fiat_method)
+            // Convert old 'midtrans' to 'dana' for backward compatibility
+            const method = data.payment_fiat_method === 'midtrans' ? 'dana' : data.payment_fiat_method
+            setPaymentFiatMethod(method)
           }
           if (data.payment_crypto_enabled !== undefined) {
             setPaymentCryptoEnabled(data.payment_crypto_enabled)
@@ -658,7 +662,7 @@ export function AdminSettings() {
                   {paymentCryptoEnabled && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded text-sm">
                       <p className="text-blue-800 dark:text-blue-200">
-                        ⚙️ Konfigurasi: Set BCI_API_KEY dan BCI_API_SECRET di environment variables
+                        ⚙️ Konfigurasi: Set BCI_API_KEY di environment variables
                       </p>
                       <p className="text-blue-700 dark:text-blue-300 mt-1 text-xs">
                         Webhook URL: {process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/api/payments/bci/callback
@@ -688,15 +692,15 @@ export function AdminSettings() {
                       <p className="text-sm font-medium">Metode Fiat:</p>
                       <RadioGroup
                         value={paymentFiatMethod}
-                        onValueChange={(value) => setPaymentFiatMethod(value as 'midtrans' | 'manual')}
+                        onValueChange={(value) => setPaymentFiatMethod(value as 'dana' | 'manual')}
                         className="space-y-2"
                       >
                         <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
-                          <RadioGroupItem value="midtrans" id="fiat-midtrans" className="mt-1" />
-                          <Label htmlFor="fiat-midtrans" className="flex-1 cursor-pointer">
-                            <div className="font-semibold text-sm">Midtrans Payment</div>
+                          <RadioGroupItem value="dana" id="fiat-dana" className="mt-1" />
+                          <Label htmlFor="fiat-dana" className="flex-1 cursor-pointer">
+                            <div className="font-semibold text-sm">DANA Payment</div>
                             <div className="text-xs text-muted-foreground mt-1">
-                              Pembayaran diproses otomatis melalui Midtrans.
+                              Pembayaran diproses otomatis melalui DANA Gapura Payment Gateway.
                             </div>
                           </Label>
                         </div>
@@ -710,6 +714,16 @@ export function AdminSettings() {
                           </Label>
                         </div>
                       </RadioGroup>
+                      {paymentFiatMethod === 'dana' && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded text-sm">
+                          <p className="text-blue-800 dark:text-blue-200">
+                            ⚙️ Konfigurasi: Set DANA_PARTNER_ID, DANA_MERCHANT_ID, DANA_PRIVATE_KEY, DANA_PUBLIC_KEY, dan DANA_IS_SANDBOX di environment variables
+                          </p>
+                          <p className="text-blue-700 dark:text-blue-300 mt-1 text-xs">
+                            Webhook URL: {process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/api/payments/dana/callback
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

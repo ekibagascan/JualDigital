@@ -3,7 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 // import { createInvoice } from './xendit'
 import { WhatsAppService } from '@/lib/whatsapp-service'
 import { getPaymentSettings } from './settings-service'
-import { createSnapTransaction } from './midtrans'
+import { createDanaOrder } from './dana'
 import { createCryptoPayment } from './bci-payment'
 
 export interface OrderItem {
@@ -72,13 +72,13 @@ export class OrderService {
     try {
       // Validate that user is not trying to purchase their own products
       if (orderData.user_id) {
-      const productIds = orderData.items.map(item => item.product_id)
-      const { data: products, error: productsError } = await this.supabase
-        .from('products')
-        .select('id, seller_id, title')
-        .in('id', productIds)
+        const productIds = orderData.items.map(item => item.product_id)
+        const { data: products, error: productsError } = await this.supabase
+          .from('products')
+          .select('id, seller_id, title')
+          .in('id', productIds)
 
-      if (productsError) {
+        if (productsError) {
           console.error('Error fetching products for validation:', productsError)
           throw new Error('Failed to validate order items')
         }
@@ -94,22 +94,32 @@ export class OrderService {
       // 1. Get payment settings
       const paymentSettings = await getPaymentSettings(this.supabase)
       console.log('[ORDER CREATION] Payment settings:', paymentSettings)
-      
+      console.log('[ORDER CREATION] Order data payment_method:', orderData.payment_method)
+
       // Determine which payment method to use based on user selection or default
-      const selectedPaymentType = orderData.payment_method?.startsWith('crypto_') ? 'crypto' : 
-                                  orderData.payment_method?.startsWith('fiat_') ? 'fiat' :
-                                  paymentSettings.defaultMethod
-      
+      const paymentMethodValue = orderData.payment_method?.toLowerCase()
+      const selectedPaymentType =
+        paymentMethodValue === 'crypto' || paymentMethodValue?.startsWith('crypto_') ? 'crypto' :
+          paymentMethodValue === 'fiat' || paymentMethodValue?.startsWith('fiat_') ? 'fiat' :
+            paymentSettings.defaultMethod
+
+      console.log('[ORDER CREATION] Selected payment type:', selectedPaymentType)
+
       const useCrypto = selectedPaymentType === 'crypto' && paymentSettings.cryptoEnabled
       const useFiat = selectedPaymentType === 'fiat' && paymentSettings.fiatEnabled
-      
+
+      console.log('[ORDER CREATION] useCrypto:', useCrypto, 'useFiat:', useFiat)
+
       // Fallback if selected method is not enabled
-      const finalPaymentType = useCrypto ? 'crypto' : 
-                              useFiat ? 'fiat' : 
-                              paymentSettings.cryptoEnabled ? 'crypto' : 'fiat'
-      
-      const paymentMethod = finalPaymentType === 'crypto' ? 'bci' : 
-                           paymentSettings.fiatMethod
+      const finalPaymentType = useCrypto ? 'crypto' :
+        useFiat ? 'fiat' :
+          paymentSettings.cryptoEnabled ? 'crypto' : 'fiat'
+
+      const paymentMethod = finalPaymentType === 'crypto' ? 'bci' :
+        paymentSettings.fiatMethod
+
+      console.log('[ORDER CREATION] Final payment type:', finalPaymentType)
+      console.log('[ORDER CREATION] Payment method:', paymentMethod)
 
       // 2. Create order in Supabase
       const { data: order, error: orderError } = await this.supabase
@@ -141,7 +151,7 @@ export class OrderService {
       // 3. Fetch products to get seller_id and title
       const productIds = orderData.items.map(item => item.product_id)
       console.log('Fetching products with IDs:', productIds)
-      
+
       const { data: products, error: productsError } = await this.supabase
         .from('products')
         .select('id, seller_id, title')
@@ -156,7 +166,7 @@ export class OrderService {
       console.log('Products found:', products?.length || 0)
       console.log('Product IDs requested:', productIds)
       console.log('Product IDs found:', products?.map(p => p.id) || [])
-      
+
       const productMap = Object.fromEntries(products.map(p => [p.id, p]))
       console.log('Product map:', productMap)
 
@@ -195,10 +205,10 @@ export class OrderService {
       if (finalPaymentType === 'crypto' && paymentMethod === 'bci') {
         // Create BCI crypto payment
         const totalAmount = Math.round(orderData.total_amount + orderData.tax_amount)
-        
+
         const productTitles = orderData.items.map(item => item.title).join(', ')
-        const description = productTitles.length > 100 
-          ? productTitles.substring(0, 97) + '...' 
+        const description = productTitles.length > 100
+          ? productTitles.substring(0, 97) + '...'
           : productTitles || 'Product purchase'
 
         try {
@@ -231,61 +241,69 @@ export class OrderService {
           console.error('[ORDER CREATION] Error creating crypto payment:', cryptoError)
           throw new Error(`Failed to create crypto payment: ${cryptoError instanceof Error ? cryptoError.message : 'Unknown error'}`)
         }
-      } else if (paymentMethod === 'midtrans') {
-        // Create Midtrans Snap transaction
+      } else if (paymentMethod === 'dana') {
+        // Create DANA hosted checkout order
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
-        
-        const customerName = orderData.guest_name || 
+
+        const customerName = orderData.guest_name ||
           (orderData.user_id ? 'Customer' : 'Guest')
-        const customerEmail = orderData.guest_email || 
+        const customerEmail = orderData.guest_email ||
           (orderData.user_id ? undefined : undefined)
-        const customerPhone = orderData.guest_phone || 
+        const customerPhone = orderData.guest_phone ||
           orderData.user_phone || undefined
 
         // Calculate total from items to ensure it matches
-        const itemsTotal = orderData.items.reduce((sum, item) => sum + (Math.round(item.price) * item.quantity), 0)
-        
-        const snapTransaction = await createSnapTransaction({
-          transaction_details: {
-            order_id: order.order_number, // Use order_number as Midtrans order_id
-            gross_amount: itemsTotal, // Use calculated total from items
+        const itemsTotal = Math.round(orderData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0))
+
+        // Prepare customer name (split first/last)
+        const nameParts = customerName.split(' ')
+        const firstName = nameParts[0] || customerName
+        const lastName = nameParts.slice(1).join(' ') || undefined
+
+        // Create DANA order
+        const danaOrder = await createDanaOrder({
+          partnerReferenceNo: order.order_number,
+          merchantId: process.env.DANA_MERCHANT_ID || '',
+          amount: {
+            value: itemsTotal.toString(),
+            currency: 'IDR',
           },
-          customer_details: {
-            first_name: customerName.split(' ')[0] || customerName,
-            last_name: customerName.split(' ').slice(1).join(' ') || undefined,
+          scenario: 'REDIRECT',
+          webRedirectUrl: `${baseUrl}/payment/dana/finish?order_id=${order.id}`,
+          finishNotifyUrl: `${baseUrl}/api/payments/dana/callback`,
+          customer: {
+            firstName: firstName,
+            lastName: lastName,
             email: customerEmail,
             phone: customerPhone,
           },
-          item_details: orderData.items.map(item => ({
-            id: item.product_id,
-            price: Math.round(item.price),
+          orderItems: orderData.items.map(item => ({
+            name: item.title.length > 100 ? item.title.substring(0, 97) + '...' : item.title,
+            price: {
+              value: Math.round(item.price).toString(),
+              currency: 'IDR',
+            },
             quantity: item.quantity,
-            name: item.title.length > 50 ? item.title.substring(0, 47) + '...' : item.title,
           })),
-          callbacks: {
-            finish: `${baseUrl}/payment/midtrans/finish?order_id=${order.id}`,
-            error: `${baseUrl}/payment/midtrans/error?order_id=${order.id}`,
-            pending: `${baseUrl}/payment/midtrans/pending?order_id=${order.id}`,
-          },
         })
 
-        // Update order with Midtrans transaction token
+        // Update order with DANA transaction details
         const { error: updateError } = await this.supabase
           .from('orders')
           .update({
-            payment_provider: 'midtrans',
-            transaction_id: snapTransaction.token,
-            invoice_url: snapTransaction.redirect_url,
+            payment_provider: 'dana',
+            transaction_id: danaOrder.referenceNo || order.order_number,
+            invoice_url: danaOrder.webRedirectUrl,
           })
           .eq('id', order.id)
 
         if (updateError) {
           console.error('Order update error:', updateError)
-          throw new Error('Failed to update order with Midtrans transaction')
+          throw new Error('Failed to update order with DANA transaction')
         }
 
-        console.log('Order updated with Midtrans transaction token:', snapTransaction.token)
-        paymentUrl = snapTransaction.redirect_url
+        console.log('[ORDER CREATION] Created DANA order:', danaOrder.referenceNo)
+        paymentUrl = danaOrder.webRedirectUrl
       } else if (paymentMethod === 'manual') {
         // Manual payment
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
@@ -417,7 +435,7 @@ export class OrderService {
 
       // Group items by seller to send one notification per seller
       const sellerGroups = new Map<string, OrderItemWithSeller[]>()
-      
+
       for (const item of orderItems) {
         if (!sellerGroups.has(item.seller_id)) {
           sellerGroups.set(item.seller_id, [])
