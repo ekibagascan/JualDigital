@@ -221,7 +221,7 @@ export async function createDanaOrder(
   const baseUrlForRedirects = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
   const webRedirectUrl = orderData.webRedirectUrl || `${baseUrlForRedirects}/payment/dana/finish`
   const finishNotifyUrl = orderData.finishNotifyUrl || `${baseUrlForRedirects}/api/payments/dana/callback`
-  
+
   requestBody.urlParams = [
     {
       url: webRedirectUrl,
@@ -240,10 +240,10 @@ export async function createDanaOrder(
   const orderTitle = orderData.orderItems && orderData.orderItems.length > 0
     ? (orderData.orderItems[0].name || `Order ${orderData.partnerReferenceNo}`)
     : `Order ${orderData.partnerReferenceNo}`
-  
+
   // Ensure orderTitle doesn't exceed 64 characters (DANA limit)
   const truncatedOrderTitle = orderTitle.length > 64 ? orderTitle.substring(0, 61) + '...' : orderTitle
-  
+
   const orderInfo: Record<string, unknown> = {
     scenario: 'REDIRECT', // Must be REDIRECT for hosted checkout
     orderTitle: truncatedOrderTitle,
@@ -295,9 +295,30 @@ export async function createDanaOrder(
     }]
   }
 
+  // Add required fields for hosted checkout
   requestBody.additionalInfo = {
-    order: orderInfo
+    order: orderInfo,
+    // MCC (Merchant Category Code) - required for hosted checkout
+    mcc: '5734', // Digital products/software category
+    // envInfo - required for hosted checkout
+    envInfo: {
+      sessionId: `SESSION-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      tokenId: `TOKEN-${Date.now()}`,
+      websiteLanguage: 'id_ID',
+      clientIp: '0.0.0.0', // Will be set by DANA from request headers
+      osType: 'WEB',
+      appVersion: '1.0.0',
+      sdkVersion: '1.0.0',
+      sourcePlatform: 'IPG',
+      orderOsType: 'WEB',
+      merchantAppVersion: '1.0.0',
+      terminalType: 'SYSTEM',
+      orderTerminalType: 'WEB',
+    },
   }
+
+  // Add merchantTransType to order (required)
+  orderInfo.merchantTransType = 'Retail'
 
   // Add optional fields only if provided
   if (orderData.validUpTo) {
