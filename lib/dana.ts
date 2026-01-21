@@ -217,33 +217,36 @@ export async function createDanaOrder(
     },
   }
 
-  // Add urlParams for redirect URLs (required for hosted checkout)
-  const urlParams: Array<Record<string, string>> = []
-  if (orderData.webRedirectUrl) {
-    urlParams.push({
-      url: orderData.webRedirectUrl,
+  // urlParams is REQUIRED for hosted checkout - must include PAY_RETURN and NOTIFICATION
+  const baseUrlForRedirects = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
+  const webRedirectUrl = orderData.webRedirectUrl || `${baseUrlForRedirects}/payment/dana/finish`
+  const finishNotifyUrl = orderData.finishNotifyUrl || `${baseUrlForRedirects}/api/payments/dana/callback`
+  
+  requestBody.urlParams = [
+    {
+      url: webRedirectUrl,
       type: 'PAY_RETURN',
       isDeeplink: 'N'
-    })
-  }
-  if (orderData.finishNotifyUrl) {
-    urlParams.push({
-      url: orderData.finishNotifyUrl,
+    },
+    {
+      url: finishNotifyUrl,
       type: 'NOTIFICATION',
       isDeeplink: 'N'
-    })
-  }
-  if (urlParams.length > 0) {
-    requestBody.urlParams = urlParams
-  }
+    }
+  ]
 
   // Build additionalInfo.order structure for hosted checkout (REDIRECT scenario)
   // Required fields: scenario, orderTitle, buyer, goods
+  const orderTitle = orderData.orderItems && orderData.orderItems.length > 0
+    ? (orderData.orderItems[0].name || `Order ${orderData.partnerReferenceNo}`)
+    : `Order ${orderData.partnerReferenceNo}`
+  
+  // Ensure orderTitle doesn't exceed 64 characters (DANA limit)
+  const truncatedOrderTitle = orderTitle.length > 64 ? orderTitle.substring(0, 61) + '...' : orderTitle
+  
   const orderInfo: Record<string, unknown> = {
     scenario: 'REDIRECT', // Must be REDIRECT for hosted checkout
-    orderTitle: orderData.orderItems && orderData.orderItems.length > 0
-      ? (orderData.orderItems[0].name || `Order ${orderData.partnerReferenceNo}`)
-      : `Order ${orderData.partnerReferenceNo}`,
+    orderTitle: truncatedOrderTitle,
   }
 
   // Buyer is REQUIRED for hosted checkout
@@ -296,18 +299,30 @@ export async function createDanaOrder(
     order: orderInfo
   }
 
-  // Add optional fields
+  // Add optional fields only if provided
   if (orderData.validUpTo) {
     requestBody.validUpTo = orderData.validUpTo
   }
-  if (orderData.disabledPaymentMethods && orderData.disabledPaymentMethods.length > 0) {
-    requestBody.disabledPayMethods = orderData.disabledPaymentMethods
+  // Note: disabledPayMethods removed - may cause issues if not properly formatted
+
+  // Validate required fields before proceeding
+  if (!requestBody.urlParams || (requestBody.urlParams as Array<unknown>).length === 0) {
+    throw new Error('urlParams is required for DANA hosted checkout')
+  }
+  if (!requestBody.additionalInfo || !(requestBody.additionalInfo as { order?: unknown }).order) {
+    throw new Error('additionalInfo.order is required for DANA hosted checkout')
   }
 
   const bodyString = JSON.stringify(requestBody)
 
   // Generate signature
-  const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
+  let signature: string
+  try {
+    signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
+  } catch (sigError) {
+    console.error('[DANA] Signature generation failed:', sigError)
+    throw new Error(`Failed to generate signature: ${sigError instanceof Error ? sigError.message : 'Unknown error'}`)
+  }
 
   // Log request for debugging (remove sensitive data in production)
   console.log('[DANA] Create order request:', {
@@ -378,7 +393,11 @@ export async function createDanaOrder(
     return data
   } catch (error) {
     console.error('[DANA] Error creating order:', error)
-    throw error
+    if (error instanceof Error) {
+      // Preserve the original error message
+      throw error
+    }
+    throw new Error(`Unknown error creating DANA order: ${String(error)}`)
   }
 }
 
