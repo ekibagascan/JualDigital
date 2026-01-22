@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch orders with order items
     // Use service role key to bypass RLS and ensure we get all orders
+    // IMPORTANT: Don't filter by status - get ALL orders for this user
     const { data: orders, error } = await supabase
       .from('orders')
       .select(`
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
+      // No limit - get all orders
 
     // Also log raw status values to see exactly what we're getting
     if (orders && orders.length > 0) {
@@ -100,18 +102,23 @@ export async function GET(request: NextRequest) {
         acc[status] = (acc[status] || 0) + 1
         return acc
       }, {})
+      console.log('[ORDERS API] Total orders fetched:', orders.length)
       console.log('[ORDERS API] Status breakdown:', statusBreakdown)
-      console.log('[ORDERS API] Paid orders:', orders.filter((o: { status?: string }) => {
+      const paidOrders = orders.filter((o: { status?: string }) => {
         const s = o.status?.toLowerCase().trim()
         return s === 'paid'
-      }).length)
-      console.log('[ORDERS API] Sample order statuses:', orders.slice(0, 3).map((o: { order_number?: string; status?: string }) => ({
+      })
+      console.log('[ORDERS API] Paid orders count:', paidOrders.length)
+      if (paidOrders.length > 0) {
+        console.log('[ORDERS API] Paid order numbers:', paidOrders.map((o: { order_number?: string; status?: string }) => o.order_number))
+      }
+      console.log('[ORDERS API] All order statuses:', orders.map((o: { order_number?: string; status?: string }) => ({
         order_number: o.order_number,
         status: o.status,
-        statusType: typeof o.status,
-        statusLength: o.status?.length,
         normalized: o.status?.toLowerCase().trim()
       })))
+    } else {
+      console.log('[ORDERS API] No orders found for user:', userId)
     }
 
     return NextResponse.json({
