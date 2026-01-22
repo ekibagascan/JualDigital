@@ -61,17 +61,17 @@ export function PurchaseHistory() {
         })
         const data = await response.json()
 
-          if (data.success) {
-            const fetchedOrders = data.orders || []
-            console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
-            console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({ 
-              order_number: o.order_number, 
-              status: o.status,
-              normalized: o.status?.toLowerCase().trim(),
-              isPaid: o.status?.toLowerCase().trim() === 'paid'
-            })))
-            console.log('[PURCHASE HISTORY] Paid orders count:', fetchedOrders.filter((o: Order) => o.status?.toLowerCase().trim() === 'paid').length)
-            setOrders(fetchedOrders)
+        if (data.success) {
+          const fetchedOrders = data.orders || []
+          console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
+          console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({
+            order_number: o.order_number,
+            status: o.status,
+            normalized: o.status?.toLowerCase().trim(),
+            isPaid: o.status?.toLowerCase().trim() === 'paid'
+          })))
+          console.log('[PURCHASE HISTORY] Paid orders count:', fetchedOrders.filter((o: Order) => o.status?.toLowerCase().trim() === 'paid').length)
+          setOrders(fetchedOrders)
 
           // Extract unique seller IDs from order items
           const sellerIds = new Set<string>()
@@ -247,9 +247,23 @@ export function PurchaseHistory() {
   const filteredOrders = orders.filter((order) => {
     // Normalize status to lowercase for comparison
     const normalizedStatus = order.status?.toLowerCase().trim()
+    const isPaid = normalizedStatus === "paid"
+    const isPending = normalizedStatus === "pending"
+    
     if (activeTab === "all") return true
-    if (activeTab === "completed") return normalizedStatus === "paid"
-    if (activeTab === "processing") return normalizedStatus === "pending"
+    if (activeTab === "completed") {
+      const result = isPaid
+      if (!result) {
+        console.log('[PURCHASE HISTORY] Order filtered out from completed:', {
+          order_number: order.order_number,
+          status: order.status,
+          normalized: normalizedStatus,
+          isPaid
+        })
+      }
+      return result
+    }
+    if (activeTab === "processing") return isPending
     return true
   })
 

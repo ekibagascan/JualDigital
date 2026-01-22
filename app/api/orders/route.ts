@@ -83,6 +83,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 })
     }
 
+    // Log status breakdown for debugging
+    if (orders && orders.length > 0) {
+      const statusBreakdown = orders.reduce((acc: Record<string, number>, order: { status?: string }) => {
+        const status = order.status || 'undefined'
+        acc[status] = (acc[status] || 0) + 1
+        return acc
+      }, {})
+      console.log('[ORDERS API] Status breakdown:', statusBreakdown)
+      console.log('[ORDERS API] Paid orders:', orders.filter((o: { status?: string }) => {
+        const s = o.status?.toLowerCase().trim()
+        return s === 'paid'
+      }).length)
+      console.log('[ORDERS API] Sample order statuses:', orders.slice(0, 3).map((o: { order_number?: string; status?: string }) => ({
+        order_number: o.order_number,
+        status: o.status,
+        statusType: typeof o.status,
+        statusLength: o.status?.length,
+        normalized: o.status?.toLowerCase().trim()
+      })))
+    }
+
     return NextResponse.json({
       success: true,
       orders: orders || []
