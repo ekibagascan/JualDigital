@@ -459,6 +459,14 @@ export async function queryPaymentStatus(
   }
 
   const bodyString = JSON.stringify(requestBody)
+  
+  console.log('[DANA] Query status request:', {
+    partnerReferenceNo,
+    merchantId,
+    path,
+    baseUrl,
+    isSandbox
+  })
 
   const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
@@ -493,13 +501,13 @@ export async function queryPaymentStatus(
       console.error('[DANA] Query payment status failed - DANA Response Code:', errorData.responseCode)
       console.error('[DANA] Query payment status failed - DANA Response Message:', errorData.responseMessage)
       console.error('[DANA] Query payment status failed - Full Response:', errorData)
-      
+
       // Include DANA error code in the error message for better debugging
       const errorMessage = errorData.responseMessage || errorData.message || `DANA API error: ${response.status} ${response.statusText}`
-      const errorWithCode = errorData.responseCode 
+      const errorWithCode = errorData.responseCode
         ? `DANA Error ${errorData.responseCode}: ${errorMessage}`
         : errorMessage
-      
+
       throw new Error(errorWithCode)
     }
 
