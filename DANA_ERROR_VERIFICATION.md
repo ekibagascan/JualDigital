@@ -137,14 +137,43 @@ curl -X POST https://jualdigital.id/api/payments/dana/test-webhook \
 For DANA to mark this as verified in their dashboard, DANA needs to actually call your webhook and receive the `5005601` response. There are two ways to trigger this:
 
 **Option 1: Configure Webhook URL with Query Parameter (Recommended for Testing)**
-1. In DANA Dashboard, temporarily update your Finish Notify Webhook URL to:
+
+**Step-by-Step Instructions:**
+
+1. **Go to DANA Dashboard** → Webhook Configuration
+2. **Temporarily update your Finish Payment URL** (Finish Notify Webhook URL) to:
    ```
    https://jualdigital.id/api/payments/dana/callback?simulateError=true
    ```
-2. DANA will send a webhook notification for a successful transaction
-3. Your webhook will return `5005601` with "Internal Server Error"
-4. DANA will mark it as verified in their dashboard
-5. **Important**: After verification, remove the `?simulateError=true` parameter from the webhook URL
+   Or if using Vercel preview:
+   ```
+   https://jual-digital-4v36w3v9a-ebss-projects.vercel.app/api/payments/dana/callback?simulateError=true
+   ```
+3. **Click Save** in DANA Dashboard
+4. **Trigger a test transaction** (or ask DANA support to send a test webhook)
+5. **Verify the response**: DANA will receive `5005601` with "Internal Server Error"
+6. **DANA will mark it as verified** in their dashboard
+7. **IMPORTANT**: After verification, **remove the `?simulateError=true` parameter** from the webhook URL and save again
+
+**To test if the query parameter works before DANA calls it:**
+```bash
+# Test the webhook directly with simulateError parameter
+curl -X POST "https://jualdigital.id/api/payments/dana/callback?simulateError=true" \
+  -H "Content-Type: application/json" \
+  -H "X-SIGNATURE: test-signature" \
+  -d '{
+    "originalPartnerReferenceNo": "TEST-ORDER-001",
+    "latestTransactionStatus": "00",
+    "transactionStatusDesc": "SUCCESS"
+  }'
+# Expected response: {"responseCode":"5005601","responseMessage":"Internal Server Error"}
+# HTTP Status: 500
+```
+
+**Troubleshooting:**
+- If the query parameter doesn't work, DANA might strip query parameters from webhook URLs
+- In that case, use **Option 2** (Special Order Number Pattern) instead
+- Or contact DANA support to manually trigger a test webhook with the updated URL
 
 **Option 2: Use Special Order Number Pattern**
 1. Create a test order with `partnerReferenceNo` starting with `TEST-5005601-` or `DANA-TEST-5005601-`
