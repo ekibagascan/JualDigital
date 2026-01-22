@@ -216,14 +216,16 @@ export async function createDanaOrder(
   const externalId = generateExternalId()
 
   // Prepare request body for hosted checkout
-  // Based on DANA documentation: https://dashboard.dana.id/api-docs-v2/guide/payment-gateway/hosted-checkout
+  // Based on DANA's example payload
   const requestBody: Record<string, unknown> = {
     partnerReferenceNo: orderData.partnerReferenceNo,
     merchantId: merchantId,
+    subMerchantId: '', // Empty string as per DANA example
     amount: {
       value: formatAmountValue(orderData.amount.value),
       currency: orderData.amount.currency,
     },
+    externalStoreId: '', // Empty string as per DANA example
   }
 
   // urlParams is REQUIRED for hosted checkout - must include PAY_RETURN and NOTIFICATION
@@ -235,17 +237,17 @@ export async function createDanaOrder(
     {
       url: webRedirectUrl,
       type: 'PAY_RETURN',
-      isDeeplink: 'N'
+      isDeeplink: 'Y' // Changed to 'Y' as per DANA example
     },
     {
       url: finishNotifyUrl,
       type: 'NOTIFICATION',
-      isDeeplink: 'N'
+      isDeeplink: 'Y' // Changed to 'Y' as per DANA example
     }
   ]
 
   // Build additionalInfo.order structure for hosted checkout (REDIRECT scenario)
-  // Required fields: scenario, orderTitle, buyer, goods
+  // Based on DANA's example payload
   const orderTitle = orderData.orderItems && orderData.orderItems.length > 0
     ? (orderData.orderItems[0].name || `Order ${orderData.partnerReferenceNo}`)
     : `Order ${orderData.partnerReferenceNo}`
@@ -254,80 +256,23 @@ export async function createDanaOrder(
   const truncatedOrderTitle = orderTitle.length > 64 ? orderTitle.substring(0, 61) + '...' : orderTitle
 
   const orderInfo: Record<string, unknown> = {
-    scenario: 'REDIRECT', // Must be REDIRECT for hosted checkout
     orderTitle: truncatedOrderTitle,
+    scenario: 'REDIRECT', // Must be REDIRECT for hosted checkout
+    merchantTransType: 'SPECIAL_MOVIE', // Changed to match DANA example
+    buyer: {}, // Empty object as per DANA example
   }
 
-  // Buyer is REQUIRED for hosted checkout
-  const buyer: Record<string, string> = {}
-  if (orderData.customer?.email) {
-    buyer.externalUserId = orderData.customer.email
-    buyer.externalUserType = 'USER'
-  } else if (orderData.customer?.phone) {
-    buyer.externalUserId = orderData.customer.phone
-    buyer.externalUserType = 'USER'
-  } else {
-    // Use partnerReferenceNo as fallback externalUserId if no customer info
-    buyer.externalUserId = orderData.partnerReferenceNo
-    buyer.externalUserType = 'USER'
-  }
-  if (orderData.customer?.firstName || orderData.customer?.lastName) {
-    buyer.nickname = `${orderData.customer.firstName || ''} ${orderData.customer.lastName || ''}`.trim()
-  }
-  orderInfo.buyer = buyer
-
-  // Goods is REQUIRED for hosted checkout - must have at least one item
-  if (orderData.orderItems && orderData.orderItems.length > 0) {
-    orderInfo.goods = orderData.orderItems.map((item, index) => ({
-      category: 'digital/product',
-      price: {
-        value: formatAmountValue(item.price.value),
-        currency: item.price.currency,
-      },
-      description: item.name.length > 200 ? item.name.substring(0, 197) + '...' : item.name,
-      merchantGoodsId: `ITEM-${index + 1}`,
-      unit: 'pcs',
-      quantity: (item.quantity || 1).toString(),
-    }))
-  } else {
-    // If no items provided, create a single generic item matching the total amount
-    orderInfo.goods = [{
-      category: 'digital/product',
-      price: {
-        value: formatAmountValue(orderData.amount.value),
-        currency: orderData.amount.currency,
-      },
-      description: `Order ${orderData.partnerReferenceNo}`,
-      merchantGoodsId: 'ITEM-1',
-      unit: 'pcs',
-      quantity: '1',
-    }]
-  }
-
-  // Add required fields for hosted checkout
+  // Add required fields for hosted checkout - simplified to match DANA example
   requestBody.additionalInfo = {
     order: orderInfo,
-    // MCC (Merchant Category Code) - required for hosted checkout
-    mcc: '5734', // Digital products/software category
-    // envInfo - required for hosted checkout
+    mcc: '5732', // Changed to match DANA example
     envInfo: {
-      sessionId: `SESSION-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      tokenId: `TOKEN-${Date.now()}`,
-      websiteLanguage: 'id_ID',
-      clientIp: '0.0.0.0', // Will be set by DANA from request headers
-      osType: 'WEB',
-      appVersion: '1.0.0',
-      sdkVersion: '1.0.0',
+      // Only include the 3 fields from DANA's example
       sourcePlatform: 'IPG',
-      orderOsType: 'WEB',
-      merchantAppVersion: '1.0.0',
       terminalType: 'SYSTEM',
       orderTerminalType: 'WEB',
     },
   }
-
-  // Add merchantTransType to order (required)
-  orderInfo.merchantTransType = 'Retail'
 
   // validUpTo is REQUIRED for hosted checkout - set expiration time (default: 24 hours from now)
   if (orderData.validUpTo) {
