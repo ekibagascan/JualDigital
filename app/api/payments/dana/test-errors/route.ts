@@ -120,7 +120,6 @@ export async function POST(req: NextRequest) {
     const timestamp = generateTimestamp()
     const externalId = generateExternalId()
     const baseUrlForRedirects = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
-    const testOrderNumber = `TEST-${Date.now()}`
 
     let requestBody: Record<string, unknown>
 
@@ -129,16 +128,17 @@ export async function POST(req: NextRequest) {
       // Send request with invalid field formats that DANA will reject
       console.log('[DANA TEST] Testing 4005401 - Invalid Field Format')
 
-      // Create request with invalid formats:
-      // - Invalid timestamp format in validUpTo (wrong format)
-      // - Invalid merchantTransType enum value
-      // - Invalid amount format (without decimals)
+      // Create request with invalid formats that should trigger 4005401:
+      // - Invalid partnerReferenceNo format (too long or invalid characters)
+      // - Invalid amount format (negative or invalid)
+      // - Invalid timestamp format in validUpTo
+      const testOrderNumber = `TEST-${Date.now()}`
       requestBody = {
-        partnerReferenceNo: testOrderNumber,
+        partnerReferenceNo: 'A'.repeat(100), // Invalid: too long (max 64 chars)
         merchantId: merchantId,
         subMerchantId: '',
         amount: {
-          value: '10000', // Invalid: should be "10000.00" with decimals
+          value: '-10000.00', // Invalid: negative amount
           currency: 'IDR',
         },
         externalStoreId: '',
@@ -158,18 +158,18 @@ export async function POST(req: NextRequest) {
           order: {
             orderTitle: 'Test Order',
             scenario: 'REDIRECT',
-            merchantTransType: 'INVALID_TYPE', // Invalid: should be valid enum like 'SPECIAL_MOVIE', 'Retail', etc.
+            merchantTransType: 'SPECIAL_MOVIE',
             buyer: {},
           },
-          mcc: 'INVALID', // Invalid: should be valid MCC code like '5732'
+          mcc: '5732',
           envInfo: {
             sourcePlatform: 'IPG',
             terminalType: 'SYSTEM',
             orderTerminalType: 'WEB',
           },
         },
-        // Invalid validUpTo format - wrong timestamp format
-        validUpTo: '2026-01-22T10:00:00', // Invalid: missing timezone (+07:00)
+        // Invalid validUpTo format - wrong timestamp format (invalid date)
+        validUpTo: 'INVALID-DATE-FORMAT', // Invalid: not a valid ISO 8601 timestamp
       }
     } else if (testCase === '4045418') {
       // Test 4045418: Inconsistent Request
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
       // but different parameters (different amount, different urlParams, etc.)
       // Use a fixed partnerReferenceNo that we'll reuse
       const fixedOrderNumber = `TEST-4045418-${Date.now()}`
-      
+
       // Step 1: Create a valid order first (this will succeed)
       const firstRequestBody = {
         partnerReferenceNo: fixedOrderNumber,
@@ -238,6 +238,7 @@ export async function POST(req: NextRequest) {
       const firstTimestamp = generateTimestamp()
       const firstExternalId = generateExternalId()
 
+      let firstOrderSuccess = false
       try {
         const firstResponse = await fetch(`${baseUrl}${path}`, {
           method: 'POST',
@@ -255,8 +256,29 @@ export async function POST(req: NextRequest) {
         })
         const firstResponseText = await firstResponse.text()
         console.log('[DANA TEST] First order response:', firstResponseText)
+        
+        try {
+          const firstResponseData = JSON.parse(firstResponseText) as { responseCode?: string }
+          if (firstResponseData.responseCode === '2005400') {
+            firstOrderSuccess = true
+            console.log('[DANA TEST] First order created successfully, now retrying with different params')
+            // Wait a bit to ensure first order is processed
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        } catch {
+          // Response might not be JSON
+        }
       } catch (error) {
-        console.log('[DANA TEST] First order failed (this is OK):', error)
+        console.log('[DANA TEST] First order failed:', error)
+      }
+      
+      if (!firstOrderSuccess) {
+        return NextResponse.json({
+          success: false,
+          testCase: '4045418',
+          message: 'First order creation failed or did not succeed. Cannot test idempotent key inconsistency.',
+          note: '4045418 requires a successful first order with the same partnerReferenceNo'
+        })
       }
 
       // Step 2: Now retry with same partnerReferenceNo but DIFFERENT parameters
