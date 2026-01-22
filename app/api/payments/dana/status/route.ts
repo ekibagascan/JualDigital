@@ -21,9 +21,30 @@ export async function GET(req: NextRequest) {
     }
 
     // Query DANA API for payment status
-    const danaStatus = await queryPaymentStatus(orderNumber)
-
-    console.log('[DANA STATUS API] Payment status:', JSON.stringify(danaStatus, null, 2))
+    let danaStatus
+    try {
+      danaStatus = await queryPaymentStatus(orderNumber)
+      console.log('[DANA STATUS API] Payment status:', JSON.stringify(danaStatus, null, 2))
+    } catch (error) {
+      console.error('[DANA STATUS API] Error querying DANA:', error)
+      // If DANA API fails, still return current order status
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      const { data: order } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('order_number', orderNumber)
+        .single()
+      
+      return NextResponse.json({
+        status: order?.status || 'unknown',
+        responseCode: 'ERROR',
+        responseMessage: error instanceof Error ? error.message : 'Failed to query DANA API',
+        error: true,
+      })
+    }
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,7 +69,7 @@ export async function GET(req: NextRequest) {
     console.log('[DANA STATUS API] Current order status:', order.status)
 
     // Check if payment is successful - handle multiple response formats
-    const isPaid = 
+    const isPaid =
       danaStatus.responseCode === '2005400' && (
         danaStatus.transactionStatus === 'SUCCESS' ||
         danaStatus.transactionStatus === 'PAID' ||
@@ -60,7 +81,7 @@ export async function GET(req: NextRequest) {
     // If payment is successful and order is not already paid, update it
     if (isPaid && order.status !== 'paid') {
       console.log('[DANA STATUS API] Updating order to paid status...')
-      
+
       const { error: updateError } = await supabase
         .from('orders')
         .update({
@@ -74,9 +95,9 @@ export async function GET(req: NextRequest) {
       if (updateError) {
         console.error('[DANA STATUS API] Error updating order:', updateError)
         return NextResponse.json(
-          { 
+          {
             error: 'Failed to update order',
-            details: updateError.message 
+            details: updateError.message
           },
           { status: 500 }
         )

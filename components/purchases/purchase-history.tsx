@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Download, Calendar, RefreshCw } from "lucide-react"
+import { Download, Calendar, RefreshCw, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +39,8 @@ interface Order {
   tax_amount: number
   created_at: string
   order_items: OrderItem[]
+  payment_provider?: string
+  invoice_url?: string
 }
 
 export function PurchaseHistory() {
@@ -200,6 +202,16 @@ export function PurchaseHistory() {
                       <p className="text-sm text-muted-foreground">
                         {order.order_items.length} produk{order.order_items.length > 1 ? '' : ''}
                       </p>
+                      {order.status === "pending" && order.payment_provider === "dana" && order.invoice_url && (
+                        <Button 
+                          size="sm" 
+                          className="mt-2"
+                          onClick={() => window.open(order.invoice_url, '_blank')}
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Lanjutkan Pembayaran
+                        </Button>
+                      )}
                     </div>
                   </div>
 
