@@ -57,8 +57,11 @@ export default function DanaFinishPage() {
     try {
       // Try to fetch by order_number first (if it looks like ORD-XXXX)
       let res
+      let orderNumber: string | null = null
+      
       if (orderId?.startsWith('ORD-')) {
         // Search by order_number
+        orderNumber = orderId
         res = await fetch(`/api/orders?order_number=${orderId}`)
       } else {
         // Try as UUID
@@ -76,6 +79,39 @@ export default function DanaFinishPage() {
           setOrder(fetchedOrder)
           const status = fetchedOrder.status
           setOrderStatus(status)
+          
+          // Get order_number for DANA status check
+          if (!orderNumber && fetchedOrder.order_number) {
+            orderNumber = fetchedOrder.order_number
+          }
+
+          // If order is still pending, also check DANA API directly
+          if (status === 'pending' && orderNumber) {
+            try {
+              console.log('[DANA FINISH PAGE] Checking DANA payment status for:', orderNumber)
+              const danaStatusRes = await fetch(`/api/payments/dana/status?order_number=${orderNumber}`)
+              if (danaStatusRes.ok) {
+                const danaStatus = await danaStatusRes.json()
+                console.log('[DANA FINISH PAGE] DANA status:', danaStatus)
+                
+                if (danaStatus.status === 'success' || danaStatus.status === 'paid') {
+                  // Payment confirmed by DANA, refresh order
+                  setPaymentStatus('success')
+                  setOrderStatus('paid')
+                  // Stop polling
+                  if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current)
+                    pollingIntervalRef.current = null
+                  }
+                  // Refresh order data
+                  setTimeout(() => checkOrderStatus(false), 1000)
+                  return
+                }
+              }
+            } catch (danaError) {
+              console.error('[DANA FINISH PAGE] Error checking DANA status:', danaError)
+            }
+          }
 
           // Determine payment status from order status
           if (status === 'paid') {
