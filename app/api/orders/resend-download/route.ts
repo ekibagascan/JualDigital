@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     // Check if order is paid
     const orderStatus = order?.status?.toLowerCase().trim()
     if (orderStatus !== 'paid') {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Order not paid',
         details: `Order status is "${order?.status}"`
       }, { status: 403 })
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!customerEmail) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Customer email not found',
         details: 'Cannot send email without customer email address'
       }, { status: 404 })
@@ -130,8 +130,8 @@ Tim Jual Digital
                 <p style="margin: 10px 0;">
                     <strong>${productTitle}</strong> - Qty: ${orderItem.quantity}<br>
                     ${downloadUrl
-                    ? `<a href="${downloadUrl}" style="color: #2563eb; text-decoration: none; font-weight: bold;">Download di sini</a>`
-                    : '<span style="color: #6b7280;">Link download akan tersedia di halaman pesanan</span>'}
+        ? `<a href="${downloadUrl}" style="color: #2563eb; text-decoration: none; font-weight: bold;">Download di sini</a>`
+        : '<span style="color: #6b7280;">Link download akan tersedia di halaman pesanan</span>'}
                 </p>
                 <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
                   <strong>Total: Rp ${(order.total_amount + (order.tax_amount || 0)).toLocaleString('id-ID')}</strong>
@@ -163,13 +163,13 @@ Tim Jual Digital
 
     if (emailSent) {
       console.log('[RESEND DOWNLOAD] Email sent successfully to:', customerEmail)
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
         message: 'Download link email sent successfully'
       })
     } else {
       console.error('[RESEND DOWNLOAD] Failed to send email')
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Failed to send email',
         details: 'Email service returned false'
       }, { status: 500 })
@@ -177,7 +177,7 @@ Tim Jual Digital
   } catch (error: unknown) {
     console.error('[RESEND DOWNLOAD] Error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Failed to resend download link'
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Internal server error',
       details: errorMessage
     }, { status: 500 })
