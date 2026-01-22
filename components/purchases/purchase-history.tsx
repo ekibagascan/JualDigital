@@ -41,6 +41,7 @@ interface Order {
   order_items: OrderItem[]
   payment_provider?: string
   invoice_url?: string
+  updated_at?: string
 }
 
 export function PurchaseHistory() {
@@ -146,6 +147,73 @@ export function PurchaseHistory() {
     })
   }
 
+  const handleRegeneratePayment = async (order: Order) => {
+    try {
+      const response = await fetch('/api/payments/dana/regenerate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ order_id: order.id }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.payment_url) {
+        // Open new payment URL
+        window.open(data.payment_url, '_blank')
+        toast({
+          title: "Pembayaran Baru Dibuat",
+          description: "Halaman pembayaran baru telah dibuka. Silakan selesaikan pembayaran dalam 30 menit.",
+        })
+        // Refresh orders list
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Gagal membuat pembayaran baru",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error regenerating payment:', error)
+      toast({
+        title: "Error",
+        description: "Gagal membuat pembayaran baru",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const isPaymentExpired = (order: Order): boolean => {
+    if (order.status !== 'pending' || order.payment_provider !== 'dana') {
+      return false
+    }
+    // Check if order was created more than 30 minutes ago
+    const createdAt = new Date(order.created_at)
+    const now = new Date()
+    const minutesSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60)
+    return minutesSinceCreation > 30
+  }
+
+  const getTimeRemaining = (order: Order): string | null => {
+    if (order.status !== 'pending' || order.payment_provider !== 'dana') {
+      return null
+    }
+    const createdAt = new Date(order.created_at)
+    const expirationTime = new Date(createdAt.getTime() + (30 * 60 * 1000)) // 30 minutes
+    const now = new Date()
+    
+    if (now > expirationTime) {
+      return 'Kedaluwarsa'
+    }
+    
+    const minutesRemaining = Math.floor((expirationTime.getTime() - now.getTime()) / (1000 * 60))
+    return `${minutesRemaining} menit tersisa`
+  }
+
   const getSellerName = (sellerId: string) => {
     const seller = sellers.find(s => s.id === sellerId)
     return seller?.business_name || seller?.name || "Jual Digital"
@@ -195,6 +263,11 @@ export function PurchaseHistory() {
                         <Badge variant={order.status === "paid" ? "default" : "secondary"}>
                           {order.status === "paid" ? "Selesai" : "Menunggu Pembayaran"}
                         </Badge>
+                        {order.status === "pending" && order.payment_provider === "dana" && (
+                          <span className="text-xs text-orange-600">
+                            {isPaymentExpired(order) ? '⏰ Kedaluwarsa' : getTimeRemaining(order)}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
@@ -202,15 +275,33 @@ export function PurchaseHistory() {
                       <p className="text-sm text-muted-foreground">
                         {order.order_items.length} produk{order.order_items.length > 1 ? '' : ''}
                       </p>
-                      {order.status === "pending" && order.payment_provider === "dana" && order.invoice_url && (
-                        <Button 
-                          size="sm" 
-                          className="mt-2"
-                          onClick={() => window.open(order.invoice_url, '_blank')}
-                        >
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Lanjutkan Pembayaran
-                        </Button>
+                      {order.status === "pending" && order.payment_provider === "dana" && (
+                        <>
+                          {isPaymentExpired(order) ? (
+                            <Button
+                              size="sm"
+                              className="mt-2"
+                              onClick={() => handleRegeneratePayment(order)}
+                            >
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Buat Pembayaran Baru
+                            </Button>
+                          ) : order.invoice_url ? (
+                            <Button
+                              size="sm"
+                              className="mt-2"
+                              onClick={() => window.open(order.invoice_url, '_blank')}
+                            >
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Lanjutkan Pembayaran
+                            </Button>
+                          ) : null}
+                          {!isPaymentExpired(order) && getTimeRemaining(order) && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {getTimeRemaining(order)}
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
