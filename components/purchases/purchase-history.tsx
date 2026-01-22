@@ -109,27 +109,26 @@ export function PurchaseHistory() {
       setLoading(false)
     }
   }
-}
 
-useEffect(() => {
-  fetchOrders()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [user?.id])
-
-// Auto-refresh orders every 30 seconds to catch status updates
-useEffect(() => {
-  if (!user?.id) return
-
-  const interval = setInterval(() => {
-    console.log('[PURCHASE HISTORY] Auto-refreshing orders...')
+  useEffect(() => {
     fetchOrders()
-  }, 30000) // Refresh every 30 seconds
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
-  return () => clearInterval(interval)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [user?.id])
+  // Auto-refresh orders every 30 seconds to catch status updates
+  useEffect(() => {
+    if (!user?.id) return
 
-if (!user) {
+    const interval = setInterval(() => {
+      console.log('[PURCHASE HISTORY] Auto-refreshing orders...')
+      fetchOrders()
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  if (!user) {
   return (
     <div className="text-center py-16">
       <h2 className="text-2xl font-bold mb-4">Login Diperlukan</h2>
