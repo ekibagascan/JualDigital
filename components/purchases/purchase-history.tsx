@@ -152,7 +152,7 @@ export function PurchaseHistory() {
       // Call download API
       const downloadUrl = `/api/download/${orderItem.id}`
       const response = await fetch(downloadUrl)
-      
+
       if (response.ok) {
         // If response is a file, trigger download
         const blob = await response.blob()
@@ -181,11 +181,42 @@ export function PurchaseHistory() {
     }
   }
 
-  const handleRedownload = (orderItem: OrderItem) => {
-    toast({
-      title: "Link download dikirim",
-      description: `Link download baru untuk ${orderItem.product_title} telah dikirim ke email Anda.`,
-    })
+  const handleRedownload = async (orderItem: OrderItem) => {
+    try {
+      toast({
+        title: "Mengirim email...",
+        description: "Sedang mengirim link download ke email Anda...",
+      })
+
+      const response = await fetch('/api/orders/resend-download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderItemId: orderItem.id }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        toast({
+          title: "Link download dikirim",
+          description: `Link download untuk ${orderItem.product_title} telah dikirim ke email Anda.`,
+        })
+      } else {
+        toast({
+          title: "Gagal mengirim email",
+          description: data.error || "Terjadi kesalahan saat mengirim email",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Gagal mengirim email",
+        description: "Terjadi kesalahan saat mengirim email",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleRegeneratePayment = async (order: Order) => {

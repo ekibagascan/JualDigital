@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: { orderIte
       if (filePath.startsWith('products/')) {
         filePath = filePath.replace('products/', '')
       }
-      
+
       // Also handle if it's a full URL
       if (filePath.includes('/storage/v1/object/public/products/')) {
         filePath = filePath.split('/storage/v1/object/public/products/')[1]
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest, { params }: { params: { orderIte
       }
 
       // Get file name from product title or file path
-      const fileName = product.title 
+      const fileName = product.title
         ? `${product.title.replace(/[^a-z0-9]/gi, '_')}.${filePath.split('.').pop() || 'zip'}`
         : filePath.split('/').pop() || 'download'
 
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest, { params }: { params: { orderIte
 
       // Convert blob to array buffer
       const arrayBuffer = await fileData.arrayBuffer()
-      
+
       // Return file with proper headers to force download
       return new NextResponse(arrayBuffer, {
         headers: {
