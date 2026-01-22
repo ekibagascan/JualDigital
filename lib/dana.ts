@@ -158,12 +158,12 @@ function generateSignature(
   try {
     // Minify JSON body (remove whitespace)
     const minifiedBody = JSON.stringify(JSON.parse(body))
-    
+
     // Calculate SHA-256 hash of minified body
     const hash = crypto.createHash('sha256')
     hash.update(minifiedBody)
     const bodyHash = hash.digest('hex').toLowerCase()
-    
+
     // Create string to sign: METHOD:PATH:HASH:TIMESTAMP
     const stringToSign = `${method}:${path}:${bodyHash}:${timestamp}`
 
@@ -329,9 +329,21 @@ export async function createDanaOrder(
   // Add merchantTransType to order (required)
   orderInfo.merchantTransType = 'Retail'
 
-  // Add optional fields only if provided
+  // validUpTo is REQUIRED for hosted checkout - set expiration time (default: 24 hours from now)
   if (orderData.validUpTo) {
     requestBody.validUpTo = orderData.validUpTo
+  } else {
+    // Generate validUpTo: 24 hours from now in GMT+7
+    const now = new Date()
+    const expirationTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)) // 24 hours
+    const jakartaTime = new Date(expirationTime.getTime() + (7 * 60 * 60 * 1000))
+    const year = jakartaTime.getUTCFullYear()
+    const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(jakartaTime.getUTCDate()).padStart(2, '0')
+    const hours = String(jakartaTime.getUTCHours()).padStart(2, '0')
+    const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, '0')
+    const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, '0')
+    requestBody.validUpTo = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+07:00`
   }
   // Note: disabledPayMethods removed - may cause issues if not properly formatted
 
@@ -417,6 +429,12 @@ export async function createDanaOrder(
       console.error('[DANA] Create order error - Response Code:', data.responseCode)
       console.error('[DANA] Create order error - Response Message:', data.responseMessage)
       console.error('[DANA] Create order error - Full Response:', data)
+      
+      // 5005400 is "General Error" - might be temporary server issue
+      if (data.responseCode === '5005400') {
+        throw new Error(`DANA General Error (${data.responseCode}): ${data.responseMessage || 'Server-side error. Please retry or contact DANA support.'}`)
+      }
+      
       throw new Error(data.responseMessage || `Failed to create DANA order (code: ${data.responseCode})`)
     }
 
