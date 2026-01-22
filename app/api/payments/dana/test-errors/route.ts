@@ -128,35 +128,85 @@ export async function POST(req: NextRequest) {
       // Test 4005401: Invalid Field Format
       // Send request with invalid field formats that DANA will reject
       console.log('[DANA TEST] Testing 4005401 - Invalid Field Format')
-      
+
       // Create request with invalid formats:
-      // - Invalid currency (not IDR)
+      // - Invalid timestamp format in validUpTo (wrong format)
+      // - Invalid merchantTransType enum value
       // - Invalid amount format (without decimals)
-      // - Invalid enum value for isDeeplink (should be 'Y' or 'N', but send invalid value)
       requestBody = {
         partnerReferenceNo: testOrderNumber,
         merchantId: merchantId,
         subMerchantId: '',
         amount: {
           value: '10000', // Invalid: should be "10000.00" with decimals
-          currency: 'USD', // Invalid: should be "IDR"
+          currency: 'IDR',
         },
         externalStoreId: '',
         urlParams: [
           {
             url: `${baseUrlForRedirects}/payment/dana/finish`,
             type: 'PAY_RETURN',
-            isDeeplink: 'INVALID', // Invalid: should be 'Y' or 'N'
+            isDeeplink: 'Y',
           },
           {
             url: `${baseUrlForRedirects}/api/payments/dana/callback`,
             type: 'NOTIFICATION',
-            isDeeplink: 'INVALID', // Invalid: should be 'Y' or 'N'
+            isDeeplink: 'Y',
           }
         ],
         additionalInfo: {
           order: {
             orderTitle: 'Test Order',
+            scenario: 'REDIRECT',
+            merchantTransType: 'INVALID_TYPE', // Invalid: should be valid enum like 'SPECIAL_MOVIE', 'Retail', etc.
+            buyer: {},
+          },
+          mcc: 'INVALID', // Invalid: should be valid MCC code like '5732'
+          envInfo: {
+            sourcePlatform: 'IPG',
+            terminalType: 'SYSTEM',
+            orderTerminalType: 'WEB',
+          },
+        },
+        // Invalid validUpTo format - wrong timestamp format
+        validUpTo: '2026-01-22T10:00:00', // Invalid: missing timezone (+07:00)
+      }
+    } else if (testCase === '4045418') {
+      // Test 4045418: Inconsistent Request
+      // This error occurs when using same partnerReferenceNo with different parameters
+      // (Idempotent Key inconsistency)
+      console.log('[DANA TEST] Testing 4045418 - Inconsistent Request')
+
+      // Strategy: First create a valid order, then retry with same partnerReferenceNo
+      // but different parameters (different amount, different urlParams, etc.)
+      // Use a fixed partnerReferenceNo that we'll reuse
+      const fixedOrderNumber = `TEST-4045418-${Date.now()}`
+      
+      // Step 1: Create a valid order first (this will succeed)
+      const firstRequestBody = {
+        partnerReferenceNo: fixedOrderNumber,
+        merchantId: merchantId,
+        subMerchantId: '',
+        amount: {
+          value: '10000.00',
+          currency: 'IDR',
+        },
+        externalStoreId: '',
+        urlParams: [
+          {
+            url: `${baseUrlForRedirects}/payment/dana/finish`,
+            type: 'PAY_RETURN',
+            isDeeplink: 'Y',
+          },
+          {
+            url: `${baseUrlForRedirects}/api/payments/dana/callback`,
+            type: 'NOTIFICATION',
+            isDeeplink: 'Y',
+          }
+        ],
+        additionalInfo: {
+          order: {
+            orderTitle: 'Test Order First',
             scenario: 'REDIRECT',
             merchantTransType: 'SPECIAL_MOVIE',
             buyer: {},
@@ -168,7 +218,6 @@ export async function POST(req: NextRequest) {
             orderTerminalType: 'WEB',
           },
         },
-        // Generate validUpTo: 30 minutes from now
         validUpTo: (() => {
           const now = new Date()
           const expirationTime = new Date(now.getTime() + (30 * 60 * 1000))
@@ -182,29 +231,61 @@ export async function POST(req: NextRequest) {
           return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+07:00`
         })(),
       }
-    } else if (testCase === '4045418') {
-      // Test 4045418: Inconsistent Request
-      // Send request with inconsistencies that DANA will reject
-      console.log('[DANA TEST] Testing 4045418 - Inconsistent Request')
-      
-      // Create inconsistent request:
-      // - Missing urlParams (required for REDIRECT scenario)
-      // - Or amount mismatch between total and items
+
+      // Create first order
+      const firstBodyString = JSON.stringify(firstRequestBody)
+      const firstSignature = generateSignature('POST', path, generateTimestamp(), firstBodyString, privateKey)
+      const firstTimestamp = generateTimestamp()
+      const firstExternalId = generateExternalId()
+
+      try {
+        const firstResponse = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-PARTNER-ID': partnerId,
+            'X-TIMESTAMP': firstTimestamp,
+            'X-SIGNATURE': firstSignature,
+            'X-EXTERNAL-ID': firstExternalId,
+            'CHANNEL-ID': 'WEB',
+            'ORIGIN': baseUrlForRedirects,
+          },
+          body: firstBodyString,
+        })
+        const firstResponseText = await firstResponse.text()
+        console.log('[DANA TEST] First order response:', firstResponseText)
+      } catch (error) {
+        console.log('[DANA TEST] First order failed (this is OK):', error)
+      }
+
+      // Step 2: Now retry with same partnerReferenceNo but DIFFERENT parameters
+      // This should trigger 4045418
       requestBody = {
-        partnerReferenceNo: testOrderNumber,
+        partnerReferenceNo: fixedOrderNumber, // SAME as first order
         merchantId: merchantId,
         subMerchantId: '',
         amount: {
-          value: '10000.00',
+          value: '20000.00', // DIFFERENT amount
           currency: 'IDR',
         },
         externalStoreId: '',
-        // Intentionally missing urlParams to create inconsistency
-        // (urlParams is REQUIRED for REDIRECT scenario but we omit it)
+        urlParams: [
+          {
+            url: `${baseUrlForRedirects}/payment/dana/finish-different`, // DIFFERENT URL
+            type: 'PAY_RETURN',
+            isDeeplink: 'Y',
+          },
+          {
+            url: `${baseUrlForRedirects}/api/payments/dana/callback-different`, // DIFFERENT URL
+            type: 'NOTIFICATION',
+            isDeeplink: 'Y',
+          }
+        ],
         additionalInfo: {
           order: {
-            orderTitle: 'Test Order',
-            scenario: 'REDIRECT', // REDIRECT requires urlParams, but we're not providing it
+            orderTitle: 'Test Order Second', // DIFFERENT title
+            scenario: 'REDIRECT',
             merchantTransType: 'SPECIAL_MOVIE',
             buyer: {},
           },
@@ -215,7 +296,6 @@ export async function POST(req: NextRequest) {
             orderTerminalType: 'WEB',
           },
         },
-        // Generate validUpTo: 30 minutes from now
         validUpTo: (() => {
           const now = new Date()
           const expirationTime = new Date(now.getTime() + (30 * 60 * 1000))
@@ -262,9 +342,9 @@ export async function POST(req: NextRequest) {
       console.log('[DANA TEST] Response status:', response.status)
       console.log('[DANA TEST] Response body:', responseText)
 
-      let responseData: { responseCode?: string; responseMessage?: string; [key: string]: unknown } = {}
+      let responseData: { responseCode?: string; responseMessage?: string;[key: string]: unknown } = {}
       try {
-        responseData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string; [key: string]: unknown }
+        responseData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string;[key: string]: unknown }
       } catch {
         responseData = { message: responseText || 'Unknown error' }
       }
