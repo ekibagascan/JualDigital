@@ -10,10 +10,10 @@ export async function POST(req: NextRequest) {
   try {
     // Get raw body for signature verification
     const rawBody = await req.text()
-    let body: any
+    let body: Record<string, unknown>
     try {
-      body = JSON.parse(rawBody)
-    } catch (parseError) {
+      body = JSON.parse(rawBody) as Record<string, unknown>
+    } catch {
       console.error('[DANA WEBHOOK] Failed to parse JSON body:', rawBody)
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     // - transactionStatusDesc: "SUCCESS", "FAILED", "CANCELLED", "PENDING"
     // Check transactionStatusDesc first (more reliable), then latestTransactionStatus
     const statusToCheck = transactionStatusDesc || transactionStatus
-    
+
     switch (statusToCheck?.toUpperCase()) {
       case 'SUCCESS':
       case 'PAID':
