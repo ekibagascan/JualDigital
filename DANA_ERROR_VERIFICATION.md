@@ -18,19 +18,23 @@ Both error codes are now properly handled in `lib/dana.ts`:
 
 ### Method 1: Test Endpoint (Recommended)
 
-Use the test endpoint to verify error handling:
+The test endpoint now sends **raw requests directly to DANA API**, bypassing our validation logic to trigger specific error codes:
 
 ```bash
 # Test 4005401 - Invalid Field Format
+# Sends: invalid currency (USD), invalid amount format (no decimals), invalid enum (isDeeplink: 'INVALID')
 curl -X POST https://jualdigital.id/api/payments/dana/test-errors \
   -H "Content-Type: application/json" \
   -d '{"testCase": "4005401"}'
 
-# Test 4045418 - Inconsistent Request  
+# Test 4045418 - Inconsistent Request
+# Sends: REDIRECT scenario without required urlParams
 curl -X POST https://jualdigital.id/api/payments/dana/test-errors \
   -H "Content-Type: application/json" \
   -d '{"testCase": "4045418"}'
 ```
+
+**Note**: The endpoint returns `verified: true` when DANA returns the expected error code, which should mark it as verified in the DANA dashboard.
 
 ### Method 2: Manual Testing
 
