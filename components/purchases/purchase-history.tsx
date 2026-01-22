@@ -142,13 +142,43 @@ export function PurchaseHistory() {
     )
   }
 
-  const handleDownload = (orderItem: OrderItem) => {
-    // Mock download - in real implementation, this would trigger actual download
-    toast({
-      title: "Download dimulai",
-      description: `Mengunduh ${orderItem.product_title}...`,
-    })
+  const handleDownload = async (orderItem: OrderItem) => {
+    try {
+      toast({
+        title: "Download dimulai",
+        description: `Mengunduh ${orderItem.product_title}...`,
+      })
 
+      // Call download API
+      const downloadUrl = `/api/download/${orderItem.id}`
+      const response = await fetch(downloadUrl)
+      
+      if (response.ok) {
+        // If response is a file, trigger download
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = orderItem.product_title || 'download'
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "Download gagal",
+          description: errorData.error || "Gagal mengunduh file",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Download gagal",
+        description: "Terjadi kesalahan saat mengunduh file",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleRedownload = (orderItem: OrderItem) => {

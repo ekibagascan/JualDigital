@@ -367,10 +367,10 @@ export default function DanaFinishPage() {
                           const normalizedPaymentStatus = paymentStatus?.toLowerCase().trim()
                           const normalizedOrderStatus = orderStatus?.toLowerCase().trim()
                           const normalizedOrderDbStatus = order?.status?.toLowerCase().trim()
-                          const isPaid = normalizedPaymentStatus === 'success' || 
-                                        normalizedOrderStatus === 'paid' || 
-                                        normalizedOrderDbStatus === 'paid'
-                          
+                          const isPaid = normalizedPaymentStatus === 'success' ||
+                            normalizedOrderStatus === 'paid' ||
+                            normalizedOrderDbStatus === 'paid'
+
                           return isPaid ? (
                             <Button
                               size="sm"

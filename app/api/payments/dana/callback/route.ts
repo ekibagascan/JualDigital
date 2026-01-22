@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
           // Send email to customer
           // Get customer email - check both guest_email and user_id
           let customerEmail: string | null = null
-          
+
           if (order.guest_email) {
             customerEmail = order.guest_email
           } else if (order.user_id) {
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
               console.error('[DANA WEBHOOK] Error fetching user email:', userError)
             }
           }
-          
+
           if (customerEmail) {
             try {
               // Format email content with download links
