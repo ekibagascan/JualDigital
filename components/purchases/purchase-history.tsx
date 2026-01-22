@@ -249,7 +249,7 @@ export function PurchaseHistory() {
     const normalizedStatus = order.status?.toLowerCase().trim()
     const isPaid = normalizedStatus === "paid"
     const isPending = normalizedStatus === "pending"
-    
+
     if (activeTab === "all") return true
     if (activeTab === "completed") {
       const result = isPaid
@@ -288,7 +288,14 @@ export function PurchaseHistory() {
         <TabsList>
           <TabsTrigger value="all">Semua ({orders.length})</TabsTrigger>
           <TabsTrigger value="completed">
-            Selesai ({orders.filter((p) => p.status?.toLowerCase().trim() === "paid").length})
+            Selesai ({orders.filter((p) => {
+              const normalized = p.status?.toLowerCase().trim()
+              const isPaid = normalized === "paid"
+              if (isPaid) {
+                console.log('[PURCHASE HISTORY] Found paid order:', p.order_number, 'status:', p.status)
+              }
+              return isPaid
+            }).length})
           </TabsTrigger>
           <TabsTrigger value="processing">
             Diproses ({orders.filter((p) => p.status?.toLowerCase().trim() === "pending").length})
