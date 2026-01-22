@@ -47,9 +47,21 @@ export async function POST(req: NextRequest) {
 
     // Check if we should simulate internal server error (for testing 5005601)
     // This can be triggered via query parameter or special header for testing
-    const simulateError = req.nextUrl.searchParams.get('simulateError') === 'true' ||
-      req.headers.get('X-SIMULATE-ERROR') === 'true'
+    const simulateErrorParam = req.nextUrl.searchParams.get('simulateError') === 'true'
+    const simulateErrorHeader = req.headers.get('X-SIMULATE-ERROR') === 'true'
+    const simulateError = simulateErrorParam || simulateErrorHeader
+    
+    console.log('[DANA WEBHOOK] simulateError check:', {
+      simulateErrorParam,
+      simulateErrorHeader,
+      simulateError,
+      queryParams: Object.fromEntries(req.nextUrl.searchParams),
+      hasXSimulateError: req.headers.has('X-SIMULATE-ERROR'),
+      xSimulateErrorValue: req.headers.get('X-SIMULATE-ERROR')
+    })
 
+    // If simulating error, we can return early after basic validation
+    // But we still need to parse the body to get partnerReferenceNo for logging
     // DANA might send partnerReferenceNo in different fields
     // Based on actual webhook: DANA sends originalPartnerReferenceNo, latestTransactionStatus, originalReferenceNo
     const partnerReferenceNo = (body.originalPartnerReferenceNo || body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number) as string | undefined
@@ -90,6 +102,14 @@ export async function POST(req: NextRequest) {
       // For testing purposes, still return DANA-compliant response format
       // In production, DANA will only send webhooks for real orders
       // But for testing response format, we return the correct structure
+      // Check if we should simulate error even when order doesn't exist
+      if (simulateError) {
+        console.log('[DANA WEBHOOK] Simulating internal server error (5005601) for testing (order not found)')
+        return NextResponse.json({
+          responseCode: '5005601',
+          responseMessage: 'Internal Server Error'
+        }, { status: 500 })
+      }
       return NextResponse.json({
         responseCode: '2005600',
         responseMessage: 'Successful'

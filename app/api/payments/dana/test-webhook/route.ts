@@ -164,17 +164,24 @@ export async function POST(req: NextRequest) {
       ? `${callbackUrl}?simulateError=true`
       : callbackUrl
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-SIGNATURE': signature,
+    }
+    
+    if (simulateError) {
+      headers['X-SIMULATE-ERROR'] = 'true'
+    }
+
     console.log('[DANA WEBHOOK TEST] Sending webhook to:', callbackUrlWithError)
+    console.log('[DANA WEBHOOK TEST] simulateError flag:', simulateError)
+    console.log('[DANA WEBHOOK TEST] Headers:', JSON.stringify(headers, null, 2))
     console.log('[DANA WEBHOOK TEST] Webhook payload:', JSON.stringify(webhookPayload, null, 2))
 
     try {
       const response = await fetch(callbackUrlWithError, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-SIGNATURE': signature,
-          ...(simulateError ? { 'X-SIMULATE-ERROR': 'true' } : {})
-        },
+        headers,
         body: payloadString,
       })
 
