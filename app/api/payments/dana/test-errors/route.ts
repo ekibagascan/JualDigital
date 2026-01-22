@@ -256,7 +256,7 @@ export async function POST(req: NextRequest) {
         })
         const firstResponseText = await firstResponse.text()
         console.log('[DANA TEST] First order response:', firstResponseText)
-        
+
         try {
           const firstResponseData = JSON.parse(firstResponseText) as { responseCode?: string }
           if (firstResponseData.responseCode === '2005400') {
@@ -271,7 +271,7 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         console.log('[DANA TEST] First order failed:', error)
       }
-      
+
       if (!firstOrderSuccess) {
         return NextResponse.json({
           success: false,
