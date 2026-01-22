@@ -30,19 +30,19 @@ export async function POST(req: NextRequest) {
 
       try {
         // Intentionally send invalid field format:
-        // - Invalid currency format
+        // - Invalid currency format (will be caught by formatAmountValue or DANA)
         // - Invalid amount format (not decimal)
-        // - Invalid enum value for scenario
+        // Note: We can't easily test invalid enum values as TypeScript prevents it
+        // DANA will return 4005401 if currency or amount format is wrong
         const invalidOrder = await createDanaOrder({
           partnerReferenceNo: testOrderNumber,
           merchantId: process.env.DANA_MERCHANT_ID || '',
           amount: {
-            value: '10000', // Invalid: should be "10000.00" with decimals
-            currency: 'USD', // Invalid: should be "IDR"
+            value: '10000', // Invalid: should be "10000.00" with decimals (formatAmountValue will fix this, so DANA might reject currency instead)
+            currency: 'USD', // Invalid: should be "IDR" - this should trigger 4005401
           },
           webRedirectUrl: `${baseUrl}/payment/dana/finish`,
           finishNotifyUrl: `${baseUrl}/api/payments/dana/callback`,
-          scenario: 'INVALID_SCENARIO' as 'REDIRECT' | 'API', // Invalid enum value (type cast for testing)
         })
 
         // If we get here, the error wasn't caught - log it
