@@ -13,22 +13,22 @@ export async function POST(req: NextRequest) {
       {
         cookies: {
           getAll: () => req.cookies.getAll(),
-          setAll: () => {},
+          setAll: () => { },
         },
       }
     )
 
     // Get authenticated user from session (server-side verification)
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
-    console.log('[CHECKOUT] Session check:', { 
-      hasSession: !!session, 
+
+    console.log('[CHECKOUT] Session check:', {
+      hasSession: !!session,
       userId: session?.user?.id,
-      sessionError 
+      sessionError
     })
 
     const orderData = await req.json()
-    console.log('[CHECKOUT] Received order data:', { 
+    console.log('[CHECKOUT] Received order data:', {
       client_user_id: orderData.user_id,
       has_guest_email: !!orderData.guest_email,
       has_guest_name: !!orderData.guest_name
@@ -59,22 +59,22 @@ export async function POST(req: NextRequest) {
       {
         cookies: {
           getAll: () => req.cookies.getAll(),
-          setAll: () => {},
+          setAll: () => { },
         },
       }
     )
 
     const orderService = new OrderService(serviceSupabase as unknown as SupabaseClient)
-    
+
     console.log('[CHECKOUT] Creating order with:', {
       user_id: orderData.user_id,
       guest_email: orderData.guest_email,
       guest_name: orderData.guest_name,
       items_count: orderData.items?.length
     })
-    
+
     const { order, paymentUrl } = await orderService.createOrder(orderData)
-    
+
     console.log('[CHECKOUT] Order created successfully:', {
       order_id: order.id,
       order_number: order.order_number,
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       status: order.status
     })
     console.log('[CHECKOUT] Payment URL:', paymentUrl)
-    
+
     return NextResponse.json({ order, paymentUrl })
   } catch (error: unknown) {
     console.error('[CHECKOUT] Error:', error)

@@ -189,7 +189,23 @@ export async function POST(req: NextRequest) {
 
         if (orderItems && orderItems.length > 0) {
           // Send email to customer
-          const customerEmail = order.guest_email
+          // Get customer email - check both guest_email and user_id
+          let customerEmail: string | null = null
+          
+          if (order.guest_email) {
+            customerEmail = order.guest_email
+          } else if (order.user_id) {
+            // Get user email from auth.users table
+            try {
+              const { data: userData, error: userError } = await supabase.auth.admin.getUserById(order.user_id)
+              if (!userError && userData?.user?.email) {
+                customerEmail = userData.user.email
+              }
+            } catch (userError) {
+              console.error('[DANA WEBHOOK] Error fetching user email:', userError)
+            }
+          }
+          
           if (customerEmail) {
             try {
               // Format email content with download links

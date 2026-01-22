@@ -136,10 +136,10 @@ export default function DanaFinishPage() {
           } else if (normalizedStatus === 'pending') {
             setPaymentStatus('pending')
             setOrderStatus('pending')
-          } else if (normalizedStatus === 'cancelled') {
+          } else if (normalizedStatus === 'cancelled' || normalizedStatus === 'failed') {
             setPaymentStatus('failed')
-            setOrderStatus('cancelled')
-            // Stop polling if cancelled
+            setOrderStatus(normalizedStatus)
+            // Stop polling if cancelled/failed
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current)
               pollingIntervalRef.current = null
@@ -363,9 +363,15 @@ export default function DanaFinishPage() {
                           {formatCurrency(item.price * item.quantity)}
                         </p>
                         {/* Download button for paid orders */}
-                        {(paymentStatus === 'success' ||
-                          orderStatus?.toLowerCase().trim() === 'paid' ||
-                          order?.status?.toLowerCase().trim() === 'paid') && (
+                        {(() => {
+                          const normalizedPaymentStatus = paymentStatus?.toLowerCase().trim()
+                          const normalizedOrderStatus = orderStatus?.toLowerCase().trim()
+                          const normalizedOrderDbStatus = order?.status?.toLowerCase().trim()
+                          const isPaid = normalizedPaymentStatus === 'success' || 
+                                        normalizedOrderStatus === 'paid' || 
+                                        normalizedOrderDbStatus === 'paid'
+                          
+                          return isPaid ? (
                             <Button
                               size="sm"
                               onClick={() => {
@@ -377,7 +383,8 @@ export default function DanaFinishPage() {
                               <Download className="w-4 h-4 mr-2" />
                               Download
                             </Button>
-                          )}
+                          ) : null
+                        })()}
                       </div>
                     </div>
                   ))}
