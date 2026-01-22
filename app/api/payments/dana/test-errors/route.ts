@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
       // but different amount only (as per DANA docs)
       // Use the exact partnerReferenceNo from user's test case
       const fixedOrderNumber = '2020102900000000000001'
-      
+
       // Generate validUpTo once to reuse in both requests
       const sharedValidUpTo = (() => {
         const now = new Date()
@@ -243,7 +243,7 @@ export async function POST(req: NextRequest) {
       let firstOrderSuccess = false
       let firstOrderResponseCode: string | undefined
       let firstOrderResponseMessage: string | undefined
-      
+
       try {
         console.log('[DANA TEST] Creating first order with partnerReferenceNo:', fixedOrderNumber, 'amount: 100000.00')
         const firstResponse = await fetch(`${baseUrl}${path}`, {
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
           firstOrderResponseCode = firstResponseData.responseCode
           firstOrderResponseMessage = firstResponseData.responseMessage
           console.log('[DANA TEST] First order parsed response:', firstResponseData)
-          
+
           if (firstResponseData.responseCode === '2005400') {
             firstOrderSuccess = true
             console.log('[DANA TEST] First order created successfully (2005400), now retrying with different amount')
@@ -316,7 +316,7 @@ export async function POST(req: NextRequest) {
         // Ensure validUpTo is exactly the same
         validUpTo: sharedValidUpTo,
       }
-      
+
       console.log('[DANA TEST] ==========================================')
       console.log('[DANA TEST] SECOND REQUEST - Testing 4045418')
       console.log('[DANA TEST] partnerReferenceNo:', fixedOrderNumber)
@@ -337,7 +337,7 @@ export async function POST(req: NextRequest) {
       partnerReferenceNo: (requestBody as { partnerReferenceNo?: string }).partnerReferenceNo,
       amount: (requestBody as { amount?: { value?: string } }).amount?.value,
     })
-    
+
     // For 4045418, log detailed comparison
     if (testCase === '4045418') {
       console.log('[DANA TEST] Second request - partnerReferenceNo:', (requestBody as { partnerReferenceNo?: string }).partnerReferenceNo)
