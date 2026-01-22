@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const { testCase } = await req.json()
 
     if (!testCase || (testCase !== '4005401' && testCase !== '4045418')) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Invalid test case',
         validCases: ['4005401', '4045418']
       }, { status: 400 })
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       // Test 4005401: Invalid Field Format
       // This error occurs when a field has wrong format (e.g., invalid enum, wrong data type)
       console.log('[DANA TEST] Testing 4005401 - Invalid Field Format')
-      
+
       try {
         // Intentionally send invalid field format:
         // - Invalid currency format
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
           },
           webRedirectUrl: `${baseUrl}/payment/dana/finish`,
           finishNotifyUrl: `${baseUrl}/api/payments/dana/callback`,
-          scenario: 'INVALID_SCENARIO' as any, // Invalid enum value
+          scenario: 'INVALID_SCENARIO' as 'REDIRECT' | 'API', // Invalid enum value (type cast for testing)
         })
 
         // If we get here, the error wasn't caught - log it
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.log('[DANA TEST] 4005401 error caught:', errorMessage)
-        
+
         // Check if error contains 4005401
         if (errorMessage.includes('4005401') || errorMessage.includes('Invalid Field Format')) {
           return NextResponse.json({
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       // Test 4045418: Inconsistent Request
       // This error occurs when there's inconsistency (e.g., amount mismatch, missing required fields)
       console.log('[DANA TEST] Testing 4045418 - Inconsistent Request')
-      
+
       try {
         // Intentionally create inconsistent request:
         // - Missing required fields that depend on other fields
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.log('[DANA TEST] 4045418 error caught:', errorMessage)
-        
+
         // Check if error contains 4045418
         if (errorMessage.includes('4045418') || errorMessage.includes('Inconsistent Request')) {
           return NextResponse.json({
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error('[DANA TEST] Test endpoint error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Test failed',
       details: errorMessage
     }, { status: 500 })
