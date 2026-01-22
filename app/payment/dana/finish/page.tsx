@@ -124,7 +124,7 @@ export default function DanaFinishPage() {
           }
 
           // Determine payment status from order status (normalize for comparison)
-          const normalizedStatus = status?.toLowerCase().trim()
+          // Reuse normalizedStatus from above
           if (normalizedStatus === 'paid') {
             setPaymentStatus('success')
             setOrderStatus('paid')
