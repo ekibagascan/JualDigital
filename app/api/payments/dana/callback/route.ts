@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
 
     // Check if we should simulate internal server error (for testing 5005601)
     // This can be triggered via query parameter or special header for testing
-    const simulateError = req.nextUrl.searchParams.get('simulateError') === 'true' || 
-                         req.headers.get('X-SIMULATE-ERROR') === 'true'
+    const simulateError = req.nextUrl.searchParams.get('simulateError') === 'true' ||
+      req.headers.get('X-SIMULATE-ERROR') === 'true'
 
     // DANA might send partnerReferenceNo in different fields
     // Based on actual webhook: DANA sends originalPartnerReferenceNo, latestTransactionStatus, originalReferenceNo
@@ -152,6 +152,18 @@ export async function POST(req: NextRequest) {
       referenceNo,
     })
 
+    // Check if order was already paid - only send email if status is changing TO paid
+    const wasAlreadyPaid = order.status === 'paid'
+    const isChangingToPaid = !wasAlreadyPaid && newStatus === 'paid'
+
+    console.log('[DANA WEBHOOK] Email check:', {
+      wasAlreadyPaid,
+      isChangingToPaid,
+      currentStatus: order.status,
+      newStatus,
+      willSendEmail: isChangingToPaid && shouldNotify
+    })
+
     // Update order
     console.log('[DANA WEBHOOK] Updating order:', order.id, 'from', order.status, 'to', newStatus)
     const { error: updateError, data: updatedOrder } = await supabase
@@ -181,8 +193,9 @@ export async function POST(req: NextRequest) {
       console.warn('[DANA WEBHOOK] Order update returned no data')
     }
 
-    // If payment is successful, send notifications and process downloads
-    if (shouldNotify && newStatus === 'paid') {
+    // Only send notifications if status is changing FROM non-paid TO paid
+    // This prevents duplicate emails when DANA retries the webhook
+    if (isChangingToPaid && shouldNotify) {
       try {
         // Get order items with product details (including download links)
         const { data: orderItems } = await supabase
@@ -350,7 +363,7 @@ Tim Jual Digital
     // DANA expects specific response codes:
     // - 2005600: Successful acknowledgment (for both success and closed/expired)
     // - 5005601: Internal Server Error (for testing retry mechanism)
-    
+
     // If simulating error, return 5005601
     if (simulateError) {
       console.log('[DANA WEBHOOK] Simulating internal server error (5005601) for testing')
