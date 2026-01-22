@@ -145,7 +145,8 @@ function formatAmountValue(value: string | number): string {
 
 /**
  * Generate signature for DANA API request
- * Signature is created using RSA-SHA256 with private key
+ * Signature format: METHOD:PATH:lowercase(hex(SHA256(minified_body))):TIMESTAMP
+ * Based on DANA documentation: https://dashboard.dana.id/api-docs-v2/guide/authentication
  */
 function generateSignature(
   method: string,
@@ -154,10 +155,18 @@ function generateSignature(
   body: string,
   privateKey: string
 ): string {
-  // Create string to sign: METHOD + PATH + TIMESTAMP + BODY
-  const stringToSign = `${method}${path}${timestamp}${body}`
-
   try {
+    // Minify JSON body (remove whitespace)
+    const minifiedBody = JSON.stringify(JSON.parse(body))
+    
+    // Calculate SHA-256 hash of minified body
+    const hash = crypto.createHash('sha256')
+    hash.update(minifiedBody)
+    const bodyHash = hash.digest('hex').toLowerCase()
+    
+    // Create string to sign: METHOD:PATH:HASH:TIMESTAMP
+    const stringToSign = `${method}:${path}:${bodyHash}:${timestamp}`
+
     // Format private key to PEM if needed
     const formattedKey = formatPemKey(privateKey, 'PRIVATE')
 
