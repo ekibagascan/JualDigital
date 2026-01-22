@@ -55,11 +55,31 @@ export async function GET(request: NextRequest) {
 
     console.log('[ORDERS API] Fetching orders for user:', userId)
 
+    // Get user's email to also check guest orders
+    let userEmail: string | null = null
+    try {
+      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId)
+      if (!userError && userData?.user?.email) {
+        userEmail = userData.user.email
+        console.log('[ORDERS API] User email:', userEmail)
+      }
+    } catch (emailError) {
+      console.warn('[ORDERS API] Could not fetch user email:', emailError)
+    }
+
     // First, let's check how many orders exist for this user (without joins for speed)
-    const { data: orderCount, error: countError } = await supabase
+    // Check BOTH user_id AND guest_email (in case orders were created as guest)
+    let orderCountQuery = supabase
       .from('orders')
-      .select('id, status', { count: 'exact' })
-      .eq('user_id', userId)
+      .select('id, status, user_id, guest_email')
+    
+    if (userEmail) {
+      orderCountQuery = orderCountQuery.or(`user_id.eq.${userId},guest_email.eq.${userEmail}`)
+    } else {
+      orderCountQuery = orderCountQuery.eq('user_id', userId)
+    }
+    
+    const { data: orderCount, error: countError } = await orderCountQuery
 
     console.log('[ORDERS API] Total orders count for user:', orderCount?.length, 'Count error:', countError)
     if (orderCount && orderCount.length > 0) {
@@ -69,27 +89,40 @@ export async function GET(request: NextRequest) {
         return acc
       }, {})
       console.log('[ORDERS API] Status count from simple query:', statusCount)
+      console.log('[ORDERS API] Orders breakdown:', {
+        with_user_id: orderCount.filter((o: { user_id?: string }) => o.user_id === userId).length,
+        with_guest_email: userEmail ? orderCount.filter((o: { guest_email?: string }) => o.guest_email === userEmail).length : 0,
+        paid: orderCount.filter((o: { status?: string }) => o.status?.toLowerCase().trim() === 'paid').length,
+      })
     }
 
     // Also check if there are paid orders with this user_id but different status format
-    const { data: paidOrdersCheck, error: paidCheckError } = await supabase
+    let paidOrdersQuery = supabase
       .from('orders')
-      .select('id, order_number, status, user_id')
-      .eq('user_id', userId)
+      .select('id, order_number, status, user_id, guest_email')
       .ilike('status', '%paid%') // Case-insensitive search for "paid"
+    
+    if (userEmail) {
+      paidOrdersQuery = paidOrdersQuery.or(`user_id.eq.${userId},guest_email.eq.${userEmail}`)
+    } else {
+      paidOrdersQuery = paidOrdersQuery.eq('user_id', userId)
+    }
+    
+    const { data: paidOrdersCheck, error: paidCheckError } = await paidOrdersQuery
 
     console.log('[ORDERS API] Paid orders check (ilike):', paidOrdersCheck?.length, 'Error:', paidCheckError)
     if (paidOrdersCheck && paidOrdersCheck.length > 0) {
-      console.log('[ORDERS API] Found paid orders:', paidOrdersCheck.map((o: { order_number?: string; status?: string }) => ({
+      console.log('[ORDERS API] Found paid orders:', paidOrdersCheck.map((o: { order_number?: string; status?: string; user_id?: string; guest_email?: string }) => ({
         order_number: o.order_number,
-        status: o.status
+        status: o.status,
+        has_user_id: !!o.user_id,
+        has_guest_email: !!o.guest_email
       })))
     }
 
     // Fetch orders with order items
-    // Use service role key to bypass RLS and ensure we get all orders
-    // IMPORTANT: Don't filter by status - get ALL orders for this user
-    const { data: orders, error } = await supabase
+    // IMPORTANT: Query by BOTH user_id AND guest_email to get all orders (including guest orders)
+    let ordersQuery = supabase
       .from('orders')
       .select(`
         *,
@@ -106,7 +139,14 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
-      .eq('user_id', userId)
+    
+    if (userEmail) {
+      ordersQuery = ordersQuery.or(`user_id.eq.${userId},guest_email.eq.${userEmail}`)
+    } else {
+      ordersQuery = ordersQuery.eq('user_id', userId)
+    }
+    
+    const { data: orders, error } = await ordersQuery
       .order('created_at', { ascending: false })
     // No limit - get all orders
 
