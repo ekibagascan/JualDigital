@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       console.error('[DANA WEBHOOK] Failed to parse JSON body:', rawBody)
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    
+
     console.log('[DANA WEBHOOK] Received webhook body:', JSON.stringify(body, null, 2))
     console.log('[DANA WEBHOOK] Raw body length:', rawBody.length)
 
@@ -46,9 +46,12 @@ export async function POST(req: NextRequest) {
     }
 
     // DANA might send partnerReferenceNo in different fields
-    const partnerReferenceNo = body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number
-    const referenceNo = body.referenceNo || body.reference_no || body.transactionId || body.transaction_id
-    const transactionStatus = body.transactionStatus || body.transaction_status || body.status
+    // Based on actual webhook: DANA sends originalPartnerReferenceNo, latestTransactionStatus, originalReferenceNo
+    const partnerReferenceNo = body.originalPartnerReferenceNo || body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number
+    const referenceNo = body.originalReferenceNo || body.referenceNo || body.reference_no || body.transactionId || body.transaction_id
+    // DANA sends latestTransactionStatus: "00" for success, or transactionStatusDesc: "SUCCESS"
+    const transactionStatus = body.latestTransactionStatus || body.transactionStatus || body.transaction_status || body.status
+    const transactionStatusDesc = body.transactionStatusDesc // "SUCCESS", "FAILED", etc.
     const responseCode = body.responseCode || body.response_code
 
     console.log('[DANA WEBHOOK] Extracted fields:', {
@@ -88,10 +91,16 @@ export async function POST(req: NextRequest) {
     let newStatus = order.status
     let shouldNotify = false
 
-    // DANA transaction statuses: SUCCESS, PENDING, FAILED, CANCELLED
-    switch (transactionStatus?.toUpperCase()) {
+    // DANA transaction statuses: 
+    // - latestTransactionStatus: "00" = Success, "05" = Cancelled
+    // - transactionStatusDesc: "SUCCESS", "FAILED", "CANCELLED", "PENDING"
+    // Check transactionStatusDesc first (more reliable), then latestTransactionStatus
+    const statusToCheck = transactionStatusDesc || transactionStatus
+    
+    switch (statusToCheck?.toUpperCase()) {
       case 'SUCCESS':
       case 'PAID':
+      case '00': // DANA uses "00" for success
         // Payment successful
         newStatus = 'paid'
         shouldNotify = true
@@ -103,16 +112,17 @@ export async function POST(req: NextRequest) {
       case 'FAILED':
       case 'CANCELLED':
       case 'EXPIRED':
+      case '05': // DANA uses "05" for cancelled
         // Payment failed or cancelled
         newStatus = 'cancelled'
         break
       default:
-        console.log('[DANA WEBHOOK] Unknown status:', transactionStatus)
-        // If responseCode indicates success, treat as paid
-        if (responseCode === '2005400') {
+        console.log('[DANA WEBHOOK] Unknown status:', { transactionStatus, transactionStatusDesc, statusToCheck })
+        // If latestTransactionStatus is "00" or transactionStatusDesc is "SUCCESS", treat as paid
+        if (transactionStatus === '00' || transactionStatusDesc === 'SUCCESS' || responseCode === '2005400') {
           newStatus = 'paid'
           shouldNotify = true
-        } else if (!transactionStatus && responseCode === '2005400') {
+        } else if (!transactionStatus && !transactionStatusDesc && responseCode === '2005400') {
           // Sometimes DANA sends success without transactionStatus
           newStatus = 'paid'
           shouldNotify = true
@@ -122,10 +132,13 @@ export async function POST(req: NextRequest) {
     // Log the decision
     console.log('[DANA WEBHOOK] Status decision:', {
       transactionStatus,
+      transactionStatusDesc,
       responseCode,
       newStatus,
       shouldNotify,
       currentOrderStatus: order.status,
+      partnerReferenceNo,
+      referenceNo,
     })
 
     // Update order
