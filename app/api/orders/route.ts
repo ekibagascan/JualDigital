@@ -55,6 +55,22 @@ export async function GET(request: NextRequest) {
 
     console.log('[ORDERS API] Fetching orders for user:', userId)
 
+    // First, let's check how many orders exist for this user (without joins for speed)
+    const { data: orderCount, error: countError } = await supabase
+      .from('orders')
+      .select('id, status', { count: 'exact' })
+      .eq('user_id', userId)
+    
+    console.log('[ORDERS API] Total orders count for user:', orderCount?.length, 'Count error:', countError)
+    if (orderCount && orderCount.length > 0) {
+      const statusCount = orderCount.reduce((acc: Record<string, number>, o: { status?: string }) => {
+        const s = o.status || 'undefined'
+        acc[s] = (acc[s] || 0) + 1
+        return acc
+      }, {})
+      console.log('[ORDERS API] Status count from simple query:', statusCount)
+    }
+
     // Fetch orders with order items
     // Use service role key to bypass RLS and ensure we get all orders
     // IMPORTANT: Don't filter by status - get ALL orders for this user
