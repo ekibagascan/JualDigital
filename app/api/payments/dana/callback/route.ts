@@ -10,8 +10,16 @@ export async function POST(req: NextRequest) {
   try {
     // Get raw body for signature verification
     const rawBody = await req.text()
-    const body = JSON.parse(rawBody)
-    console.log('[DANA WEBHOOK] Received webhook:', body)
+    let body: any
+    try {
+      body = JSON.parse(rawBody)
+    } catch (parseError) {
+      console.error('[DANA WEBHOOK] Failed to parse JSON body:', rawBody)
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    
+    console.log('[DANA WEBHOOK] Received webhook body:', JSON.stringify(body, null, 2))
+    console.log('[DANA WEBHOOK] Raw body length:', rawBody.length)
 
     const signature = req.headers.get('X-SIGNATURE')
     if (!signature) {
@@ -37,15 +45,23 @@ export async function POST(req: NextRequest) {
       console.warn('[DANA WEBHOOK] DANA_PUBLIC_KEY not configured, skipping signature verification')
     }
 
-    const {
+    // DANA might send partnerReferenceNo in different fields
+    const partnerReferenceNo = body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number
+    const referenceNo = body.referenceNo || body.reference_no || body.transactionId || body.transaction_id
+    const transactionStatus = body.transactionStatus || body.transaction_status || body.status
+    const responseCode = body.responseCode || body.response_code
+
+    console.log('[DANA WEBHOOK] Extracted fields:', {
       partnerReferenceNo,
       referenceNo,
       transactionStatus,
       responseCode,
-    } = body
+    })
 
     if (!partnerReferenceNo) {
-      console.error('[DANA WEBHOOK] Missing partnerReferenceNo')
+      console.error('[DANA WEBHOOK] Missing partnerReferenceNo in body')
+      console.error('[DANA WEBHOOK] Full body keys:', Object.keys(body))
+      console.error('[DANA WEBHOOK] Full body:', JSON.stringify(body, null, 2))
       return NextResponse.json({ error: 'Missing partnerReferenceNo' }, { status: 400 })
     }
 
