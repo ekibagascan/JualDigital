@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     const signature = privateKey ? generateWebhookSignature(payloadString, privateKey) : 'test-signature'
 
     // Call the webhook callback endpoint
-    const callbackUrlWithError = simulateError 
+    const callbackUrlWithError = simulateError
       ? `${callbackUrl}?simulateError=true`
       : callbackUrl
 
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
       'Content-Type': 'application/json',
       'X-SIGNATURE': signature,
     }
-    
+
     if (simulateError) {
       headers['X-SIMULATE-ERROR'] = 'true'
     }
@@ -189,9 +189,9 @@ export async function POST(req: NextRequest) {
       console.log('[DANA WEBHOOK TEST] Response status:', response.status)
       console.log('[DANA WEBHOOK TEST] Response body:', responseText)
 
-      let responseData: { responseCode?: string; responseMessage?: string; [key: string]: unknown } = {}
+      let responseData: { responseCode?: string; responseMessage?: string;[key: string]: unknown } = {}
       try {
-        responseData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string; [key: string]: unknown }
+        responseData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string;[key: string]: unknown }
       } catch {
         responseData = { message: responseText || 'Unknown error' }
       }

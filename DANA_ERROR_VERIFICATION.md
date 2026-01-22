@@ -122,7 +122,7 @@ curl -X POST https://jualdigital.id/api/payments/dana/test-webhook \
 
 **In App Partner Action**: Mark Finish Notify process as Pending. Retry periodically within 7 days.
 
-**How to Test**:
+**How to Test (Internal Testing)**:
 ```bash
 curl -X POST https://jualdigital.id/api/payments/dana/test-webhook \
   -H "Content-Type: application/json" \
@@ -131,6 +131,27 @@ curl -X POST https://jualdigital.id/api/payments/dana/test-webhook \
     "partnerReferenceNo": "2020102900000000000001"
   }'
 ```
+
+**How to Verify with DANA (For DANA Dashboard Verification)**:
+
+For DANA to mark this as verified in their dashboard, DANA needs to actually call your webhook and receive the `5005601` response. There are two ways to trigger this:
+
+**Option 1: Configure Webhook URL with Query Parameter (Recommended for Testing)**
+1. In DANA Dashboard, temporarily update your Finish Notify Webhook URL to:
+   ```
+   https://jualdigital.id/api/payments/dana/callback?simulateError=true
+   ```
+2. DANA will send a webhook notification for a successful transaction
+3. Your webhook will return `5005601` with "Internal Server Error"
+4. DANA will mark it as verified in their dashboard
+5. **Important**: After verification, remove the `?simulateError=true` parameter from the webhook URL
+
+**Option 2: Use Special Order Number Pattern**
+1. Create a test order with `partnerReferenceNo` starting with `TEST-5005601-` or `DANA-TEST-5005601-`
+2. When DANA sends webhook for this order, it will automatically return `5005601`
+3. Example: `partnerReferenceNo: "TEST-5005601-20240122-001"`
+
+**Note**: The query parameter method affects ALL webhooks temporarily, so use it only for verification testing and remove it afterward.
 
 ### Scenario 3: Closed/Expired Transaction Response (2005600)
 
@@ -162,7 +183,11 @@ The webhook callback (`/api/payments/dana/callback`) has been updated to:
 
 1. ✅ Return `2005600` with "Successful" for successful transactions (latestTransactionStatus = 00)
 2. ✅ Return `2005600` with "Successful" for closed/expired transactions (latestTransactionStatus = 05)
-3. ✅ Return `5005601` with "Internal Server Error" when simulating errors (via `?simulateError=true` query parameter or `X-SIMULATE-ERROR: true` header)
+3. ✅ Return `5005601` with "Internal Server Error" when simulating errors via:
+   - Query parameter: `?simulateError=true` in webhook URL
+   - Header: `X-SIMULATE-ERROR: true`
+   - Special order number pattern: `TEST-5005601-*` or `DANA-TEST-5005601-*`
+   - Environment variable: `DANA_SIMULATE_WEBHOOK_ERROR=true` (for internal testing)
 4. ✅ Return `5005601` on actual processing errors (causes DANA to retry)
 
 ## Verification Checklist

@@ -46,14 +46,27 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if we should simulate internal server error (for testing 5005601)
-    // This can be triggered via query parameter or special header for testing
+    // This can be triggered via:
+    // 1. Query parameter: ?simulateError=true
+    // 2. Header: X-SIMULATE-ERROR: true
+    // 3. Special order number pattern: TEST-5005601-* (for DANA verification)
+    // 4. Environment variable: DANA_SIMULATE_WEBHOOK_ERROR=true (for testing)
     const simulateErrorParam = req.nextUrl.searchParams.get('simulateError') === 'true'
     const simulateErrorHeader = req.headers.get('X-SIMULATE-ERROR') === 'true'
-    const simulateError = simulateErrorParam || simulateErrorHeader
+    const simulateErrorEnv = process.env.DANA_SIMULATE_WEBHOOK_ERROR === 'true'
     
+    // Extract partnerReferenceNo early to check for test pattern
+    const partnerReferenceNoForCheck = (body.originalPartnerReferenceNo || body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number) as string | undefined
+    const simulateErrorPattern = partnerReferenceNoForCheck?.startsWith('TEST-5005601-') || partnerReferenceNoForCheck?.startsWith('DANA-TEST-5005601-')
+    
+    const simulateError = simulateErrorParam || simulateErrorHeader || simulateErrorEnv || simulateErrorPattern
+
     console.log('[DANA WEBHOOK] simulateError check:', {
       simulateErrorParam,
       simulateErrorHeader,
+      simulateErrorEnv,
+      simulateErrorPattern,
+      partnerReferenceNo: partnerReferenceNoForCheck,
       simulateError,
       queryParams: Object.fromEntries(req.nextUrl.searchParams),
       hasXSimulateError: req.headers.has('X-SIMULATE-ERROR'),
@@ -64,7 +77,8 @@ export async function POST(req: NextRequest) {
     // But we still need to parse the body to get partnerReferenceNo for logging
     // DANA might send partnerReferenceNo in different fields
     // Based on actual webhook: DANA sends originalPartnerReferenceNo, latestTransactionStatus, originalReferenceNo
-    const partnerReferenceNo = (body.originalPartnerReferenceNo || body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number) as string | undefined
+    // Use the already extracted partnerReferenceNoForCheck
+    const partnerReferenceNo = partnerReferenceNoForCheck
     const referenceNo = (body.originalReferenceNo || body.referenceNo || body.reference_no || body.transactionId || body.transaction_id) as string | undefined
     // DANA sends latestTransactionStatus: "00" for success, "05" for closed/expired
     const transactionStatus = (body.latestTransactionStatus || body.transactionStatus || body.transaction_status || body.status) as string | undefined
