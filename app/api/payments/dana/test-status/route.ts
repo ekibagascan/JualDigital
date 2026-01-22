@@ -42,10 +42,11 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    if (!partnerReferenceNo) {
+    if (!partnerReferenceNo || partnerReferenceNo === 'YOUR_ACTUAL_ORDER_NUMBER') {
       return NextResponse.json({
         error: 'partnerReferenceNo is required',
-        note: 'Use an existing order number that has been processed through DANA'
+        note: 'Use an actual order number that has been processed through DANA. Replace "YOUR_ACTUAL_ORDER_NUMBER" with a real order number.',
+        example: 'Use an order number from your database that was created through DANA payment'
       }, { status: 400 })
     }
 
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
     try {
       // Query DANA API for payment status
       const danaStatus = await queryPaymentStatus(partnerReferenceNo)
-      
+
       console.log('[DANA STATUS TEST] DANA API response:', JSON.stringify(danaStatus, null, 2))
 
       // Verify the response based on test case
@@ -66,10 +67,10 @@ export async function POST(req: NextRequest) {
         expectedResponseCode = '2005500'
         expectedTransactionStatus = '00'
         expectedMessage = 'Successful'
-        
+
         // Verify response
-        if (danaStatus.responseCode === expectedResponseCode && 
-            danaStatus.latestTransactionStatus === expectedTransactionStatus) {
+        if (danaStatus.responseCode === expectedResponseCode &&
+          danaStatus.latestTransactionStatus === expectedTransactionStatus) {
           return NextResponse.json({
             success: true,
             testCase: '2005500-success',
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('[DANA STATUS TEST] Error:', errorMessage)
-      
+
       // Check if this is the expected error for the test case
       if (testCase === '4045501-notfound' && errorMessage.includes('not found')) {
         return NextResponse.json({
@@ -132,12 +133,24 @@ export async function POST(req: NextRequest) {
           verified: true
         })
       }
-      
+
+      // Provide more helpful error message
+      let helpfulMessage = errorMessage
+      if (errorMessage.includes('DANA API credentials not configured')) {
+        helpfulMessage = 'DANA API credentials are not configured. Please set DANA_CLIENT_ID, DANA_MERCHANT_ID, and DANA_PRIVATE_KEY environment variables.'
+      } else if (errorMessage.includes('Order not found') || errorMessage.includes('404')) {
+        helpfulMessage = `Order "${partnerReferenceNo}" not found in DANA system. Make sure the order number exists and was created through DANA payment.`
+      } else if (errorMessage.includes('Internal Server Error')) {
+        helpfulMessage = `DANA API returned an error. This could mean: 1) Order doesn't exist in DANA system, 2) Invalid order number format, 3) DANA API issue. Check server logs for details.`
+      }
+
       return NextResponse.json({
         success: false,
         testCase,
         error: 'Query failed',
-        details: errorMessage,
+        details: helpfulMessage,
+        originalError: errorMessage,
+        note: 'Make sure you are using an actual order number that exists in DANA system and was created through DANA payment flow.',
         verified: false
       }, { status: 500 })
     }

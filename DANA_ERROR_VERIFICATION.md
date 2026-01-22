@@ -275,17 +275,31 @@ This document describes how to verify DANA payment status query API responses.
 
 **In App Partner Action**: Order has been paid
 
-**How to Test**:
+**How to Test (Internal Testing)**:
 ```bash
+# Replace "ORD-2024-001" with an actual order number from your database
 curl -X POST https://jualdigital.id/api/payments/dana/test-status \
   -H "Content-Type: application/json" \
   -d '{
     "testCase": "2005500-success",
-    "partnerReferenceNo": "YOUR_ORDER_NUMBER"
+    "partnerReferenceNo": "ORD-2024-001"
   }'
 ```
 
-**Note**: Use an actual order number that has been processed through DANA and has status "00" (Success).
+**Note**: 
+- Use an **actual order number** that has been processed through DANA and has status "00" (Success)
+- The order must exist in your database and have been created through DANA payment flow
+- This test endpoint queries DANA's API directly, so the order must exist in DANA's system
+
+**⚠️ IMPORTANT: For DANA Dashboard Verification**
+
+DANA's dashboard verification requires **DANA to actually query the status** themselves. Our internal test endpoint doesn't count for their verification.
+
+**To get DANA to verify this:**
+1. DANA will query payment status using `POST /payment-gateway/v1.0/debit/status.htm` for a real transaction
+2. When DANA receives `responseCode: 2005500` with `latestTransactionStatus: 00`, they will mark it as verified
+3. This happens automatically when DANA processes transactions and queries their status
+4. You don't need to do anything special - just ensure your code handles `2005500` correctly (which it does)
 
 **Implementation Details**:
 - ✅ Status query endpoint now accepts `2005500` as success code (in addition to `2005400`)
