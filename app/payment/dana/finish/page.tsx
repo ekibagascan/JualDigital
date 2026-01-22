@@ -58,7 +58,7 @@ export default function DanaFinishPage() {
       // Try to fetch by order_number first (if it looks like ORD-XXXX)
       let res
       let orderNumber: string | null = null
-      
+
       if (orderId?.startsWith('ORD-')) {
         // Search by order_number
         orderNumber = orderId
@@ -79,7 +79,7 @@ export default function DanaFinishPage() {
           setOrder(fetchedOrder)
           const status = fetchedOrder.status
           setOrderStatus(status)
-          
+
           // Get order_number for DANA status check
           if (!orderNumber && fetchedOrder.order_number) {
             orderNumber = fetchedOrder.order_number
@@ -93,8 +93,8 @@ export default function DanaFinishPage() {
               if (danaStatusRes.ok) {
                 const danaStatus = await danaStatusRes.json()
                 console.log('[DANA FINISH PAGE] DANA status:', danaStatus)
-                
-                if (danaStatus.status === 'success' || danaStatus.status === 'paid') {
+
+                if (danaStatus.status === 'success' || danaStatus.status === 'paid' || danaStatus.updated === true) {
                   // Payment confirmed by DANA, refresh order
                   setPaymentStatus('success')
                   setOrderStatus('paid')
@@ -107,6 +107,14 @@ export default function DanaFinishPage() {
                   setTimeout(() => checkOrderStatus(false), 1000)
                   return
                 }
+                
+                // Log the DANA status for debugging
+                console.log('[DANA FINISH PAGE] DANA status details:', {
+                  status: danaStatus.status,
+                  responseCode: danaStatus.responseCode,
+                  responseMessage: danaStatus.responseMessage,
+                  updated: danaStatus.updated,
+                })
               }
             } catch (danaError) {
               console.error('[DANA FINISH PAGE] Error checking DANA status:', danaError)
