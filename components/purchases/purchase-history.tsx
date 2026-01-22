@@ -61,7 +61,10 @@ export function PurchaseHistory() {
           const data = await response.json()
 
           if (data.success) {
-            setOrders(data.orders || [])
+            const fetchedOrders = data.orders || []
+            console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
+            console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({ order_number: o.order_number, status: o.status })))
+            setOrders(fetchedOrders)
 
             // Extract unique seller IDs from order items
             const sellerIds = new Set<string>()
@@ -188,7 +191,7 @@ export function PurchaseHistory() {
   }
 
   const isPaymentExpired = (order: Order): boolean => {
-    if (order.status !== 'pending' || order.payment_provider !== 'dana') {
+    if (order.status?.toLowerCase().trim() !== 'pending' || order.payment_provider !== 'dana') {
       return false
     }
     // Check if order was created more than 30 minutes ago
@@ -199,17 +202,17 @@ export function PurchaseHistory() {
   }
 
   const getTimeRemaining = (order: Order): string | null => {
-    if (order.status !== 'pending' || order.payment_provider !== 'dana') {
+    if (order.status?.toLowerCase().trim() !== 'pending' || order.payment_provider !== 'dana') {
       return null
     }
     const createdAt = new Date(order.created_at)
     const expirationTime = new Date(createdAt.getTime() + (30 * 60 * 1000)) // 30 minutes
     const now = new Date()
-    
+
     if (now > expirationTime) {
       return 'Kedaluwarsa'
     }
-    
+
     const minutesRemaining = Math.floor((expirationTime.getTime() - now.getTime()) / (1000 * 60))
     return `${minutesRemaining} menit tersisa`
   }
@@ -220,9 +223,11 @@ export function PurchaseHistory() {
   }
 
   const filteredOrders = orders.filter((order) => {
+    // Normalize status to lowercase for comparison
+    const normalizedStatus = order.status?.toLowerCase().trim()
     if (activeTab === "all") return true
-    if (activeTab === "completed") return order.status === "paid"
-    if (activeTab === "processing") return order.status === "pending"
+    if (activeTab === "completed") return normalizedStatus === "paid"
+    if (activeTab === "processing") return normalizedStatus === "pending"
     return true
   })
 
@@ -232,10 +237,10 @@ export function PurchaseHistory() {
         <TabsList>
           <TabsTrigger value="all">Semua ({orders.length})</TabsTrigger>
           <TabsTrigger value="completed">
-            Selesai ({orders.filter((p) => p.status === "paid").length})
+            Selesai ({orders.filter((p) => p.status?.toLowerCase().trim() === "paid").length})
           </TabsTrigger>
           <TabsTrigger value="processing">
-            Diproses ({orders.filter((p) => p.status === "pending").length})
+            Diproses ({orders.filter((p) => p.status?.toLowerCase().trim() === "pending").length})
           </TabsTrigger>
         </TabsList>
 
@@ -260,10 +265,10 @@ export function PurchaseHistory() {
                           <Calendar className="w-4 h-4" />
                           {formatDate(order.created_at)}
                         </span>
-                        <Badge variant={order.status === "paid" ? "default" : "secondary"}>
-                          {order.status === "paid" ? "Selesai" : "Menunggu Pembayaran"}
+                        <Badge variant={order.status?.toLowerCase().trim() === "paid" ? "default" : "secondary"}>
+                          {order.status?.toLowerCase().trim() === "paid" ? "Selesai" : "Menunggu Pembayaran"}
                         </Badge>
-                        {order.status === "pending" && order.payment_provider === "dana" && (
+                        {order.status?.toLowerCase().trim() === "pending" && order.payment_provider === "dana" && (
                           <span className="text-xs text-orange-600">
                             {isPaymentExpired(order) ? '⏰ Kedaluwarsa' : getTimeRemaining(order)}
                           </span>
@@ -275,7 +280,7 @@ export function PurchaseHistory() {
                       <p className="text-sm text-muted-foreground">
                         {order.order_items.length} produk{order.order_items.length > 1 ? '' : ''}
                       </p>
-                      {order.status === "pending" && order.payment_provider === "dana" && (
+                      {order.status?.toLowerCase().trim() === "pending" && order.payment_provider === "dana" && (
                         <>
                           {isPaymentExpired(order) ? (
                             <Button
@@ -329,7 +334,7 @@ export function PurchaseHistory() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                          {order.status === "paid" ? (
+                          {order.status?.toLowerCase().trim() === "paid" ? (
                             <>
                               <Button size="sm" onClick={() => handleDownload(item)}>
                                 <Download className="w-4 h-4 mr-2" />
