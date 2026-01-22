@@ -71,6 +71,21 @@ export async function GET(request: NextRequest) {
       console.log('[ORDERS API] Status count from simple query:', statusCount)
     }
 
+    // Also check if there are paid orders with this user_id but different status format
+    const { data: paidOrdersCheck, error: paidCheckError } = await supabase
+      .from('orders')
+      .select('id, order_number, status, user_id')
+      .eq('user_id', userId)
+      .ilike('status', '%paid%') // Case-insensitive search for "paid"
+    
+    console.log('[ORDERS API] Paid orders check (ilike):', paidOrdersCheck?.length, 'Error:', paidCheckError)
+    if (paidOrdersCheck && paidOrdersCheck.length > 0) {
+      console.log('[ORDERS API] Found paid orders:', paidOrdersCheck.map((o: { order_number?: string; status?: string }) => ({
+        order_number: o.order_number,
+        status: o.status
+      })))
+    }
+
     // Fetch orders with order items
     // Use service role key to bypass RLS and ensure we get all orders
     // IMPORTANT: Don't filter by status - get ALL orders for this user
