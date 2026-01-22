@@ -26,7 +26,29 @@ export async function GET(req: NextRequest) {
       danaStatus = await queryPaymentStatus(orderNumber)
       console.log('[DANA STATUS API] Payment status:', JSON.stringify(danaStatus, null, 2))
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to query DANA API'
       console.error('[DANA STATUS API] Error querying DANA:', error)
+      console.error('[DANA STATUS API] Error details:', errorMessage)
+      
+      // Check if it's a specific DANA error code
+      let danaErrorCode: string | undefined
+      let danaErrorMessage: string | undefined
+      
+      // Try to extract DANA error code from error message
+      if (errorMessage.includes('4045501') || errorMessage.includes('Transaction not found') || errorMessage.includes('not found')) {
+        danaErrorCode = '4045501'
+        danaErrorMessage = 'Transaction Not Found'
+      } else if (errorMessage.includes('4005502')) {
+        danaErrorCode = '4005502'
+        danaErrorMessage = 'Invalid Mandatory Field'
+      } else if (errorMessage.includes('5005501')) {
+        danaErrorCode = '5005501'
+        danaErrorMessage = 'Internal Server Error'
+      } else if (errorMessage.includes('4015500') || errorMessage.includes('Unauthorized')) {
+        danaErrorCode = '4015500'
+        danaErrorMessage = 'Unauthorized / Invalid Signature'
+      }
+      
       // If DANA API fails, still return current order status
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,15 +56,20 @@ export async function GET(req: NextRequest) {
       )
       const { data: order } = await supabase
         .from('orders')
-        .select('status')
+        .select('status, payment_method')
         .eq('order_number', orderNumber)
         .single()
 
       return NextResponse.json({
         status: order?.status || 'unknown',
-        responseCode: 'ERROR',
-        responseMessage: error instanceof Error ? error.message : 'Failed to query DANA API',
+        responseCode: danaErrorCode || 'ERROR',
+        responseMessage: danaErrorMessage || errorMessage,
         error: true,
+        orderExists: !!order,
+        paymentMethod: order?.payment_method,
+        note: order 
+          ? 'Order exists in database but DANA API returned an error. This could mean: 1) Order not found in DANA system, 2) Order was created with different payment method, 3) DANA API issue.'
+          : 'Order not found in database. Make sure the order number is correct and was created through DANA payment.'
       })
     }
 
