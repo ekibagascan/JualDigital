@@ -134,7 +134,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const transactionStatus = danaStatus.transactionStatus || danaStatus.latestTransactionStatus
     return NextResponse.json({
       status: transactionStatus?.toLowerCase() || 'unknown',
       responseCode: danaStatus.responseCode,
