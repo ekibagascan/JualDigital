@@ -125,9 +125,12 @@ export async function GET(req: NextRequest) {
 
       // If DANA returns an error but order might actually be paid, check transaction_id
       // Sometimes DANA status API fails but payment was successful
-      if (danaStatus.responseCode !== '2005400' && order.transaction_id) {
-        console.log('[DANA STATUS API] DANA API returned error, but order has transaction_id. Payment might be successful.')
-        // Don't update - let webhook handle it or user can check manually
+      if (danaStatus.responseCode !== '2005400' && order.transaction_id && order.transaction_id !== order.order_number) {
+        console.log('[DANA STATUS API] DANA API returned error, but order has transaction_id:', order.transaction_id)
+        console.log('[DANA STATUS API] This suggests payment might have been successful. Checking if we should update...')
+        // If transaction_id is different from order_number, it means DANA assigned a referenceNo
+        // This is a strong indicator that payment was processed
+        // However, we can't be 100% sure without DANA confirmation, so we'll wait for webhook
       }
     }
 
