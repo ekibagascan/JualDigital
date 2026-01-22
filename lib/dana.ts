@@ -507,9 +507,13 @@ export async function queryPaymentStatus(
     console.log('[DANA] Query payment status response:', data)
 
     // Check if responseCode indicates an error (even if HTTP status is 200)
-    if (data.responseCode && data.responseCode !== '2005400') {
+    // Status query endpoint uses 2005500 for success (not 2005400 which is for order creation)
+    const successCodes = ['2005500', '2005400'] // Support both codes
+    if (data.responseCode && !successCodes.includes(data.responseCode)) {
       console.warn('[DANA] Query payment status returned error code:', data.responseCode, data.responseMessage)
       // Don't throw - return the data so caller can handle it
+    } else if (data.responseCode === '2005500') {
+      console.log('[DANA] Query payment status successful (2005500)')
     }
 
     return data

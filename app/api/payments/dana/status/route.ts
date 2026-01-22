@@ -71,15 +71,17 @@ export async function GET(req: NextRequest) {
     // Check if payment is successful - handle multiple response formats
     // DANA status API might use different field names: transactionStatus or latestTransactionStatus
     // Status codes: "00" = Success, "SUCCESS" = Success, "PAID" = Paid
+    // Response codes: 2005500 = Status query success, 2005400 = Order creation success
     const transactionStatus = danaStatus.transactionStatus || danaStatus.latestTransactionStatus
+    const isSuccessResponse = danaStatus.responseCode === '2005500' || danaStatus.responseCode === '2005400' || danaStatus.responseCode === '200'
     const isPaid =
-      (danaStatus.responseCode === '2005400' || danaStatus.responseCode === '200') && (
+      isSuccessResponse && (
         transactionStatus === 'SUCCESS' ||
         transactionStatus === 'PAID' ||
         transactionStatus === 'SUCCESSFUL' ||
         transactionStatus === '00' || // DANA uses "00" for success
         // Sometimes DANA returns success without transactionStatus but with referenceNo
-        (danaStatus.responseCode === '2005400' && danaStatus.referenceNo && !transactionStatus)
+        ((danaStatus.responseCode === '2005500' || danaStatus.responseCode === '2005400') && danaStatus.referenceNo && !transactionStatus)
       )
 
     // If payment is successful and order is not already paid, update it

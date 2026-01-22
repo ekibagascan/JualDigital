@@ -1,6 +1,6 @@
 # DANA Error Code Verification Guide
 
-This document describes how to verify the two unverified DANA error scenarios.
+This document describes how to verify DANA error scenarios and API responses.
 
 ## Unverified Error Codes
 
@@ -247,6 +247,57 @@ The webhook callback (`/api/payments/dana/callback`) has been updated to:
 - [ ] Internal server error simulation returns 5005601 with "Internal Server Error"
 - [ ] Actual processing errors return 5005601 (triggers DANA retry)
 - [ ] Response format matches DANA's expected structure exactly
+
+---
+
+# DANA Payment Status Query Verification Guide
+
+This document describes how to verify DANA payment status query API responses.
+
+## Status Query API
+
+**Endpoint**: `POST /payment-gateway/v1.0/debit/status.htm`
+
+## Test Scenarios
+
+### Scenario 1: Successful - Final (00 = Success)
+
+**Test Case**: Merchant queries payment status and gets Successful response with Final status
+
+**Expected Response**:
+```json
+{
+  "responseCode": "2005500",
+  "responseMessage": "Successful",
+  "latestTransactionStatus": "00"
+}
+```
+
+**In App Partner Action**: Order has been paid
+
+**How to Test**:
+```bash
+curl -X POST https://jualdigital.id/api/payments/dana/test-status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "testCase": "2005500-success",
+    "partnerReferenceNo": "YOUR_ORDER_NUMBER"
+  }'
+```
+
+**Note**: Use an actual order number that has been processed through DANA and has status "00" (Success).
+
+**Implementation Details**:
+- ✅ Status query endpoint now accepts `2005500` as success code (in addition to `2005400`)
+- ✅ Properly handles `latestTransactionStatus: "00"` for successful transactions
+- ✅ Updated status route to recognize `2005500` response code
+
+## Current Implementation Status
+
+✅ **Response Code Handling**: Status query accepts both `2005500` and `2005400` as success codes
+✅ **Transaction Status**: Properly handles `latestTransactionStatus: "00"` for successful payments
+✅ **Test Endpoint**: Created `/api/payments/dana/test-status` for testing status queries
+✅ **Error Handling**: Updated to handle status query specific response codes
 
 ## Current Implementation Status
 

@@ -54,11 +54,11 @@ export async function POST(req: NextRequest) {
     const simulateErrorParam = req.nextUrl.searchParams.get('simulateError') === 'true'
     const simulateErrorHeader = req.headers.get('X-SIMULATE-ERROR') === 'true'
     const simulateErrorEnv = process.env.DANA_SIMULATE_WEBHOOK_ERROR === 'true'
-    
+
     // Extract partnerReferenceNo early to check for test pattern
     const partnerReferenceNoForCheck = (body.originalPartnerReferenceNo || body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number) as string | undefined
     const simulateErrorPattern = partnerReferenceNoForCheck?.startsWith('TEST-5005601-') || partnerReferenceNoForCheck?.startsWith('DANA-TEST-5005601-')
-    
+
     const simulateError = simulateErrorParam || simulateErrorHeader || simulateErrorEnv || simulateErrorPattern
 
     console.log('[DANA WEBHOOK] simulateError check:', {
