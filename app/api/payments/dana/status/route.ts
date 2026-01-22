@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Query DANA API for payment status
+    // Note: Only query DANA if order exists and was created through DANA
     let danaStatus
     try {
       danaStatus = await queryPaymentStatus(orderNumber)
@@ -29,11 +30,11 @@ export async function GET(req: NextRequest) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to query DANA API'
       console.error('[DANA STATUS API] Error querying DANA:', error)
       console.error('[DANA STATUS API] Error details:', errorMessage)
-      
+
       // Check if it's a specific DANA error code
       let danaErrorCode: string | undefined
       let danaErrorMessage: string | undefined
-      
+
       // Try to extract DANA error code from error message
       if (errorMessage.includes('4045501') || errorMessage.includes('Transaction not found') || errorMessage.includes('not found')) {
         danaErrorCode = '4045501'
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
         danaErrorCode = '4015500'
         danaErrorMessage = 'Unauthorized / Invalid Signature'
       }
-      
+
       // If DANA API fails, still return current order status
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
         error: true,
         orderExists: !!order,
         paymentMethod: order?.payment_method,
-        note: order 
+        note: order
           ? 'Order exists in database but DANA API returned an error. This could mean: 1) Order not found in DANA system, 2) Order was created with different payment method, 3) DANA API issue.'
           : 'Order not found in database. Make sure the order number is correct and was created through DANA payment.'
       })
@@ -91,6 +92,20 @@ export async function GET(req: NextRequest) {
         { error: 'Order not found' },
         { status: 404 }
       )
+    }
+
+    // Check if order was created through DANA payment
+    if (order.payment_method && order.payment_method !== 'dana') {
+      console.warn('[DANA STATUS API] Order was not created through DANA payment:', {
+        orderNumber,
+        paymentMethod: order.payment_method
+      })
+      return NextResponse.json({
+        error: 'Order was not created through DANA payment',
+        orderNumber,
+        paymentMethod: order.payment_method,
+        note: 'This order was created with a different payment method. DANA status query only works for orders created through DANA payment. Please use an order number from a DANA transaction.'
+      }, { status: 400 })
     }
 
     console.log('[DANA STATUS API] Current order status:', order.status)
