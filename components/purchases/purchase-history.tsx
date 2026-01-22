@@ -54,8 +54,6 @@ export function PurchaseHistory() {
   const fetchOrders = async () => {
     if (user?.id) {
       try {
-        console.log('[PURCHASE HISTORY] Fetching orders for user:', user.id)
-
         const response = await fetch(`/api/orders?userId=${user.id}`, {
           cache: 'no-store', // Prevent caching
         })
@@ -63,14 +61,6 @@ export function PurchaseHistory() {
 
         if (data.success) {
           const fetchedOrders = data.orders || []
-          console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
-          console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({
-            order_number: o.order_number,
-            status: o.status,
-            normalized: o.status?.toLowerCase().trim(),
-            isPaid: o.status?.toLowerCase().trim() === 'paid'
-          })))
-          console.log('[PURCHASE HISTORY] Paid orders count:', fetchedOrders.filter((o: Order) => o.status?.toLowerCase().trim() === 'paid').length)
           setOrders(fetchedOrders)
 
           // Extract unique seller IDs from order items
@@ -94,15 +84,13 @@ export function PurchaseHistory() {
             }
           }
         } else {
-          console.error('Failed to fetch orders:', data.error)
           toast({
             title: "Error",
             description: "Gagal memuat riwayat pembelian.",
             variant: "destructive",
           })
         }
-      } catch (error) {
-        console.error('Error fetching orders:', error)
+      } catch {
         toast({
           title: "Error",
           description: "Gagal memuat riwayat pembelian.",
@@ -126,7 +114,6 @@ export function PurchaseHistory() {
     if (!user?.id) return
 
     const interval = setInterval(() => {
-      console.log('[PURCHASE HISTORY] Auto-refreshing orders...')
       fetchOrders()
     }, 30000) // Refresh every 30 seconds
 
@@ -162,7 +149,6 @@ export function PurchaseHistory() {
       description: `Mengunduh ${orderItem.product_title}...`,
     })
 
-    console.log("Downloading:", orderItem.product_title)
   }
 
   const handleRedownload = (orderItem: OrderItem) => {
@@ -202,8 +188,7 @@ export function PurchaseHistory() {
           variant: "destructive",
         })
       }
-    } catch (error) {
-      console.error('Error regenerating payment:', error)
+    } catch {
       toast({
         title: "Error",
         description: "Gagal membuat pembayaran baru",
@@ -252,16 +237,7 @@ export function PurchaseHistory() {
 
     if (activeTab === "all") return true
     if (activeTab === "completed") {
-      const result = isPaid
-      if (!result) {
-        console.log('[PURCHASE HISTORY] Order filtered out from completed:', {
-          order_number: order.order_number,
-          status: order.status,
-          normalized: normalizedStatus,
-          isPaid
-        })
-      }
-      return result
+      return isPaid
     }
     if (activeTab === "processing") return isPending
     return true
@@ -290,11 +266,7 @@ export function PurchaseHistory() {
           <TabsTrigger value="completed">
             Selesai ({orders.filter((p) => {
               const normalized = p.status?.toLowerCase().trim()
-              const isPaid = normalized === "paid"
-              if (isPaid) {
-                console.log('[PURCHASE HISTORY] Found paid order:', p.order_number, 'status:', p.status)
-              }
-              return isPaid
+              return normalized === "paid"
             }).length})
           </TabsTrigger>
           <TabsTrigger value="processing">

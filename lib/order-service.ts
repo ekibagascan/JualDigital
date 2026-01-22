@@ -122,20 +122,42 @@ export class OrderService {
       console.log('[ORDER CREATION] Payment method:', paymentMethod)
 
       // 2. Create order in Supabase
+      // IMPORTANT: If user_id is provided, it should NOT be null/undefined
+      // Only set guest fields if user_id is NOT provided
+      const orderInsertData: {
+        user_id: string | null
+        guest_name: string | null
+        guest_email: string | null
+        total_amount: number
+        tax_amount: number
+        platform_fee: number
+        status: string
+        payment_method: string
+        payment_provider: string
+        note: string | null
+      } = {
+        user_id: orderData.user_id || null,
+        guest_name: orderData.user_id ? null : (orderData.guest_name || null), // Only set if no user_id
+        guest_email: orderData.user_id ? null : (orderData.guest_email || null), // Only set if no user_id
+        total_amount: orderData.total_amount,
+        tax_amount: orderData.tax_amount,
+        platform_fee: 0, // No platform fee for now
+        status: 'pending',
+        payment_method: orderData.payment_method || 'BANK_TRANSFER',
+        payment_provider: paymentMethod, // Use configured payment method
+        note: orderData.note || null, // Add note if provided
+      }
+
+      console.log('[ORDER CREATION] Inserting order with:', {
+        user_id: orderInsertData.user_id,
+        has_guest_email: !!orderInsertData.guest_email,
+        has_guest_name: !!orderInsertData.guest_name,
+        is_guest_order: !orderInsertData.user_id
+      })
+
       const { data: order, error: orderError } = await this.supabase
         .from('orders')
-        .insert({
-          user_id: orderData.user_id || null,
-          guest_name: orderData.guest_name || null,
-          guest_email: orderData.guest_email || null,
-          total_amount: orderData.total_amount,
-          tax_amount: orderData.tax_amount,
-          platform_fee: 0, // No platform fee for now
-          status: 'pending',
-          payment_method: orderData.payment_method || 'BANK_TRANSFER',
-          payment_provider: paymentMethod, // Use configured payment method
-          note: orderData.note || null, // Add note if provided
-        })
+        .insert(orderInsertData)
         .select()
         .single()
 

@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
                 const downloadUrl = item.products?.download_link || item.products?.file_url
                   ? `${baseUrl}/api/download/${item.id}`
                   : null
-                return downloadUrl 
+                return downloadUrl
                   ? `- ${title}: ${downloadUrl}`
                   : `- ${title} (Link download akan tersedia di halaman pesanan)`
               }).join('\n')
@@ -243,17 +243,17 @@ Tim Jual Digital
             
             <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0;">
                 ${orderItems.map(item => {
-                  const title = item.product_title || item.products?.title || 'Product'
-                  const downloadUrl = item.products?.download_link || item.products?.file_url
-                    ? `${baseUrl}/api/download/${item.id}`
-                    : null
-                  return `<p style="margin: 10px 0;">
+                const title = item.product_title || item.products?.title || 'Product'
+                const downloadUrl = item.products?.download_link || item.products?.file_url
+                  ? `${baseUrl}/api/download/${item.id}`
+                  : null
+                return `<p style="margin: 10px 0;">
                     <strong>${title}</strong> - Qty: ${item.quantity}<br>
-                    ${downloadUrl 
-                      ? `<a href="${downloadUrl}" style="color: #2563eb; text-decoration: none; font-weight: bold;">Download di sini</a>`
-                      : '<span style="color: #6b7280;">Link download akan tersedia di halaman pesanan</span>'}
+                    ${downloadUrl
+                    ? `<a href="${downloadUrl}" style="color: #2563eb; text-decoration: none; font-weight: bold;">Download di sini</a>`
+                    : '<span style="color: #6b7280;">Link download akan tersedia di halaman pesanan</span>'}
                   </p>`
-                }).join('')}
+              }).join('')}
                 <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
                   <strong>Total: Rp ${(order.total_amount + (order.tax_amount || 0)).toLocaleString('id-ID')}</strong>
                 </p>

@@ -72,13 +72,13 @@ export async function GET(request: NextRequest) {
     let orderCountQuery = supabase
       .from('orders')
       .select('id, status, user_id, guest_email')
-    
+
     if (userEmail) {
       orderCountQuery = orderCountQuery.or(`user_id.eq.${userId},guest_email.eq.${userEmail}`)
     } else {
       orderCountQuery = orderCountQuery.eq('user_id', userId)
     }
-    
+
     const { data: orderCount, error: countError } = await orderCountQuery
 
     console.log('[ORDERS API] Total orders count for user:', orderCount?.length, 'Count error:', countError)
@@ -101,13 +101,13 @@ export async function GET(request: NextRequest) {
       .from('orders')
       .select('id, order_number, status, user_id, guest_email')
       .ilike('status', '%paid%') // Case-insensitive search for "paid"
-    
+
     if (userEmail) {
       paidOrdersQuery = paidOrdersQuery.or(`user_id.eq.${userId},guest_email.eq.${userEmail}`)
     } else {
       paidOrdersQuery = paidOrdersQuery.eq('user_id', userId)
     }
-    
+
     const { data: paidOrdersCheck, error: paidCheckError } = await paidOrdersQuery
 
     console.log('[ORDERS API] Paid orders check (ilike):', paidOrdersCheck?.length, 'Error:', paidCheckError)
@@ -139,13 +139,13 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
-    
+
     if (userEmail) {
       ordersQuery = ordersQuery.or(`user_id.eq.${userId},guest_email.eq.${userEmail}`)
     } else {
       ordersQuery = ordersQuery.eq('user_id', userId)
     }
-    
+
     const { data: orders, error } = await ordersQuery
       .order('created_at', { ascending: false })
     // No limit - get all orders
