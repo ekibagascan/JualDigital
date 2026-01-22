@@ -170,10 +170,31 @@ curl -X POST "https://jualdigital.id/api/payments/dana/callback?simulateError=tr
 # HTTP Status: 500
 ```
 
+**⚠️ IMPORTANT: Why It's Still Not Verified**
+
+Even though our internal tests show the webhook returns `5005601` correctly, **DANA's dashboard verification requires DANA's own servers to call your webhook**. Our internal tests don't count for their verification system.
+
+**Action Required:**
+
+1. **Verify the webhook URL in DANA Dashboard includes the query parameter:**
+   - Current URL should be: `https://jualdigital.id/api/payments/dana/callback?simulateError=true`
+   - Make sure you clicked **Save** after updating it
+
+2. **Have DANA send a webhook notification:**
+   - **Option A**: Create a test transaction in DANA sandbox and complete it
+   - **Option B**: Contact DANA support and ask them to trigger a test webhook to your URL
+   - **Option C**: Wait for the next real transaction (if in production)
+
+3. **After DANA sends the webhook:**
+   - DANA's system will receive `5005601` response
+   - DANA will automatically mark it as verified in their dashboard
+   - You can check the dashboard after a few minutes
+
 **Troubleshooting:**
 - If the query parameter doesn't work, DANA might strip query parameters from webhook URLs
 - In that case, use **Option 2** (Special Order Number Pattern) instead
-- Or contact DANA support to manually trigger a test webhook with the updated URL
+- Contact DANA support if you need help triggering a test webhook
+- Check your server logs to see if DANA has called the webhook recently
 
 **Option 2: Use Special Order Number Pattern**
 1. Create a test order with `partnerReferenceNo` starting with `TEST-5005601-` or `DANA-TEST-5005601-`
