@@ -172,7 +172,7 @@ export function PurchaseHistory() {
           variant: "destructive",
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Download gagal",
         description: "Terjadi kesalahan saat mengunduh file",
@@ -210,7 +210,7 @@ export function PurchaseHistory() {
           variant: "destructive",
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Gagal mengirim email",
         description: "Terjadi kesalahan saat mengirim email",
