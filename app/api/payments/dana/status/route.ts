@@ -95,17 +95,19 @@ export async function GET(req: NextRequest) {
     }
 
     // Check if order was created through DANA payment
-    if (order.payment_method && order.payment_method !== 'dana') {
-      console.warn('[DANA STATUS API] Order was not created through DANA payment:', {
-        orderNumber,
-        paymentMethod: order.payment_method
-      })
-      return NextResponse.json({
-        error: 'Order was not created through DANA payment',
+    // payment_provider is the actual provider (dana, bci, etc.)
+    // payment_method is the method type (BANK_TRANSFER, etc.)
+    const isDanaOrder = order.payment_provider === 'dana' || 
+                       (order.payment_method && order.payment_method.toLowerCase().includes('dana'))
+    
+    if (!isDanaOrder) {
+      console.warn('[DANA STATUS API] Order may not be a DANA order:', {
         orderNumber,
         paymentMethod: order.payment_method,
-        note: 'This order was created with a different payment method. DANA status query only works for orders created through DANA payment. Please use an order number from a DANA transaction.'
-      }, { status: 400 })
+        paymentProvider: order.payment_provider
+      })
+      // Don't block - let DANA API decide if order exists
+      // Some orders might have been created through DANA but payment_provider wasn't set correctly
     }
 
     console.log('[DANA STATUS API] Current order status:', order.status)

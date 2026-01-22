@@ -511,7 +511,17 @@ export async function queryPaymentStatus(
     const successCodes = ['2005500', '2005400'] // Support both codes
     if (data.responseCode && !successCodes.includes(data.responseCode)) {
       console.warn('[DANA] Query payment status returned error code:', data.responseCode, data.responseMessage)
-      // Don't throw - return the data so caller can handle it
+      // For specific error codes, throw with the error code so caller can handle it
+      if (data.responseCode === '4045501') {
+        throw new Error(`DANA Transaction Not Found (4045501): ${data.responseMessage || 'Transaction not found in DANA system'}`)
+      } else if (data.responseCode === '4005502') {
+        throw new Error(`DANA Invalid Mandatory Field (4005502): ${data.responseMessage || 'Invalid mandatory field'}`)
+      } else if (data.responseCode === '5005501') {
+        throw new Error(`DANA Internal Server Error (5005501): ${data.responseMessage || 'Internal server error'}`)
+      } else if (data.responseCode === '4015500') {
+        throw new Error(`DANA Unauthorized (4015500): ${data.responseMessage || 'Unauthorized or invalid signature'}`)
+      }
+      // For other error codes, don't throw - return the data so caller can handle it
     } else if (data.responseCode === '2005500') {
       console.log('[DANA] Query payment status successful (2005500)')
     }
