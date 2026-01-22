@@ -132,7 +132,6 @@ export async function POST(req: NextRequest) {
       // - Invalid partnerReferenceNo format (too long or invalid characters)
       // - Invalid amount format (negative or invalid)
       // - Invalid timestamp format in validUpTo
-      const testOrderNumber = `TEST-${Date.now()}`
       requestBody = {
         partnerReferenceNo: 'A'.repeat(100), // Invalid: too long (max 64 chars)
         merchantId: merchantId,
@@ -178,9 +177,23 @@ export async function POST(req: NextRequest) {
       console.log('[DANA TEST] Testing 4045418 - Inconsistent Request')
 
       // Strategy: First create a valid order, then retry with same partnerReferenceNo
-      // but different parameters (different amount, different urlParams, etc.)
-      // Use a fixed partnerReferenceNo that we'll reuse
-      const fixedOrderNumber = `TEST-4045418-${Date.now()}`
+      // but different amount only (as per DANA docs)
+      // Use the exact partnerReferenceNo from user's test case
+      const fixedOrderNumber = '2020102900000000000001'
+      
+      // Generate validUpTo once to reuse in both requests
+      const sharedValidUpTo = (() => {
+        const now = new Date()
+        const expirationTime = new Date(now.getTime() + (30 * 60 * 1000))
+        const jakartaTime = new Date(expirationTime.getTime() + (7 * 60 * 60 * 1000))
+        const year = jakartaTime.getUTCFullYear()
+        const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(jakartaTime.getUTCDate()).padStart(2, '0')
+        const hours = String(jakartaTime.getUTCHours()).padStart(2, '0')
+        const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, '0')
+        const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, '0')
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+07:00`
+      })()
 
       // Step 1: Create a valid order first (this will succeed)
       const firstRequestBody = {
@@ -188,7 +201,7 @@ export async function POST(req: NextRequest) {
         merchantId: merchantId,
         subMerchantId: '',
         amount: {
-          value: '10000.00',
+          value: '100000.00', // Match DANA example: 100000.00 for first order
           currency: 'IDR',
         },
         externalStoreId: '',
@@ -218,18 +231,7 @@ export async function POST(req: NextRequest) {
             orderTerminalType: 'WEB',
           },
         },
-        validUpTo: (() => {
-          const now = new Date()
-          const expirationTime = new Date(now.getTime() + (30 * 60 * 1000))
-          const jakartaTime = new Date(expirationTime.getTime() + (7 * 60 * 60 * 1000))
-          const year = jakartaTime.getUTCFullYear()
-          const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0')
-          const day = String(jakartaTime.getUTCDate()).padStart(2, '0')
-          const hours = String(jakartaTime.getUTCHours()).padStart(2, '0')
-          const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, '0')
-          const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, '0')
-          return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+07:00`
-        })(),
+        validUpTo: sharedValidUpTo,
       }
 
       // Create first order
@@ -239,7 +241,11 @@ export async function POST(req: NextRequest) {
       const firstExternalId = generateExternalId()
 
       let firstOrderSuccess = false
+      let firstOrderResponseCode: string | undefined
+      let firstOrderResponseMessage: string | undefined
+      
       try {
+        console.log('[DANA TEST] Creating first order with partnerReferenceNo:', fixedOrderNumber, 'amount: 100000.00')
         const firstResponse = await fetch(`${baseUrl}${path}`, {
           method: 'POST',
           headers: {
@@ -255,82 +261,69 @@ export async function POST(req: NextRequest) {
           body: firstBodyString,
         })
         const firstResponseText = await firstResponse.text()
-        console.log('[DANA TEST] First order response:', firstResponseText)
+        console.log('[DANA TEST] First order response status:', firstResponse.status)
+        console.log('[DANA TEST] First order response body:', firstResponseText)
 
         try {
-          const firstResponseData = JSON.parse(firstResponseText) as { responseCode?: string }
+          const firstResponseData = JSON.parse(firstResponseText) as { responseCode?: string; responseMessage?: string }
+          firstOrderResponseCode = firstResponseData.responseCode
+          firstOrderResponseMessage = firstResponseData.responseMessage
+          console.log('[DANA TEST] First order parsed response:', firstResponseData)
+          
           if (firstResponseData.responseCode === '2005400') {
             firstOrderSuccess = true
-            console.log('[DANA TEST] First order created successfully, now retrying with different params')
-            // Wait a bit to ensure first order is processed
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            console.log('[DANA TEST] First order created successfully (2005400), now retrying with different amount')
+            console.log('[DANA TEST] First order partnerReferenceNo:', fixedOrderNumber)
+            console.log('[DANA TEST] First order amount: 100000.00')
+            console.log('[DANA TEST] Second order will use same partnerReferenceNo:', fixedOrderNumber)
+            console.log('[DANA TEST] Second order amount: 200000.00')
+            // Wait longer to ensure first order is fully processed in DANA's system
+            await new Promise(resolve => setTimeout(resolve, 3000))
+          } else if (firstResponseData.responseCode === '4045418') {
+            // If first order already exists with different params, we got 4045418 directly
+            console.log('[DANA TEST] First order returned 4045418 - order may already exist with different parameters')
+            // Continue to test second order anyway
+          } else {
+            console.log('[DANA TEST] First order failed with code:', firstResponseData.responseCode, firstResponseData.responseMessage)
+            // Continue anyway - the second order might still trigger 4045418 if first order exists
           }
-        } catch {
-          // Response might not be JSON
+        } catch (parseError) {
+          console.log('[DANA TEST] Failed to parse first order response:', parseError)
         }
       } catch (error) {
         console.log('[DANA TEST] First order failed:', error)
       }
 
+      // Note: We continue even if first order failed, because:
+      // 1. The order might already exist in DANA's system
+      // 2. The second order with different amount should trigger 4045418
       if (!firstOrderSuccess) {
-        return NextResponse.json({
-          success: false,
-          testCase: '4045418',
-          message: 'First order creation failed or did not succeed. Cannot test idempotent key inconsistency.',
-          note: '4045418 requires a successful first order with the same partnerReferenceNo'
-        })
+        console.log('[DANA TEST] First order did not succeed, but proceeding with second order to test 4045418')
+        console.log('[DANA TEST] First order response code:', firstOrderResponseCode, firstOrderResponseMessage)
+        // Wait a bit before proceeding
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
 
-      // Step 2: Now retry with same partnerReferenceNo but DIFFERENT parameters
-      // This should trigger 4045418
+      // Step 2: Now retry with same partnerReferenceNo but DIFFERENT amount only
+      // According to DANA docs: same partnerReferenceNo + different amount = 4045418
+      // Keep ALL other fields exactly the same as first order (copy from firstRequestBody)
       requestBody = {
-        partnerReferenceNo: fixedOrderNumber, // SAME as first order
-        merchantId: merchantId,
-        subMerchantId: '',
+        ...firstRequestBody, // Copy all fields from first request
         amount: {
-          value: '20000.00', // DIFFERENT amount
+          value: '200000.00', // ONLY change: different amount (first was 100000.00)
           currency: 'IDR',
         },
-        externalStoreId: '',
-        urlParams: [
-          {
-            url: `${baseUrlForRedirects}/payment/dana/finish-different`, // DIFFERENT URL
-            type: 'PAY_RETURN',
-            isDeeplink: 'Y',
-          },
-          {
-            url: `${baseUrlForRedirects}/api/payments/dana/callback-different`, // DIFFERENT URL
-            type: 'NOTIFICATION',
-            isDeeplink: 'Y',
-          }
-        ],
-        additionalInfo: {
-          order: {
-            orderTitle: 'Test Order Second', // DIFFERENT title
-            scenario: 'REDIRECT',
-            merchantTransType: 'SPECIAL_MOVIE',
-            buyer: {},
-          },
-          mcc: '5732',
-          envInfo: {
-            sourcePlatform: 'IPG',
-            terminalType: 'SYSTEM',
-            orderTerminalType: 'WEB',
-          },
-        },
-        validUpTo: (() => {
-          const now = new Date()
-          const expirationTime = new Date(now.getTime() + (30 * 60 * 1000))
-          const jakartaTime = new Date(expirationTime.getTime() + (7 * 60 * 60 * 1000))
-          const year = jakartaTime.getUTCFullYear()
-          const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0')
-          const day = String(jakartaTime.getUTCDate()).padStart(2, '0')
-          const hours = String(jakartaTime.getUTCHours()).padStart(2, '0')
-          const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, '0')
-          const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, '0')
-          return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+07:00`
-        })(),
+        // Ensure validUpTo is exactly the same
+        validUpTo: sharedValidUpTo,
       }
+      
+      console.log('[DANA TEST] ==========================================')
+      console.log('[DANA TEST] SECOND REQUEST - Testing 4045418')
+      console.log('[DANA TEST] partnerReferenceNo:', fixedOrderNumber)
+      console.log('[DANA TEST] First order amount: 100000.00')
+      console.log('[DANA TEST] Second order amount: 200000.00')
+      console.log('[DANA TEST] Expected: responseCode 4045418 with message "Inconsistent Request"')
+      console.log('[DANA TEST] ==========================================')
     } else {
       return NextResponse.json({ error: 'Unknown test case' }, { status: 400 })
     }
@@ -338,11 +331,19 @@ export async function POST(req: NextRequest) {
     const bodyString = JSON.stringify(requestBody)
     const signature = generateSignature('POST', path, timestamp, bodyString, privateKey)
 
-    console.log('[DANA TEST] Sending raw request to DANA:', {
+    console.log('[DANA TEST] Sending request to DANA:', {
       url: `${baseUrl}${path}`,
       testCase,
-      requestBody
+      partnerReferenceNo: (requestBody as { partnerReferenceNo?: string }).partnerReferenceNo,
+      amount: (requestBody as { amount?: { value?: string } }).amount?.value,
     })
+    
+    // For 4045418, log detailed comparison
+    if (testCase === '4045418') {
+      console.log('[DANA TEST] Second request - partnerReferenceNo:', (requestBody as { partnerReferenceNo?: string }).partnerReferenceNo)
+      console.log('[DANA TEST] Second request - amount:', (requestBody as { amount?: { value?: string } }).amount?.value)
+      console.log('[DANA TEST] Second request - validUpTo:', (requestBody as { validUpTo?: string }).validUpTo)
+    }
 
     try {
       const response = await fetch(`${baseUrl}${path}`, {

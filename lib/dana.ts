@@ -356,18 +356,18 @@ export async function createDanaOrder(
       console.error('[DANA] Create order failed - Response Code:', errorData.responseCode)
       console.error('[DANA] Create order failed - Response Message:', errorData.responseMessage)
       console.error('[DANA] Create order failed - Full Response:', errorData)
-      
+
       // Handle specific error codes
       if (errorData.responseCode === '4005401') {
         console.error('[DANA] Error 4005401 - Invalid Field Format detected')
         throw new Error(`DANA Invalid Field Format (4005401): ${errorData.responseMessage || 'One or more fields have invalid format. Please check field types, formats, and enum values.'}`)
       }
-      
+
       if (errorData.responseCode === '4045418') {
         console.error('[DANA] Error 4045418 - Inconsistent Request detected')
         throw new Error(`DANA Inconsistent Request (4045418): ${errorData.responseMessage || 'Request has inconsistencies. Please check required fields and their relationships (e.g., amount mismatch, missing conditional fields).'}`)
       }
-      
+
       const errorMsg = errorData.responseMessage ||
         errorData.message ||
         `DANA API error: ${response.status} ${response.statusText}`
