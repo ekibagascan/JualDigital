@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
     console.log('[ORDERS API] Fetching orders for user:', userId)
 
     // Fetch orders with order items
+    // Use service role key to bypass RLS and ensure we get all orders
     const { data: orders, error } = await supabase
       .from('orders')
       .select(`
@@ -75,6 +76,15 @@ export async function GET(request: NextRequest) {
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
+
+    // Also log raw status values to see exactly what we're getting
+    if (orders && orders.length > 0) {
+      console.log('[ORDERS API] Raw status values from DB:', orders.map((o: { order_number?: string; status?: string }) => ({
+        order_number: o.order_number,
+        raw_status: o.status,
+        status_repr: JSON.stringify(o.status), // Shows hidden characters
+      })))
+    }
 
     console.log('[ORDERS API] Orders query result:', { orders, error })
 
