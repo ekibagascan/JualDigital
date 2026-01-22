@@ -47,12 +47,12 @@ export async function POST(req: NextRequest) {
 
     // DANA might send partnerReferenceNo in different fields
     // Based on actual webhook: DANA sends originalPartnerReferenceNo, latestTransactionStatus, originalReferenceNo
-    const partnerReferenceNo = body.originalPartnerReferenceNo || body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number
-    const referenceNo = body.originalReferenceNo || body.referenceNo || body.reference_no || body.transactionId || body.transaction_id
+    const partnerReferenceNo = (body.originalPartnerReferenceNo || body.partnerReferenceNo || body.partner_reference_no || body.orderNumber || body.order_number) as string | undefined
+    const referenceNo = (body.originalReferenceNo || body.referenceNo || body.reference_no || body.transactionId || body.transaction_id) as string | undefined
     // DANA sends latestTransactionStatus: "00" for success, or transactionStatusDesc: "SUCCESS"
-    const transactionStatus = body.latestTransactionStatus || body.transactionStatus || body.transaction_status || body.status
-    const transactionStatusDesc = body.transactionStatusDesc // "SUCCESS", "FAILED", etc.
-    const responseCode = body.responseCode || body.response_code
+    const transactionStatus = (body.latestTransactionStatus || body.transactionStatus || body.transaction_status || body.status) as string | undefined
+    const transactionStatusDesc = body.transactionStatusDesc as string | undefined // "SUCCESS", "FAILED", etc.
+    const responseCode = (body.responseCode || body.response_code) as string | undefined
 
     console.log('[DANA WEBHOOK] Extracted fields:', {
       partnerReferenceNo,
