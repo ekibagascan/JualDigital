@@ -173,10 +173,18 @@ export async function POST(req: NextRequest) {
     // If payment is successful, send notifications and process downloads
     if (shouldNotify && newStatus === 'paid') {
       try {
-        // Get order items
+        // Get order items with product details (including download links)
         const { data: orderItems } = await supabase
           .from('order_items')
-          .select('*')
+          .select(`
+            *,
+            products:product_id (
+              id,
+              title,
+              download_link,
+              file_url
+            )
+          `)
           .eq('order_id', order.id)
 
         if (orderItems && orderItems.length > 0) {
@@ -184,23 +192,28 @@ export async function POST(req: NextRequest) {
           const customerEmail = order.guest_email
           if (customerEmail) {
             try {
-              // Format email content
+              // Format email content with download links
+              const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
               const itemsList = orderItems.map(item => {
-                const title = item.product_title || 'Product'
-                return `- ${title} (Qty: ${item.quantity})`
+                const title = item.product_title || item.products?.title || 'Product'
+                // Use download API endpoint if product has download_link or file_url
+                const downloadUrl = item.products?.download_link || item.products?.file_url
+                  ? `${baseUrl}/api/download/${item.id}`
+                  : null
+                return downloadUrl 
+                  ? `- ${title}: ${downloadUrl}`
+                  : `- ${title} (Link download akan tersedia di halaman pesanan)`
               }).join('\n')
 
               const subject = `Link Download Pesanan #${order.order_number}`
               const text = `
 Terima kasih telah melakukan pembayaran!
 
-Pesanan Anda #${order.order_number} telah dikonfirmasi. Berikut adalah detail pesanan Anda:
+Pesanan Anda #${order.order_number} telah dikonfirmasi. Berikut adalah link download untuk produk yang Anda beli:
 
 ${itemsList}
 
 Total: Rp ${(order.total_amount + (order.tax_amount || 0)).toLocaleString('id-ID')}
-
-Silakan akses halaman pesanan Anda untuk mendapatkan link download.
 
 Jika Anda memiliki pertanyaan, silakan hubungi tim support kami.
 
@@ -226,23 +239,28 @@ Tim Jual Digital
             
             <p>Terima kasih telah melakukan pembayaran!</p>
             
-            <p>Pesanan Anda <strong>#${order.order_number}</strong> telah dikonfirmasi.</p>
+            <p>Pesanan Anda <strong>#${order.order_number}</strong> telah dikonfirmasi. Berikut adalah link download untuk produk yang Anda beli:</p>
             
             <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0;">
-                <p><strong>Detail Pesanan:</strong></p>
                 ${orderItems.map(item => {
-                const title = item.product_title || 'Product'
-                return `<p style="margin: 10px 0;">
-                    <strong>${title}</strong> - Qty: ${item.quantity}
+                  const title = item.product_title || item.products?.title || 'Product'
+                  const downloadUrl = item.products?.download_link || item.products?.file_url
+                    ? `${baseUrl}/api/download/${item.id}`
+                    : null
+                  return `<p style="margin: 10px 0;">
+                    <strong>${title}</strong> - Qty: ${item.quantity}<br>
+                    ${downloadUrl 
+                      ? `<a href="${downloadUrl}" style="color: #2563eb; text-decoration: none; font-weight: bold;">Download di sini</a>`
+                      : '<span style="color: #6b7280;">Link download akan tersedia di halaman pesanan</span>'}
                   </p>`
-              }).join('')}
+                }).join('')}
                 <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
                   <strong>Total: Rp ${(order.total_amount + (order.tax_amount || 0)).toLocaleString('id-ID')}</strong>
                 </p>
             </div>
             
             <p style="text-align: center; margin-top: 20px;">
-              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'}/purchases" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Lihat Pesanan Saya</a>
+              <a href="${baseUrl}/purchases" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Lihat Pesanan Saya</a>
             </p>
             
             <p>Jika Anda memiliki pertanyaan, silakan hubungi tim support kami.</p>
@@ -266,6 +284,8 @@ Tim Jual Digital
             } catch (emailError) {
               console.error('[DANA WEBHOOK] Error sending email:', emailError)
             }
+          } else {
+            console.warn('[DANA WEBHOOK] No customer email found for order:', order.id)
           }
 
           // Send WhatsApp notifications to sellers
