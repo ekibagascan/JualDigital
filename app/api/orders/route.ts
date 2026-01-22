@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       .from('orders')
       .select('id, status', { count: 'exact' })
       .eq('user_id', userId)
-    
+
     console.log('[ORDERS API] Total orders count for user:', orderCount?.length, 'Count error:', countError)
     if (orderCount && orderCount.length > 0) {
       const statusCount = orderCount.reduce((acc: Record<string, number>, o: { status?: string }) => {
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       .select('id, order_number, status, user_id')
       .eq('user_id', userId)
       .ilike('status', '%paid%') // Case-insensitive search for "paid"
-    
+
     console.log('[ORDERS API] Paid orders check (ilike):', paidOrdersCheck?.length, 'Error:', paidCheckError)
     if (paidOrdersCheck && paidOrdersCheck.length > 0) {
       console.log('[ORDERS API] Found paid orders:', paidOrdersCheck.map((o: { order_number?: string; status?: string }) => ({
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      // No limit - get all orders
+    // No limit - get all orders
 
     // Also log raw status values to see exactly what we're getting
     if (orders && orders.length > 0) {
