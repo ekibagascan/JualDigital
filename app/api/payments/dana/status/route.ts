@@ -36,16 +36,31 @@ export async function GET(req: NextRequest) {
       let danaErrorMessage: string | undefined
 
       // Try to extract DANA error code from error message
-      if (errorMessage.includes('4045501') || errorMessage.includes('Transaction not found') || errorMessage.includes('not found')) {
+      // Error format: "DANA Error 4045501: Transaction not found" or just "4045501"
+      const danaErrorMatch = errorMessage.match(/DANA Error (\d+):/i) || errorMessage.match(/(\d{7})/)
+      if (danaErrorMatch) {
+        const extractedCode = danaErrorMatch[1]
+        if (extractedCode === '4045501') {
+          danaErrorCode = '4045501'
+          danaErrorMessage = 'Transaction Not Found'
+        } else if (extractedCode === '4005502') {
+          danaErrorCode = '4005502'
+          danaErrorMessage = 'Invalid Mandatory Field'
+        } else if (extractedCode === '5005501') {
+          danaErrorCode = '5005501'
+          danaErrorMessage = 'Internal Server Error'
+        } else if (extractedCode === '4015500') {
+          danaErrorCode = '4015500'
+          danaErrorMessage = 'Unauthorized / Invalid Signature'
+        } else {
+          // Unknown DANA error code
+          danaErrorCode = extractedCode
+          danaErrorMessage = errorMessage.replace(/DANA Error \d+: /i, '').trim()
+        }
+      } else if (errorMessage.includes('Transaction not found') || errorMessage.includes('not found')) {
         danaErrorCode = '4045501'
         danaErrorMessage = 'Transaction Not Found'
-      } else if (errorMessage.includes('4005502')) {
-        danaErrorCode = '4005502'
-        danaErrorMessage = 'Invalid Mandatory Field'
-      } else if (errorMessage.includes('5005501')) {
-        danaErrorCode = '5005501'
-        danaErrorMessage = 'Internal Server Error'
-      } else if (errorMessage.includes('4015500') || errorMessage.includes('Unauthorized')) {
+      } else if (errorMessage.includes('Unauthorized') || errorMessage.includes('Invalid signature')) {
         danaErrorCode = '4015500'
         danaErrorMessage = 'Unauthorized / Invalid Signature'
       }
@@ -97,9 +112,9 @@ export async function GET(req: NextRequest) {
     // Check if order was created through DANA payment
     // payment_provider is the actual provider (dana, bci, etc.)
     // payment_method is the method type (BANK_TRANSFER, etc.)
-    const isDanaOrder = order.payment_provider === 'dana' || 
-                       (order.payment_method && order.payment_method.toLowerCase().includes('dana'))
-    
+    const isDanaOrder = order.payment_provider === 'dana' ||
+      (order.payment_method && order.payment_method.toLowerCase().includes('dana'))
+
     if (!isDanaOrder) {
       console.warn('[DANA STATUS API] Order may not be a DANA order:', {
         orderNumber,

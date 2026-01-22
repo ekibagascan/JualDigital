@@ -479,7 +479,8 @@ export async function queryPaymentStatus(
 
     const responseText = await response.text().catch(() => '')
     console.log('[DANA] Query payment status response status:', response.status)
-    console.log('[DANA] Query payment status response body:', responseText)
+    console.log('[DANA] Query payment status response body (raw):', responseText)
+    console.log('[DANA] Query payment status - partnerReferenceNo:', partnerReferenceNo)
 
     if (!response.ok) {
       let errorData: { responseCode?: string; responseMessage?: string; message?: string } = {}
@@ -488,12 +489,18 @@ export async function queryPaymentStatus(
       } catch {
         errorData = { message: responseText || 'Unknown error' }
       }
-      console.error('[DANA] Query payment status failed - Status:', response.status)
-      console.error('[DANA] Query payment status failed - Response:', errorData)
-      throw new Error(
-        errorData.responseMessage || errorData.message ||
-        `DANA API error: ${response.status} ${response.statusText}`
-      )
+      console.error('[DANA] Query payment status failed - HTTP Status:', response.status)
+      console.error('[DANA] Query payment status failed - DANA Response Code:', errorData.responseCode)
+      console.error('[DANA] Query payment status failed - DANA Response Message:', errorData.responseMessage)
+      console.error('[DANA] Query payment status failed - Full Response:', errorData)
+      
+      // Include DANA error code in the error message for better debugging
+      const errorMessage = errorData.responseMessage || errorData.message || `DANA API error: ${response.status} ${response.statusText}`
+      const errorWithCode = errorData.responseCode 
+        ? `DANA Error ${errorData.responseCode}: ${errorMessage}`
+        : errorMessage
+      
+      throw new Error(errorWithCode)
     }
 
     let data: DanaTransactionStatus
