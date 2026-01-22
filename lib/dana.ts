@@ -274,13 +274,13 @@ export async function createDanaOrder(
     },
   }
 
-  // validUpTo is REQUIRED for hosted checkout - set expiration time (default: 24 hours from now)
+  // validUpTo is REQUIRED for hosted checkout - set expiration time (max 30 minutes from now as per DANA requirement)
   if (orderData.validUpTo) {
     requestBody.validUpTo = orderData.validUpTo
   } else {
-    // Generate validUpTo: 24 hours from now in GMT+7
+    // Generate validUpTo: 30 minutes from now in GMT+7 (DANA requirement: max 30 minutes)
     const now = new Date()
-    const expirationTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)) // 24 hours
+    const expirationTime = new Date(now.getTime() + (30 * 60 * 1000)) // 30 minutes
     const jakartaTime = new Date(expirationTime.getTime() + (7 * 60 * 60 * 1000))
     const year = jakartaTime.getUTCFullYear()
     const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0')
@@ -374,12 +374,12 @@ export async function createDanaOrder(
       console.error('[DANA] Create order error - Response Code:', data.responseCode)
       console.error('[DANA] Create order error - Response Message:', data.responseMessage)
       console.error('[DANA] Create order error - Full Response:', data)
-      
+
       // 5005400 is "General Error" - might be temporary server issue
       if (data.responseCode === '5005400') {
         throw new Error(`DANA General Error (${data.responseCode}): ${data.responseMessage || 'Server-side error. Please retry or contact DANA support.'}`)
       }
-      
+
       throw new Error(data.responseMessage || `Failed to create DANA order (code: ${data.responseCode})`)
     }
 
