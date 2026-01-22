@@ -111,23 +111,23 @@ export function PurchaseHistory() {
   }
 }
 
-  useEffect(() => {
+useEffect(() => {
+  fetchOrders()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [user?.id])
+
+// Auto-refresh orders every 30 seconds to catch status updates
+useEffect(() => {
+  if (!user?.id) return
+
+  const interval = setInterval(() => {
+    console.log('[PURCHASE HISTORY] Auto-refreshing orders...')
     fetchOrders()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+  }, 30000) // Refresh every 30 seconds
 
-  // Auto-refresh orders every 30 seconds to catch status updates
-  useEffect(() => {
-    if (!user?.id) return
-
-    const interval = setInterval(() => {
-      console.log('[PURCHASE HISTORY] Auto-refreshing orders...')
-      fetchOrders()
-    }, 30000) // Refresh every 30 seconds
-
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+  return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [user?.id])
 
 if (!user) {
   return (
