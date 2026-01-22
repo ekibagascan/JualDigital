@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Loader2, XCircle, Clock, RefreshCw, Package } from "lucide-react"
+import { CheckCircle2, Loader2, XCircle, Clock, RefreshCw, Package, Download } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { formatCurrency } from "@/lib/utils"
@@ -107,7 +107,7 @@ export default function DanaFinishPage() {
                   setTimeout(() => checkOrderStatus(false), 1000)
                   return
                 }
-                
+
                 // Log the DANA status for debugging
                 console.log('[DANA FINISH PAGE] DANA status details:', {
                   status: danaStatus.status,
@@ -351,9 +351,25 @@ export default function DanaFinishPage() {
                           Qty: {item.quantity} × {formatCurrency(item.price)}
                         </p>
                       </div>
-                      <p className="font-semibold text-sm">
-                        {formatCurrency(item.price * item.quantity)}
-                      </p>
+                      <div className="flex flex-col items-end gap-2">
+                        <p className="font-semibold text-sm">
+                          {formatCurrency(item.price * item.quantity)}
+                        </p>
+                        {/* Download button for paid orders */}
+                        {(paymentStatus === 'success' || orderStatus === 'paid') && (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const downloadUrl = `/api/download/${item.id}`
+                              window.open(downloadUrl, '_blank')
+                            }}
+                            className="w-full"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
