@@ -61,11 +61,17 @@ export function PurchaseHistory() {
         })
         const data = await response.json()
 
-        if (data.success) {
-          const fetchedOrders = data.orders || []
-          console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
-          console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({ order_number: o.order_number, status: o.status })))
-          setOrders(fetchedOrders)
+          if (data.success) {
+            const fetchedOrders = data.orders || []
+            console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
+            console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({ 
+              order_number: o.order_number, 
+              status: o.status,
+              normalized: o.status?.toLowerCase().trim(),
+              isPaid: o.status?.toLowerCase().trim() === 'paid'
+            })))
+            console.log('[PURCHASE HISTORY] Paid orders count:', fetchedOrders.filter((o: Order) => o.status?.toLowerCase().trim() === 'paid').length)
+            setOrders(fetchedOrders)
 
           // Extract unique seller IDs from order items
           const sellerIds = new Set<string>()

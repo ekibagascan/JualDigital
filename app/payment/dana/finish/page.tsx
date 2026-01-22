@@ -245,7 +245,8 @@ export default function DanaFinishPage() {
 
   // Determine what to show based on payment status
   const getStatusContent = () => {
-    if (paymentStatus === 'success' || orderStatus === 'paid') {
+    const normalizedOrderStatus = orderStatus?.toLowerCase().trim() || order?.status?.toLowerCase().trim()
+    if (paymentStatus === 'success' || normalizedOrderStatus === 'paid') {
       return {
         icon: <CheckCircle2 className="h-6 w-6 text-green-500" />,
         title: "Pembayaran Berhasil!",
@@ -356,7 +357,9 @@ export default function DanaFinishPage() {
                           {formatCurrency(item.price * item.quantity)}
                         </p>
                         {/* Download button for paid orders */}
-                        {(paymentStatus === 'success' || orderStatus === 'paid') && (
+                        {(paymentStatus === 'success' || 
+                          orderStatus?.toLowerCase().trim() === 'paid' || 
+                          order?.status?.toLowerCase().trim() === 'paid') && (
                           <Button
                             size="sm"
                             onClick={() => {
