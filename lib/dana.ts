@@ -447,22 +447,41 @@ export async function queryPaymentStatus(
       body: bodyString,
     })
 
+    const responseText = await response.text().catch(() => '')
+    console.log('[DANA] Query payment status response status:', response.status)
+    console.log('[DANA] Query payment status response body:', responseText)
+
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-      let errorData: { responseMessage?: string; message?: string } = {}
+      let errorData: { responseCode?: string; responseMessage?: string; message?: string } = {}
       try {
-        errorData = JSON.parse(errorText) as { responseMessage?: string; message?: string }
+        errorData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string; message?: string }
       } catch {
-        errorData = { message: errorText || 'Unknown error' }
+        errorData = { message: responseText || 'Unknown error' }
       }
-      console.error('[DANA] Query payment status failed:', errorData)
+      console.error('[DANA] Query payment status failed - Status:', response.status)
+      console.error('[DANA] Query payment status failed - Response:', errorData)
       throw new Error(
         errorData.responseMessage || errorData.message ||
         `DANA API error: ${response.status} ${response.statusText}`
       )
     }
 
-    const data = await response.json()
+    let data: DanaTransactionStatus
+    try {
+      data = JSON.parse(responseText) as DanaTransactionStatus
+    } catch (parseError) {
+      console.error('[DANA] Failed to parse response JSON:', parseError)
+      throw new Error(`Invalid response from DANA API: ${responseText.substring(0, 200)}`)
+    }
+
+    console.log('[DANA] Query payment status response:', data)
+
+    // Check if responseCode indicates an error (even if HTTP status is 200)
+    if (data.responseCode && data.responseCode !== '2005400') {
+      console.warn('[DANA] Query payment status returned error code:', data.responseCode, data.responseMessage)
+      // Don't throw - return the data so caller can handle it
+    }
+
     return data
   } catch (error) {
     console.error('[DANA] Error querying payment status:', error)

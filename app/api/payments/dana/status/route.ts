@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
         .select('status')
         .eq('order_number', orderNumber)
         .single()
-      
+
       return NextResponse.json({
         status: order?.status || 'unknown',
         responseCode: 'ERROR',
@@ -69,13 +69,14 @@ export async function GET(req: NextRequest) {
     console.log('[DANA STATUS API] Current order status:', order.status)
 
     // Check if payment is successful - handle multiple response formats
+    // Note: DANA status API might return different responseCode for status queries
     const isPaid =
-      danaStatus.responseCode === '2005400' && (
+      (danaStatus.responseCode === '2005400' || danaStatus.responseCode === '200') && (
         danaStatus.transactionStatus === 'SUCCESS' ||
         danaStatus.transactionStatus === 'PAID' ||
         danaStatus.transactionStatus === 'SUCCESSFUL' ||
-        // Sometimes DANA returns success without transactionStatus
-        (danaStatus.responseCode === '2005400' && !danaStatus.transactionStatus)
+        // Sometimes DANA returns success without transactionStatus but with referenceNo
+        (danaStatus.responseCode === '2005400' && danaStatus.referenceNo && !danaStatus.transactionStatus)
       )
 
     // If payment is successful and order is not already paid, update it
@@ -108,6 +109,13 @@ export async function GET(req: NextRequest) {
       console.log('[DANA STATUS API] Order already paid, no update needed')
     } else {
       console.log('[DANA STATUS API] Payment not confirmed yet. ResponseCode:', danaStatus.responseCode, 'TransactionStatus:', danaStatus.transactionStatus)
+      
+      // If DANA returns an error but order might actually be paid, check transaction_id
+      // Sometimes DANA status API fails but payment was successful
+      if (danaStatus.responseCode !== '2005400' && order.transaction_id) {
+        console.log('[DANA STATUS API] DANA API returned error, but order has transaction_id. Payment might be successful.')
+        // Don't update - let webhook handle it or user can check manually
+      }
     }
 
     return NextResponse.json({
