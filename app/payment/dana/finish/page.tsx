@@ -78,7 +78,9 @@ export default function DanaFinishPage() {
         if (fetchedOrder) {
           setOrder(fetchedOrder)
           const status = fetchedOrder.status
-          setOrderStatus(status)
+          const normalizedStatus = status?.toLowerCase().trim()
+          setOrderStatus(normalizedStatus || status)
+          console.log('[DANA FINISH PAGE] Order status:', status, 'Normalized:', normalizedStatus)
 
           // Get order_number for DANA status check
           if (!orderNumber && fetchedOrder.order_number) {
@@ -121,18 +123,22 @@ export default function DanaFinishPage() {
             }
           }
 
-          // Determine payment status from order status
-          if (status === 'paid') {
+          // Determine payment status from order status (normalize for comparison)
+          const normalizedStatus = status?.toLowerCase().trim()
+          if (normalizedStatus === 'paid') {
             setPaymentStatus('success')
+            setOrderStatus('paid')
             // Stop polling if paid
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current)
               pollingIntervalRef.current = null
             }
-          } else if (status === 'pending') {
+          } else if (normalizedStatus === 'pending') {
             setPaymentStatus('pending')
-          } else if (status === 'cancelled') {
+            setOrderStatus('pending')
+          } else if (normalizedStatus === 'cancelled') {
             setPaymentStatus('failed')
+            setOrderStatus('cancelled')
             // Stop polling if cancelled
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current)
@@ -357,21 +363,21 @@ export default function DanaFinishPage() {
                           {formatCurrency(item.price * item.quantity)}
                         </p>
                         {/* Download button for paid orders */}
-                        {(paymentStatus === 'success' || 
-                          orderStatus?.toLowerCase().trim() === 'paid' || 
+                        {(paymentStatus === 'success' ||
+                          orderStatus?.toLowerCase().trim() === 'paid' ||
                           order?.status?.toLowerCase().trim() === 'paid') && (
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              const downloadUrl = `/api/download/${item.id}`
-                              window.open(downloadUrl, '_blank')
-                            }}
-                            className="w-full"
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Download
-                          </Button>
-                        )}
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const downloadUrl = `/api/download/${item.id}`
+                                window.open(downloadUrl, '_blank')
+                              }}
+                              className="w-full"
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
+                          )}
                       </div>
                     </div>
                   ))}
