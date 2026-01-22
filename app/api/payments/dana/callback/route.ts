@@ -96,8 +96,21 @@ export async function POST(req: NextRequest) {
         if (responseCode === '2005400') {
           newStatus = 'paid'
           shouldNotify = true
+        } else if (!transactionStatus && responseCode === '2005400') {
+          // Sometimes DANA sends success without transactionStatus
+          newStatus = 'paid'
+          shouldNotify = true
         }
     }
+
+    // Log the decision
+    console.log('[DANA WEBHOOK] Status decision:', {
+      transactionStatus,
+      responseCode,
+      newStatus,
+      shouldNotify,
+      currentOrderStatus: order.status,
+    })
 
     // Update order
     console.log('[DANA WEBHOOK] Updating order:', order.id, 'from', order.status, 'to', newStatus)
