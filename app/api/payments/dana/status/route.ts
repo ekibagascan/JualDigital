@@ -69,14 +69,17 @@ export async function GET(req: NextRequest) {
     console.log('[DANA STATUS API] Current order status:', order.status)
 
     // Check if payment is successful - handle multiple response formats
-    // Note: DANA status API might return different responseCode for status queries
+    // DANA status API might use different field names: transactionStatus or latestTransactionStatus
+    // Status codes: "00" = Success, "SUCCESS" = Success, "PAID" = Paid
+    const transactionStatus = danaStatus.transactionStatus || danaStatus.latestTransactionStatus
     const isPaid =
       (danaStatus.responseCode === '2005400' || danaStatus.responseCode === '200') && (
-        danaStatus.transactionStatus === 'SUCCESS' ||
-        danaStatus.transactionStatus === 'PAID' ||
-        danaStatus.transactionStatus === 'SUCCESSFUL' ||
+        transactionStatus === 'SUCCESS' ||
+        transactionStatus === 'PAID' ||
+        transactionStatus === 'SUCCESSFUL' ||
+        transactionStatus === '00' || // DANA uses "00" for success
         // Sometimes DANA returns success without transactionStatus but with referenceNo
-        (danaStatus.responseCode === '2005400' && danaStatus.referenceNo && !danaStatus.transactionStatus)
+        (danaStatus.responseCode === '2005400' && danaStatus.referenceNo && !transactionStatus)
       )
 
     // If payment is successful and order is not already paid, update it
@@ -105,7 +108,7 @@ export async function GET(req: NextRequest) {
       }
 
       console.log('[DANA STATUS API] Successfully updated order to paid:', order.id)
-      
+
       // Return success immediately so frontend can refresh
       return NextResponse.json({
         status: 'paid',
@@ -117,9 +120,9 @@ export async function GET(req: NextRequest) {
     } else if (isPaid && order.status === 'paid') {
       console.log('[DANA STATUS API] Order already paid, no update needed')
     } else {
-      console.log('[DANA STATUS API] Payment not confirmed yet. ResponseCode:', danaStatus.responseCode, 'TransactionStatus:', danaStatus.transactionStatus)
+      console.log('[DANA STATUS API] Payment not confirmed yet. ResponseCode:', danaStatus.responseCode, 'TransactionStatus:', transactionStatus)
       console.log('[DANA STATUS API] Full DANA response:', JSON.stringify(danaStatus, null, 2))
-      
+
       // If DANA returns an error but order might actually be paid, check transaction_id
       // Sometimes DANA status API fails but payment was successful
       if (danaStatus.responseCode !== '2005400' && order.transaction_id) {
@@ -128,11 +131,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const transactionStatus = danaStatus.transactionStatus || danaStatus.latestTransactionStatus
     return NextResponse.json({
-      status: danaStatus.transactionStatus?.toLowerCase() || 'unknown',
+      status: transactionStatus?.toLowerCase() || 'unknown',
       responseCode: danaStatus.responseCode,
       responseMessage: danaStatus.responseMessage,
       referenceNo: danaStatus.referenceNo,
+      transactionStatus: transactionStatus,
     })
   } catch (error) {
     console.error('[DANA STATUS API] Error:', error)

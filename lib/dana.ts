@@ -47,6 +47,8 @@ export interface DanaTransactionStatus {
   referenceNo?: string
   partnerReferenceNo?: string
   transactionStatus?: string
+  latestTransactionStatus?: string // Alternative field name
+  transactionStatusDesc?: string
   amount?: {
     value: string
     currency: string
