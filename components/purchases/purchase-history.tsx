@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Download, Calendar, RefreshCw, CreditCard } from "lucide-react"
+import { Download, Calendar, RefreshCw, CreditCard, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -51,20 +51,21 @@ export function PurchaseHistory() {
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (user?.id) {
-        try {
-          console.log('[PURCHASE HISTORY] Fetching orders for user:', user.id)
+  const fetchOrders = async () => {
+    if (user?.id) {
+      try {
+        console.log('[PURCHASE HISTORY] Fetching orders for user:', user.id)
 
-          const response = await fetch(`/api/orders?userId=${user.id}`)
-          const data = await response.json()
+        const response = await fetch(`/api/orders?userId=${user.id}`, {
+          cache: 'no-store', // Prevent caching
+        })
+        const data = await response.json()
 
-          if (data.success) {
-            const fetchedOrders = data.orders || []
-            console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
-            console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({ order_number: o.order_number, status: o.status })))
-            setOrders(fetchedOrders)
+        if (data.success) {
+          const fetchedOrders = data.orders || []
+          console.log('[PURCHASE HISTORY] Fetched orders:', fetchedOrders.length)
+          console.log('[PURCHASE HISTORY] Order statuses:', fetchedOrders.map((o: Order) => ({ order_number: o.order_number, status: o.status })))
+          setOrders(fetchedOrders)
 
             // Extract unique seller IDs from order items
             const sellerIds = new Set<string>()
@@ -108,8 +109,22 @@ export function PurchaseHistory() {
         setLoading(false)
       }
     }
+  }
 
+  useEffect(() => {
     fetchOrders()
+  }, [user?.id])
+
+  // Auto-refresh orders every 30 seconds to catch status updates
+  useEffect(() => {
+    if (!user?.id) return
+
+    const interval = setInterval(() => {
+      console.log('[PURCHASE HISTORY] Auto-refreshing orders...')
+      fetchOrders()
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
   }, [user?.id])
 
   if (!user) {
@@ -233,6 +248,21 @@ export function PurchaseHistory() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Riwayat pembelian dan download produk digital Anda</h2>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setLoading(true)
+            fetchOrders().finally(() => setLoading(false))
+          }}
+          disabled={loading}
+        >
+          <RotateCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">Semua ({orders.length})</TabsTrigger>
