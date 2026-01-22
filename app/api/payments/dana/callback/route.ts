@@ -89,7 +89,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Update order
-    const { error: updateError } = await supabase
+    console.log('[DANA WEBHOOK] Updating order:', order.id, 'from', order.status, 'to', newStatus)
+    const { error: updateError, data: updatedOrder } = await supabase
       .from('orders')
       .update({
         status: newStatus,
@@ -98,10 +99,22 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', order.id)
+      .select()
+      .single()
 
     if (updateError) {
       console.error('[DANA WEBHOOK] Error updating order:', updateError)
-      return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
+      console.error('[DANA WEBHOOK] Update error details:', JSON.stringify(updateError, null, 2))
+      return NextResponse.json({ 
+        error: 'Failed to update order',
+        details: updateError.message 
+      }, { status: 500 })
+    }
+
+    if (updatedOrder) {
+      console.log('[DANA WEBHOOK] Order updated successfully:', updatedOrder.id, 'New status:', updatedOrder.status)
+    } else {
+      console.warn('[DANA WEBHOOK] Order update returned no data')
     }
 
     // If payment is successful, send notifications and process downloads
