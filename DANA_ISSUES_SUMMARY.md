@@ -42,19 +42,23 @@
    - **Need**: Actual order number with cancelled status (05) in DANA system
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status -H "Content-Type: application/json" -d '{"testCase": "2005500-cancelled", "partnerReferenceNo": "ACTUAL_CANCELLED_ORDER"}'`
 
-5. **Transaction Not Found (4045501)** - ⚠️ **Ready to Test (Endpoint needs deployment)**
-   - Status: Code implemented to handle this error
-   - **Test Endpoint**: `/api/payments/dana/test-status-errors` with `testCase: "4045501-notfound"`
-   - **Can Test**: Yes - automatically uses non-existent order number
+5. **Transaction Not Found (4045501)** - ❌ **DANA-Side Issue**
+   - Status: Code implemented correctly, but DANA API returns wrong error code
+   - **Test Result**: ❌ Expected `4045501` but got `5005501` (Internal Server Error)
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4045501-notfound"}'`
-   - **Note**: Endpoint returned 404 on first test (not deployed yet). Retry after deployment.
+   - **Response**: `{"success":false,"expected":{"responseCode":"4045501"},"actual":{"responseCode":"5005501"}}`
+   - **Issue**: DANA API returns `5005501` instead of `4045501` when querying non-existent orders
+   - **Request Sent**: Non-existent order number `NON-EXISTENT-${timestamp}`
+   - **DANA Response**: `5005501` with "Internal Server Error" (should be `4045501` with "Transaction Not Found")
 
-6. **Invalid Mandatory Field (4005502)** - ⚠️ **Ready to Test (Endpoint needs deployment)**
-   - Status: Code implemented to handle this error
-   - **Test Endpoint**: `/api/payments/dana/test-status-errors` with `testCase: "4005502-invalid"`
-   - **Can Test**: Yes - sends request with invalid partnerReferenceNo format (too long)
+6. **Invalid Mandatory Field (4005502)** - ❌ **DANA-Side Issue**
+   - Status: Code implemented correctly, but DANA API returns wrong error code
+   - **Test Result**: ❌ Expected `4005502` but got `5005501` (Internal Server Error)
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4005502-invalid"}'`
-   - **Note**: Endpoint returned 404 on first test (not deployed yet). Retry after deployment.
+   - **Response**: `{"success":false,"expected":{"responseCode":"4005502"},"actual":{"responseCode":"5005501"}}`
+   - **Issue**: DANA API returns `5005501` instead of `4005502` when sending invalid field format
+   - **Request Sent**: `partnerReferenceNo` with 100 characters (exceeds max 64 chars per DANA spec)
+   - **DANA Response**: `5005501` with "Internal Server Error" (should be `4005502` with "Invalid Mandatory Field")
 
 7. **Unauthorized / Invalid Signature (4015500)** - ✅ **Tested and Verified**
    - Status: Code implemented and tested successfully
@@ -309,6 +313,69 @@ We need DANA support to:
 
 ---
 
+## Issue 3: Status Query Error Codes - DANA Returns Wrong Error Codes
+
+### Status
+❌ **DANA-Side Issue** - DANA API returns `5005501` (Internal Server Error) instead of specific error codes
+
+### Description
+When testing status query error scenarios, DANA's API returns `5005501` (Internal Server Error) instead of the documented specific error codes:
+- **4045501 (Transaction Not Found)**: Expected when querying non-existent orders, but DANA returns `5005501`
+- **4005502 (Invalid Mandatory Field)**: Expected when sending invalid field format, but DANA returns `5005501`
+
+### Implementation Status
+✅ **Code implemented correctly** - Our code properly:
+1. Sends requests with non-existent order numbers for `4045501` test
+2. Sends requests with invalid field format (100-char `partnerReferenceNo`, exceeds 64-char limit) for `4005502` test
+3. Handles all error codes correctly in code
+
+### Testing Results
+
+**Test 1: 4045501 (Transaction Not Found)**
+- **Request**: Query non-existent order `NON-EXISTENT-${timestamp}`
+- **Expected**: `4045501` with "Transaction Not Found"
+- **Actual**: `5005501` with "Internal Server Error"
+- **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4045501-notfound"}'`
+- **Response**: `{"success":false,"expected":{"responseCode":"4045501"},"actual":{"responseCode":"5005501"}}`
+
+**Test 2: 4005502 (Invalid Mandatory Field)**
+- **Request**: `partnerReferenceNo` with 100 characters (exceeds max 64 chars)
+- **Expected**: `4005502` with "Invalid Mandatory Field"
+- **Actual**: `5005501` with "Internal Server Error"
+- **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4005502-invalid"}'`
+- **Response**: `{"success":false,"expected":{"responseCode":"4005502"},"actual":{"responseCode":"5005501"}}`
+
+### Issue
+**DANA API returns generic `5005501` instead of specific error codes**
+
+DANA's status query API (`POST /payment-gateway/v1.0/debit/status.htm`) is not returning the documented specific error codes:
+- Instead of `4045501` for non-existent transactions → Returns `5005501`
+- Instead of `4005502` for invalid field format → Returns `5005501`
+
+**Note**: The only error code that works correctly is `4015500` (Unauthorized/Invalid Signature), which suggests signature validation happens at a different layer and returns the correct error code.
+
+### Possible Causes
+1. **DANA API implementation issue** - The status query endpoint may not properly differentiate between error types
+2. **Error handling in DANA's system** - All errors might be caught and returned as generic `5005501`
+3. **Documentation mismatch** - The documented error codes might not be implemented in the actual API
+4. **Sandbox vs Production difference** - Error codes might work differently in production
+
+### Request
+We need DANA support to:
+1. Verify if `4045501` and `4005502` error codes are actually implemented in the status query API
+2. Investigate why the API returns `5005501` for these scenarios instead of specific error codes
+3. Provide guidance on how to properly trigger `4045501` and `4005502` error codes (if they exist)
+4. Update documentation if these error codes are not actually returned by the API
+5. Help verify these error scenarios in the dashboard
+
+### Additional Information
+- **Status Query Endpoint**: `POST /payment-gateway/v1.0/debit/status.htm`
+- **Test Endpoint**: `/api/payments/dana/test-status-errors`
+- **Working Error Code**: `4015500` (Unauthorized) - Returns correctly when invalid signature is sent
+- **Non-Working Error Codes**: `4045501`, `4005502` - Both return `5005501` instead
+
+---
+
 ## Summary
 
 ### Issue 1: Webhook 5005601 Response
@@ -326,8 +393,8 @@ We need DANA support to:
 2. ❌ **2005500 with status 00 (Success)** - Not verified (DANA returns 5005501 instead)
 3. ❌ **2005500 with status 01 (Pending)** - Not tested (tested with placeholder, got 5005501 - need actual pending order)
 4. ❌ **2005500 with status 05 (Cancelled)** - Not tested (tested with placeholder, got 5005501 - need actual cancelled order)
-5. ⚠️ **4045501 (Transaction Not Found)** - Ready to test (endpoint needs deployment, then retry)
-6. ⚠️ **4005502 (Invalid Mandatory Field)** - Ready to test (endpoint needs deployment, then retry)
+5. ❌ **4045501 (Transaction Not Found)** - **DANA-Side Issue** - DANA returns `5005501` instead of `4045501`
+6. ❌ **4005502 (Invalid Mandatory Field)** - **DANA-Side Issue** - DANA returns `5005501` instead of `4005502`
 7. ✅ **4015500 (Unauthorized)** - ✅ **Tested and verified** - Successfully returns 4015500
 
 ### Test Results Summary
@@ -335,23 +402,22 @@ We need DANA support to:
 **✅ Successfully Tested:**
 - **4015500 (Unauthorized)** - ✅ Verified - Returns `4015500` correctly when invalid signature is sent
 
-**⚠️ Ready to Test (After Deployment):**
-- **4045501 (Transaction Not Found)** - Endpoint returned 404 on first test (needs deployment, then retry)
-- **4005502 (Invalid Mandatory Field)** - Endpoint returned 404 on first test (needs deployment, then retry)
+**❌ DANA-Side Issues (Wrong Error Codes Returned):**
+- **4045501 (Transaction Not Found)** - ❌ DANA returns `5005501` instead of `4045501` when querying non-existent orders
+- **4005502 (Invalid Mandatory Field)** - ❌ DANA returns `5005501` instead of `4005502` when sending invalid field format
+- **2005500 with status 00 (Success)** - ❌ DANA returns `5005501` instead of `2005500` for paid orders
 
 **❌ Need Actual Orders:**
 - **2005500 with status 01 (Pending)** - Tested with placeholder, got `5005501` (need actual pending order)
 - **2005500 with status 05 (Cancelled)** - Tested with placeholder, got `5005501` (need actual cancelled order)
 
-**❌ DANA API Issue:**
-- **2005500 with status 00 (Success)** - DANA returns `5005501` instead of `2005500` for paid orders (needs DANA investigation)
-
 ### Next Steps
 1. **For Issue 1 (Webhook 5005601)**: DANA support to trigger a test webhook to verify `5005601` response
 2. **For Issue 2 (Status Query 2005500)**: DANA support to investigate why status query returns `5005501` for paid orders
-3. **For Other Status Query Scenarios**: 
+3. **For Issue 3 (Error Codes 4045501, 4005502)**: DANA support to investigate why API returns `5005501` instead of specific error codes
+4. **For Other Status Query Scenarios**: 
    - ✅ **4015500** - Already tested and verified
-   - ⚠️ **4045501, 4005502** - Retry after endpoint deployment
+   - ❌ **4045501, 4005502** - DANA-side issue (returns wrong error code)
    - ❌ **Pending/Cancelled** - Need DANA to provide test orders with those statuses, or wait for natural occurrence
 
 ---
