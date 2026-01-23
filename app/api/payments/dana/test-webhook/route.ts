@@ -82,12 +82,9 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    if (!partnerReferenceNo) {
-      return NextResponse.json({
-        error: 'partnerReferenceNo is required',
-        note: 'You can use any existing order number, or a test order number. The callback will return the correct response format even if the order does not exist (for testing purposes).'
-      }, { status: 400 })
-    }
+    // For testing, use provided partnerReferenceNo or generate a test one
+    // The callback will return the correct response format even if the order doesn't exist
+    const finalPartnerReferenceNo = partnerReferenceNo || `TEST-WEBHOOK-${Date.now()}`
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
     const callbackUrl = `${baseUrl}/api/payments/dana/callback`
@@ -103,7 +100,7 @@ export async function POST(req: NextRequest) {
       webhookPayload = {
         responseCode: '2005400',
         responseMessage: 'Success',
-        originalPartnerReferenceNo: partnerReferenceNo,
+        originalPartnerReferenceNo: finalPartnerReferenceNo,
         originalReferenceNo: `REF-${Date.now()}`,
         latestTransactionStatus: '00', // Success
         transactionStatusDesc: 'SUCCESS',
@@ -120,7 +117,7 @@ export async function POST(req: NextRequest) {
       webhookPayload = {
         responseCode: '2005400',
         responseMessage: 'Success',
-        originalPartnerReferenceNo: partnerReferenceNo,
+        originalPartnerReferenceNo: finalPartnerReferenceNo,
         originalReferenceNo: `REF-${Date.now()}`,
         latestTransactionStatus: '00', // Success
         transactionStatusDesc: 'SUCCESS',
@@ -138,7 +135,7 @@ export async function POST(req: NextRequest) {
       webhookPayload = {
         responseCode: '2005400',
         responseMessage: 'Success',
-        originalPartnerReferenceNo: partnerReferenceNo,
+        originalPartnerReferenceNo: finalPartnerReferenceNo,
         originalReferenceNo: `REF-${Date.now()}`,
         latestTransactionStatus: '05', // Closed/Expired
         transactionStatusDesc: 'CLOSED',
