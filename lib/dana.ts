@@ -453,8 +453,11 @@ export async function queryPaymentStatus(
   const externalId = generateExternalId()
 
   // Note: externalId is in header only, not in body
+  // DANA requires serviceCode and originalPartnerReferenceNo for status query
   const requestBody = {
-    partnerReferenceNo,
+    originalPartnerReferenceNo: partnerReferenceNo,
+    originalReferenceNo: null,
+    serviceCode: '54',
     merchantId,
   }
 

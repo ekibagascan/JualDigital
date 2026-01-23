@@ -145,7 +145,9 @@ export async function POST(req: NextRequest) {
       // Query a non-existent order number
       console.log('[DANA STATUS TEST] Testing 4045501 - Transaction Not Found')
       requestBody = {
-        partnerReferenceNo: `NON-EXISTENT-${Date.now()}`, // Non-existent order number
+        originalPartnerReferenceNo: `NON-EXISTENT-${Date.now()}`, // Non-existent order number
+        originalReferenceNo: null,
+        serviceCode: '54',
         merchantId: merchantId,
       }
       expectedResponseCode = '4045501'
@@ -155,7 +157,9 @@ export async function POST(req: NextRequest) {
       // Send request with invalid partnerReferenceNo format (too long or invalid characters)
       console.log('[DANA STATUS TEST] Testing 4005502 - Invalid Mandatory Field')
       requestBody = {
-        partnerReferenceNo: 'A'.repeat(100), // Invalid: too long (max 64 chars per DANA spec)
+        originalPartnerReferenceNo: 'A'.repeat(100), // Invalid: too long (max 64 chars per DANA spec)
+        originalReferenceNo: null,
+        serviceCode: '54',
         merchantId: merchantId,
       }
       expectedResponseCode = '4005502'
@@ -165,7 +169,9 @@ export async function POST(req: NextRequest) {
       // Send request with invalid signature
       console.log('[DANA STATUS TEST] Testing 4015500 - Unauthorized / Invalid Signature')
       requestBody = {
-        partnerReferenceNo: 'TEST-ORDER-001',
+        originalPartnerReferenceNo: 'TEST-ORDER-001',
+        originalReferenceNo: null,
+        serviceCode: '54',
         merchantId: merchantId,
       }
       expectedResponseCode = '4015500'
@@ -177,7 +183,9 @@ export async function POST(req: NextRequest) {
       console.log('[DANA STATUS TEST] Testing 2005500 - Pending (01)')
       // Use a test order number - in real scenario, this would be an actual pending order
       requestBody = {
-        partnerReferenceNo: 'TEST-PENDING-ORDER',
+        originalPartnerReferenceNo: 'TEST-PENDING-ORDER',
+        originalReferenceNo: null,
+        serviceCode: '54',
         merchantId: merchantId,
       }
       expectedResponseCode = '2005500'
@@ -189,7 +197,9 @@ export async function POST(req: NextRequest) {
       console.log('[DANA STATUS TEST] Testing 2005500 - Cancelled (05)')
       // Use a test order number - in real scenario, this would be an actual cancelled order
       requestBody = {
-        partnerReferenceNo: 'TEST-CANCELLED-ORDER',
+        originalPartnerReferenceNo: 'TEST-CANCELLED-ORDER',
+        originalReferenceNo: null,
+        serviceCode: '54',
         merchantId: merchantId,
       }
       expectedResponseCode = '2005500'
