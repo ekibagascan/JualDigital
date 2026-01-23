@@ -154,13 +154,23 @@ export async function POST(req: NextRequest) {
       expectedResponseMessage = 'Transaction Not Found'
     } else if (testCase === '4005502-invalid') {
       // Test 4005502: Invalid Mandatory Field
-      // Send request with invalid partnerReferenceNo format (too long or invalid characters)
+      // Use payload format provided by DANA dev with invalid field (future transactionDate)
+      // Note: This payload format is different from status query - may be for different endpoint
       console.log('[DANA STATUS TEST] Testing 4005502 - Invalid Mandatory Field')
+      const testOrderNumber = `TEST-4005502-${Date.now()}`
       requestBody = {
-        originalPartnerReferenceNo: 'A'.repeat(100), // Invalid: too long (max 64 chars per DANA spec)
-        originalReferenceNo: null,
+        originalReferenceNo: testOrderNumber, // Using originalReferenceNo as per DANA dev
+        originalExternalId: '',
         serviceCode: '54',
+        transactionDate: '2030-05-01T00:46:43+07:00', // Invalid: future date (this should trigger 4005502)
+        amount: {
+          value: '1.00',
+          currency: 'IDR'
+        },
         merchantId: merchantId,
+        subMerchantId: '',
+        externalStoreId: '',
+        additionalInfo: {}
       }
       expectedResponseCode = '4005502'
       expectedResponseMessage = 'Invalid Mandatory Field'
@@ -210,7 +220,7 @@ export async function POST(req: NextRequest) {
     }
 
     const bodyString = JSON.stringify(requestBody)
-    
+
     // Generate signature (or invalid signature for 4015500 test)
     let signature: string
     if (testCase === '4015500-unauthorized') {
@@ -245,9 +255,9 @@ export async function POST(req: NextRequest) {
       console.log('[DANA STATUS TEST] Response status:', response.status)
       console.log('[DANA STATUS TEST] Response body:', responseText)
 
-      let responseData: { responseCode?: string; responseMessage?: string; latestTransactionStatus?: string; [key: string]: unknown } = {}
+      let responseData: { responseCode?: string; responseMessage?: string; latestTransactionStatus?: string;[key: string]: unknown } = {}
       try {
-        responseData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string; latestTransactionStatus?: string; [key: string]: unknown }
+        responseData = JSON.parse(responseText) as { responseCode?: string; responseMessage?: string; latestTransactionStatus?: string;[key: string]: unknown }
       } catch {
         responseData = { message: responseText || 'Unknown error' }
       }
@@ -259,8 +269,8 @@ export async function POST(req: NextRequest) {
       // Verify the response
       if (testCase.startsWith('2005500-')) {
         // For success scenarios, check both responseCode and transactionStatus
-        if (actualResponseCode === expectedResponseCode && 
-            actualTransactionStatus === expectedTransactionStatus) {
+        if (actualResponseCode === expectedResponseCode &&
+          actualTransactionStatus === expectedTransactionStatus) {
           return NextResponse.json({
             success: true,
             testCase,
