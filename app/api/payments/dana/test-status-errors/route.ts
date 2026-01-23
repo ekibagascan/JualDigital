@@ -154,23 +154,17 @@ export async function POST(req: NextRequest) {
       expectedResponseMessage = 'Transaction Not Found'
     } else if (testCase === '4005502-invalid') {
       // Test 4005502: Invalid Mandatory Field
-      // Use payload format provided by DANA dev with invalid field (future transactionDate)
-      // Note: This payload format is different from status query - may be for different endpoint
+      // Try different approaches to trigger 4005502:
+      // 1. Invalid serviceCode (not "54")
+      // 2. Missing required field (merchantId)
+      // 3. Invalid field format (originalPartnerReferenceNo too long)
       console.log('[DANA STATUS TEST] Testing 4005502 - Invalid Mandatory Field')
-      const testOrderNumber = `TEST-4005502-${Date.now()}`
+      // Approach: Use invalid serviceCode (should be "54" but we'll use invalid value)
       requestBody = {
-        originalReferenceNo: testOrderNumber, // Using originalReferenceNo as per DANA dev
-        originalExternalId: '',
-        serviceCode: '54',
-        transactionDate: '2030-05-01T00:46:43+07:00', // Invalid: future date (this should trigger 4005502)
-        amount: {
-          value: '1.00',
-          currency: 'IDR'
-        },
+        originalPartnerReferenceNo: `TEST-4005502-${Date.now()}`,
+        originalReferenceNo: null,
+        serviceCode: 'INVALID_SERVICE_CODE', // Invalid: should be "54"
         merchantId: merchantId,
-        subMerchantId: '',
-        externalStoreId: '',
-        additionalInfo: {}
       }
       expectedResponseCode = '4005502'
       expectedResponseMessage = 'Invalid Mandatory Field'
