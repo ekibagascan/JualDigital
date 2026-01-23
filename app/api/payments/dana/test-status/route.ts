@@ -42,13 +42,26 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    if (!partnerReferenceNo || partnerReferenceNo === 'YOUR_ACTUAL_ORDER_NUMBER') {
+    // For error test cases, partnerReferenceNo is optional (we can generate non-existent ones)
+    // For success test cases, partnerReferenceNo is required
+    const errorTestCases = ['4045501-notfound', '4005502-invalid', '4015500-unauthorized', '5005501-error']
+    const isErrorTestCase = errorTestCases.includes(testCase)
+    
+    if (!isErrorTestCase && (!partnerReferenceNo || partnerReferenceNo === 'YOUR_ACTUAL_ORDER_NUMBER')) {
       return NextResponse.json({
-        error: 'partnerReferenceNo is required',
+        error: 'partnerReferenceNo is required for this test case',
         note: 'Use an actual order number that has been processed through DANA. Replace "YOUR_ACTUAL_ORDER_NUMBER" with a real order number.',
-        example: 'Use an order number from your database that was created through DANA payment'
+        example: 'Use an order number from your database that was created through DANA payment',
+        noteForErrorTests: 'For error test cases (4045501, 4005502, 4015500), partnerReferenceNo is optional - we can generate test values'
       }, { status: 400 })
     }
+    
+    // For error test cases, use provided partnerReferenceNo or generate a test one
+    const finalPartnerReferenceNo = partnerReferenceNo || 
+      (testCase === '4045501-notfound' ? `NON-EXISTENT-${Date.now()}` : 
+       testCase === '4005502-invalid' ? 'INVALID-FORMAT' :
+       testCase === '4015500-unauthorized' ? 'TEST-ORDER-001' :
+       'TEST-ORDER-001')
 
     console.log('[DANA STATUS TEST] Testing:', testCase, 'for order:', partnerReferenceNo)
 
@@ -63,17 +76,47 @@ export async function POST(req: NextRequest) {
       let expectedTransactionStatus: string | undefined
       let expectedMessage: string
 
+      // Handle different test cases
       if (testCase === '2005500-success') {
         expectedResponseCode = '2005500'
         expectedTransactionStatus = '00'
         expectedMessage = 'Successful'
+      } else if (testCase === '2005500-pending') {
+        expectedResponseCode = '2005500'
+        expectedTransactionStatus = '01'
+        expectedMessage = 'Successful'
+      } else if (testCase === '2005500-cancelled') {
+        expectedResponseCode = '2005500'
+        expectedTransactionStatus = '05'
+        expectedMessage = 'Successful'
+      } else if (testCase === '4045501-notfound') {
+        expectedResponseCode = '4045501'
+        expectedMessage = 'Transaction Not Found'
+      } else if (testCase === '4005502-invalid') {
+        expectedResponseCode = '4005502'
+        expectedMessage = 'Invalid Mandatory Field'
+      } else if (testCase === '5005501-error') {
+        expectedResponseCode = '5005501'
+        expectedMessage = 'Internal Server Error'
+      } else if (testCase === '4015500-unauthorized') {
+        expectedResponseCode = '4015500'
+        expectedMessage = 'Unauthorized / Invalid Signature'
+      } else {
+        return NextResponse.json({
+          success: false,
+          testCase,
+          message: `Unknown test case: ${testCase}`,
+          verified: false
+        })
+      }
 
-        // Verify response
+      // Verify response for success scenarios (2005500 with different statuses)
+      if (testCase.startsWith('2005500-')) {
         if (danaStatus.responseCode === expectedResponseCode &&
           danaStatus.latestTransactionStatus === expectedTransactionStatus) {
           return NextResponse.json({
             success: true,
-            testCase: '2005500-success',
+            testCase,
             message: `Status query correctly returned ${expectedResponseCode} with latestTransactionStatus ${expectedTransactionStatus}`,
             expected: {
               responseCode: expectedResponseCode,
@@ -91,7 +134,7 @@ export async function POST(req: NextRequest) {
         } else {
           return NextResponse.json({
             success: false,
-            testCase: '2005500-success',
+            testCase,
             message: `Expected ${expectedResponseCode} with latestTransactionStatus ${expectedTransactionStatus}, but got ${danaStatus.responseCode} with ${danaStatus.latestTransactionStatus || danaStatus.transactionStatus}`,
             expected: {
               responseCode: expectedResponseCode,
@@ -109,27 +152,74 @@ export async function POST(req: NextRequest) {
           })
         }
       } else {
-        // For other test cases, we need DANA to return specific error codes
-        // These can't be easily tested without DANA's cooperation
-        return NextResponse.json({
-          success: false,
-          testCase,
-          message: `Test case ${testCase} requires DANA to return specific error codes. This can only be verified when DANA actually returns these codes.`,
-          note: 'To test error scenarios, you need to trigger them through DANA API (e.g., query non-existent order for 4045501)',
-          currentResponse: danaStatus,
-          verified: false
-        })
+        // For error scenarios, verify the error code
+        if (danaStatus.responseCode === expectedResponseCode) {
+          return NextResponse.json({
+            success: true,
+            testCase,
+            message: `Status query correctly returned error code ${expectedResponseCode}`,
+            expected: {
+              responseCode: expectedResponseCode,
+              responseMessage: expectedMessage
+            },
+            actual: {
+              responseCode: danaStatus.responseCode,
+              responseMessage: danaStatus.responseMessage
+            },
+            verified: true
+          })
+        } else {
+          return NextResponse.json({
+            success: false,
+            testCase,
+            message: `Expected error code ${expectedResponseCode}, but got ${danaStatus.responseCode}`,
+            expected: {
+              responseCode: expectedResponseCode,
+              responseMessage: expectedMessage
+            },
+            actual: {
+              responseCode: danaStatus.responseCode,
+              responseMessage: danaStatus.responseMessage
+            },
+            fullResponse: danaStatus,
+            verified: false
+          })
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('[DANA STATUS TEST] Error:', errorMessage)
 
       // Check if this is the expected error for the test case
-      if (testCase === '4045501-notfound' && errorMessage.includes('not found')) {
+      const errorCodeMatch = errorMessage.match(/DANA Error (\d+):/i) || errorMessage.match(/(\d{7})/)
+      const extractedErrorCode = errorCodeMatch ? errorCodeMatch[1] : null
+      
+      if (testCase === '4045501-notfound' && (extractedErrorCode === '4045501' || errorMessage.includes('not found'))) {
         return NextResponse.json({
           success: true,
           testCase: '4045501-notfound',
           message: 'Transaction not found error correctly triggered',
+          verified: true
+        })
+      } else if (testCase === '4005502-invalid' && extractedErrorCode === '4005502') {
+        return NextResponse.json({
+          success: true,
+          testCase: '4005502-invalid',
+          message: 'Invalid mandatory field error correctly triggered',
+          verified: true
+        })
+      } else if (testCase === '5005501-error' && extractedErrorCode === '5005501') {
+        return NextResponse.json({
+          success: true,
+          testCase: '5005501-error',
+          message: 'Internal server error correctly triggered',
+          verified: true
+        })
+      } else if (testCase === '4015500-unauthorized' && extractedErrorCode === '4015500') {
+        return NextResponse.json({
+          success: true,
+          testCase: '4015500-unauthorized',
+          message: 'Unauthorized/invalid signature error correctly triggered',
           verified: true
         })
       }

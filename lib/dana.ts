@@ -459,7 +459,7 @@ export async function queryPaymentStatus(
   }
 
   const bodyString = JSON.stringify(requestBody)
-  
+
   console.log('[DANA] Query status request:', {
     partnerReferenceNo,
     merchantId,
