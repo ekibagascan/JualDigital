@@ -23,10 +23,12 @@
 
 ### ❌ Not Tested Scenarios (Ready for Testing)
 
-2. **Successful - Final (00 = Success)** - ❌ **Not Verified**
-   - Status: Code implemented, but DANA API returns `5005501` instead of `2005500`
-   - Issue: Need DANA to investigate why status query fails for paid orders
-   - **Test Endpoint**: `/api/payments/dana/test-status` with `testCase: "2005500-success"`
+2. **Successful - Final (00 = Success)** - ✅ **VERIFIED**
+   - Status: Code implemented and working correctly
+   - **Test Result**: ✅ Successfully returned `2005500` with `latestTransactionStatus: "00"`
+   - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status -H "Content-Type: application/json" -d '{"testCase": "2005500-success", "partnerReferenceNo": "ORD-2026-fd6922"}'`
+   - **Response**: `{"success":true,"verified":true,"responseCode":"2005500","latestTransactionStatus":"00"}`
+   - **Note**: Fixed by adding `serviceCode: "54"` and using `originalPartnerReferenceNo` format
 
 3. **Successful - Pending (01 = Pending)** - ❌ **Not Tested (Need actual pending order)**
    - Status: Code implemented to handle `latestTransactionStatus: "01"`
@@ -42,23 +44,22 @@
    - **Need**: Actual order number with cancelled status (05) in DANA system
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status -H "Content-Type: application/json" -d '{"testCase": "2005500-cancelled", "partnerReferenceNo": "ACTUAL_CANCELLED_ORDER"}'`
 
-5. **Transaction Not Found (4045501)** - ❌ **DANA-Side Issue**
-   - Status: Code implemented correctly, but DANA API returns wrong error code
-   - **Test Result**: ❌ Expected `4045501` but got `5005501` (Internal Server Error)
+5. **Transaction Not Found (4045501)** - ✅ **VERIFIED**
+   - Status: Code implemented correctly and working
+   - **Test Result**: ✅ Successfully returned `4045501` with "Transaction Not Found"
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4045501-notfound"}'`
-   - **Response**: `{"success":false,"expected":{"responseCode":"4045501"},"actual":{"responseCode":"5005501"}}`
-   - **Issue**: DANA API returns `5005501` instead of `4045501` when querying non-existent orders
-   - **Request Sent**: Non-existent order number `NON-EXISTENT-${timestamp}`
-   - **DANA Response**: `5005501` with "Internal Server Error" (should be `4045501` with "Transaction Not Found")
+   - **Response**: `{"success":true,"verified":true,"responseCode":"4045501"}`
+   - **Note**: Fixed by adding `serviceCode: "54"` and using `originalPartnerReferenceNo` format
 
-6. **Invalid Mandatory Field (4005502)** - ❌ **DANA-Side Issue**
-   - Status: Code implemented correctly, but DANA API returns wrong error code
-   - **Test Result**: ❌ Expected `4005502` but got `5005501` (Internal Server Error)
+6. **Invalid Mandatory Field (4005502)** - ⚠️ **Partial - Returns 4045501 instead**
+   - Status: Code implemented correctly
+   - **Test Result**: ⚠️ Expected `4005502` but got `4045501` (Transaction Not Found)
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4005502-invalid"}'`
-   - **Response**: `{"success":false,"expected":{"responseCode":"4005502"},"actual":{"responseCode":"5005501"}}`
-   - **Issue**: DANA API returns `5005501` instead of `4005502` when sending invalid field format
-   - **Request Sent**: `partnerReferenceNo` with 100 characters (exceeds max 64 chars per DANA spec)
-   - **DANA Response**: `5005501` with "Internal Server Error" (should be `4005502` with "Invalid Mandatory Field")
+   - **Response**: `{"success":false,"expected":{"responseCode":"4005502"},"actual":{"responseCode":"4045501"}}`
+   - **Issue**: DANA API returns `4045501` (Transaction Not Found) instead of `4005502` (Invalid Mandatory Field) when sending invalid field format
+   - **Request Sent**: `originalPartnerReferenceNo` with 100 characters (exceeds max 64 chars per DANA spec)
+   - **DANA Response**: `4045501` with "Transaction Not Found" (DANA treats invalid format as "not found" rather than "invalid field")
+   - **Note**: This might be DANA's expected behavior - invalid format = transaction not found
 
 7. **Unauthorized / Invalid Signature (4015500)** - ✅ **Tested and Verified**
    - Status: Code implemented and tested successfully
@@ -389,27 +390,28 @@ We need DANA support to:
 - ❌ **Most scenarios not tested yet** - Need DANA's cooperation or specific test conditions
 
 **Status Query Scenarios:**
-1. ✅ **5005501 (Internal Server Error)** - Verified in dashboard (but we're getting this error unexpectedly)
-2. ❌ **2005500 with status 00 (Success)** - Not verified (DANA returns 5005501 instead)
-3. ❌ **2005500 with status 01 (Pending)** - Not tested (tested with placeholder, got 5005501 - need actual pending order)
-4. ❌ **2005500 with status 05 (Cancelled)** - Not tested (tested with placeholder, got 5005501 - need actual cancelled order)
-5. ❌ **4045501 (Transaction Not Found)** - **DANA-Side Issue** - DANA returns `5005501` instead of `4045501`
-6. ❌ **4005502 (Invalid Mandatory Field)** - **DANA-Side Issue** - DANA returns `5005501` instead of `4005502`
-7. ✅ **4015500 (Unauthorized)** - ✅ **Tested and verified** - Successfully returns 4015500
+1. ✅ **2005500 with status 00 (Success)** - ✅ **VERIFIED** - Returns `2005500` with `latestTransactionStatus: "00"`
+2. ✅ **4045501 (Transaction Not Found)** - ✅ **VERIFIED** - Returns `4045501` correctly
+3. ✅ **4015500 (Unauthorized)** - ✅ **VERIFIED** - Successfully returns 4015500
+4. ⚠️ **4005502 (Invalid Mandatory Field)** - Returns `4045501` instead (DANA treats invalid format as "not found")
+5. ❌ **2005500 with status 01 (Pending)** - Not tested (need actual pending order)
+6. ❌ **2005500 with status 05 (Cancelled)** - Not tested (need actual cancelled order)
+7. ❌ **5005601 (Webhook Internal Server Error)** - Not verified in DANA dashboard (needs DANA to trigger test webhook)
 
 ### Test Results Summary
 
-**✅ Successfully Tested:**
-- **4015500 (Unauthorized)** - ✅ Verified - Returns `4015500` correctly when invalid signature is sent
+**✅ Successfully Verified (After Fix):**
+- **2005500 with status 00 (Success)** - ✅ VERIFIED - Returns `2005500` with `latestTransactionStatus: "00"` (Fixed with `serviceCode: "54"` and `originalPartnerReferenceNo`)
+- **4045501 (Transaction Not Found)** - ✅ VERIFIED - Returns `4045501` correctly (Fixed with `serviceCode: "54"` and `originalPartnerReferenceNo`)
+- **4015500 (Unauthorized)** - ✅ VERIFIED - Returns `4015500` correctly when invalid signature is sent
 
-**❌ DANA-Side Issues (Wrong Error Codes Returned):**
-- **4045501 (Transaction Not Found)** - ❌ DANA returns `5005501` instead of `4045501` when querying non-existent orders
-- **4005502 (Invalid Mandatory Field)** - ❌ DANA returns `5005501` instead of `4005502` when sending invalid field format
-- **2005500 with status 00 (Success)** - ❌ DANA returns `5005501` instead of `2005500` for paid orders
+**⚠️ Partial/Behavior Difference:**
+- **4005502 (Invalid Mandatory Field)** - Returns `4045501` instead (DANA treats invalid field format as "transaction not found" rather than "invalid field")
 
-**❌ Need Actual Orders:**
-- **2005500 with status 01 (Pending)** - Tested with placeholder, got `5005501` (need actual pending order)
-- **2005500 with status 05 (Cancelled)** - Tested with placeholder, got `5005501` (need actual cancelled order)
+**❌ Still Need Testing:**
+- **5005601 (Webhook Internal Server Error)** - Not verified in DANA dashboard (needs DANA to trigger test webhook)
+- **2005500 with status 01 (Pending)** - Need actual pending order from DANA
+- **2005500 with status 05 (Cancelled)** - Need actual cancelled order from DANA
 
 ### Next Steps
 1. **For Issue 1 (Webhook 5005601)**: DANA support to trigger a test webhook to verify `5005601` response
