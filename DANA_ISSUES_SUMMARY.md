@@ -15,6 +15,12 @@
    - Status: Code handles this error correctly
    - We receive `5005501` when querying some orders (investigating why)
 
+2. **Unauthorized / Invalid Signature (4015500)** - ✅ **Tested and Verified**
+   - Status: Code handles this error correctly
+   - Test Result: ✅ Successfully returned `4015500` with "Unauthorized. Invalid Signature"
+   - Test Command: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4015500-unauthorized"}'`
+   - Response: `{"success":true,"testCase":"4015500-unauthorized","message":"Error code 4015500 correctly returned","verified":true}`
+
 ### ❌ Not Tested Scenarios (Ready for Testing)
 
 2. **Successful - Final (00 = Success)** - ❌ **Not Verified**
@@ -22,35 +28,39 @@
    - Issue: Need DANA to investigate why status query fails for paid orders
    - **Test Endpoint**: `/api/payments/dana/test-status` with `testCase: "2005500-success"`
 
-3. **Successful - Pending (01 = Pending)** - ❌ **Not Tested**
+3. **Successful - Pending (01 = Pending)** - ❌ **Not Tested (Need actual pending order)**
    - Status: Code implemented to handle `latestTransactionStatus: "01"`
-   - Need: Order with pending status in DANA system to test
+   - **Test Result**: Tested with placeholder order number, got `5005501` error (order doesn't exist)
    - **Test Endpoint**: `/api/payments/dana/test-status` with `testCase: "2005500-pending"`
-   - **Can Test**: Yes, if you have a pending order number
+   - **Need**: Actual order number with pending status (01) in DANA system
+   - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status -H "Content-Type: application/json" -d '{"testCase": "2005500-pending", "partnerReferenceNo": "ACTUAL_PENDING_ORDER"}'`
 
-4. **Successful - Cancelled (05 = Cancelled)** - ❌ **Not Tested**
+4. **Successful - Cancelled (05 = Cancelled)** - ❌ **Not Tested (Need actual cancelled order)**
    - Status: Code implemented to handle `latestTransactionStatus: "05"`
-   - Need: Order with cancelled status in DANA system to test
+   - **Test Result**: Tested with placeholder order number, got `5005501` error (order doesn't exist)
    - **Test Endpoint**: `/api/payments/dana/test-status` with `testCase: "2005500-cancelled"`
-   - **Can Test**: Yes, if you have a cancelled order number
+   - **Need**: Actual order number with cancelled status (05) in DANA system
+   - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status -H "Content-Type: application/json" -d '{"testCase": "2005500-cancelled", "partnerReferenceNo": "ACTUAL_CANCELLED_ORDER"}'`
 
-5. **Transaction Not Found (4045501)** - ⚠️ **Ready to Test**
+5. **Transaction Not Found (4045501)** - ⚠️ **Ready to Test (Endpoint needs deployment)**
    - Status: Code implemented to handle this error
    - **Test Endpoint**: `/api/payments/dana/test-status-errors` with `testCase: "4045501-notfound"`
    - **Can Test**: Yes - automatically uses non-existent order number
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4045501-notfound"}'`
+   - **Note**: Endpoint returned 404 on first test (not deployed yet). Retry after deployment.
 
-6. **Invalid Mandatory Field (4005502)** - ⚠️ **Ready to Test**
+6. **Invalid Mandatory Field (4005502)** - ⚠️ **Ready to Test (Endpoint needs deployment)**
    - Status: Code implemented to handle this error
    - **Test Endpoint**: `/api/payments/dana/test-status-errors` with `testCase: "4005502-invalid"`
-   - **Can Test**: Yes - sends request with invalid partnerReferenceNo format
+   - **Can Test**: Yes - sends request with invalid partnerReferenceNo format (too long)
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4005502-invalid"}'`
+   - **Note**: Endpoint returned 404 on first test (not deployed yet). Retry after deployment.
 
-7. **Unauthorized / Invalid Signature (4015500)** - ⚠️ **Ready to Test**
-   - Status: Code implemented to handle this error
-   - **Test Endpoint**: `/api/payments/dana/test-status-errors` with `testCase: "4015500-unauthorized"`
-   - **Can Test**: Yes - sends request with invalid signature
+7. **Unauthorized / Invalid Signature (4015500)** - ✅ **Tested and Verified**
+   - Status: Code implemented and tested successfully
+   - **Test Result**: ✅ Successfully returned `4015500` with "Unauthorized. Invalid Signature"
    - **Test Command**: `curl -X POST https://jualdigital.id/api/payments/dana/test-status-errors -H "Content-Type: application/json" -d '{"testCase": "4015500-unauthorized"}'`
+   - **Response**: `{"success":true,"verified":true,"responseCode":"4015500"}`
 
 ---
 
@@ -314,19 +324,35 @@ We need DANA support to:
 **Status Query Scenarios:**
 1. ✅ **5005501 (Internal Server Error)** - Verified in dashboard (but we're getting this error unexpectedly)
 2. ❌ **2005500 with status 00 (Success)** - Not verified (DANA returns 5005501 instead)
-3. ❌ **2005500 with status 01 (Pending)** - Not tested (need pending order)
-4. ❌ **2005500 with status 05 (Cancelled)** - Not tested (need cancelled order)
-5. ❌ **4045501 (Transaction Not Found)** - Not tested (need to query non-existent order)
-6. ❌ **4005502 (Invalid Mandatory Field)** - Not tested (need to send invalid request)
-7. ❌ **4015500 (Unauthorized)** - Not tested (need to send invalid signature)
+3. ❌ **2005500 with status 01 (Pending)** - Not tested (tested with placeholder, got 5005501 - need actual pending order)
+4. ❌ **2005500 with status 05 (Cancelled)** - Not tested (tested with placeholder, got 5005501 - need actual cancelled order)
+5. ⚠️ **4045501 (Transaction Not Found)** - Ready to test (endpoint needs deployment, then retry)
+6. ⚠️ **4005502 (Invalid Mandatory Field)** - Ready to test (endpoint needs deployment, then retry)
+7. ✅ **4015500 (Unauthorized)** - ✅ **Tested and verified** - Successfully returns 4015500
+
+### Test Results Summary
+
+**✅ Successfully Tested:**
+- **4015500 (Unauthorized)** - ✅ Verified - Returns `4015500` correctly when invalid signature is sent
+
+**⚠️ Ready to Test (After Deployment):**
+- **4045501 (Transaction Not Found)** - Endpoint returned 404 on first test (needs deployment, then retry)
+- **4005502 (Invalid Mandatory Field)** - Endpoint returned 404 on first test (needs deployment, then retry)
+
+**❌ Need Actual Orders:**
+- **2005500 with status 01 (Pending)** - Tested with placeholder, got `5005501` (need actual pending order)
+- **2005500 with status 05 (Cancelled)** - Tested with placeholder, got `5005501` (need actual cancelled order)
+
+**❌ DANA API Issue:**
+- **2005500 with status 00 (Success)** - DANA returns `5005501` instead of `2005500` for paid orders (needs DANA investigation)
 
 ### Next Steps
 1. **For Issue 1 (Webhook 5005601)**: DANA support to trigger a test webhook to verify `5005601` response
 2. **For Issue 2 (Status Query 2005500)**: DANA support to investigate why status query returns `5005501` for paid orders
 3. **For Other Status Query Scenarios**: 
-   - Need DANA to provide test orders with different statuses (pending, cancelled)
-   - Need DANA to help trigger error scenarios (4045501, 4005502, 4015500)
-   - Or DANA can verify these scenarios themselves when they occur naturally
+   - ✅ **4015500** - Already tested and verified
+   - ⚠️ **4045501, 4005502** - Retry after endpoint deployment
+   - ❌ **Pending/Cancelled** - Need DANA to provide test orders with those statuses, or wait for natural occurrence
 
 ---
 
