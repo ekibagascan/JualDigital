@@ -24,11 +24,11 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
-    
+
     // Generate order number with special pattern that webhook will detect
     // Webhook will return 5005601 for orders starting with TEST-5005601- or DANA-TEST-5005601-
     const orderNumber = `TEST-5005601-${Date.now()}`
-    
+
     console.log('[DANA WEBHOOK 5005601 TEST] Creating order with special pattern:', {
       orderNumber,
       pattern: 'TEST-5005601-*',

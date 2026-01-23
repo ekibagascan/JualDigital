@@ -63,11 +63,11 @@ export async function POST(req: NextRequest) {
        testCase === '4015500-unauthorized' ? 'TEST-ORDER-001' :
        'TEST-ORDER-001')
 
-    console.log('[DANA STATUS TEST] Testing:', testCase, 'for order:', partnerReferenceNo)
+    console.log('[DANA STATUS TEST] Testing:', testCase, 'for order:', finalPartnerReferenceNo)
 
     try {
       // Query DANA API for payment status
-      const danaStatus = await queryPaymentStatus(partnerReferenceNo)
+      const danaStatus = await queryPaymentStatus(finalPartnerReferenceNo)
 
       console.log('[DANA STATUS TEST] DANA API response:', JSON.stringify(danaStatus, null, 2))
 
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
       if (errorMessage.includes('DANA API credentials not configured')) {
         helpfulMessage = 'DANA API credentials are not configured. Please set DANA_CLIENT_ID, DANA_MERCHANT_ID, and DANA_PRIVATE_KEY environment variables.'
       } else if (errorMessage.includes('Order not found') || errorMessage.includes('404')) {
-        helpfulMessage = `Order "${partnerReferenceNo}" not found in DANA system. Make sure the order number exists and was created through DANA payment.`
+        helpfulMessage = `Order "${finalPartnerReferenceNo}" not found in DANA system. Make sure the order number exists and was created through DANA payment.`
       } else if (errorMessage.includes('Internal Server Error')) {
         helpfulMessage = `DANA API returned an error. This could mean: 1) Order doesn't exist in DANA system, 2) Invalid order number format, 3) DANA API issue. Check server logs for details.`
       }

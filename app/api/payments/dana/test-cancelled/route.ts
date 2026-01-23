@@ -19,10 +19,10 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
-    
+
     // Generate order number
     const orderNumber = `TEST-CANCEL-${Date.now()}`
-    
+
     // Calculate expiration time (default 2 minutes, minimum 1 minute)
     const expMinutes = Math.max(1, Math.min(expirationMinutes, 5)) // Between 1-5 minutes
     const now = new Date()
