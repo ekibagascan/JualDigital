@@ -209,7 +209,7 @@ export async function createDanaOrder(
 
   const baseUrl = isSandbox
     ? 'https://api.sandbox.dana.id'
-    : 'https://api.dana.id' // Production URL
+    : (process.env.DANA_API_BASE_URL || 'https://api.dana.id')
 
   const path = '/payment-gateway/v1.0/debit/payment-host-to-host.htm'
   const timestamp = generateTimestamp()
@@ -444,7 +444,7 @@ export async function queryPaymentStatus(
 
   const baseUrl = isSandbox
     ? 'https://api.sandbox.dana.id'
-    : 'https://api.dana.id'
+    : (process.env.DANA_API_BASE_URL || 'https://api.dana.id')
 
   const path = '/payment-gateway/v1.0/debit/status.htm'
   const timestamp = generateTimestamp()

@@ -30,3 +30,8 @@ create_demo_users.mjs
 demo_marketing_data.sql
 product_variants_update_marketing.sql
 product_update_marketing.sql
+
+# DANA production keys (keep secure, never commit)
+dana_production_private_key.pem
+dana_production_public_key.pem
+*.pem
