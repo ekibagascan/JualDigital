@@ -189,6 +189,17 @@ function generateSignature(
   }
 }
 
+/** Last create-transaction request/response (for DANA pilot submission - get via GET /api/payments/dana/last-create-payload) */
+let lastCreatePayload: {
+  request: { url: string; method: string; headers: Record<string, string>; body: string }
+  response: { status: number; body: string }
+  capturedAt: string
+} | null = null
+
+export function getLastCreatePayload(): typeof lastCreatePayload {
+  return lastCreatePayload
+}
+
 /**
  * Create DANA order for hosted checkout
  * @param orderData Order details
@@ -344,6 +355,27 @@ export async function createDanaOrder(
     const responseText = await response.text().catch(() => '')
     console.log('[DANA] Create order response status:', response.status)
     console.log('[DANA] Create order response body:', responseText)
+
+    // Capture for DANA pilot submission (request + response)
+    lastCreatePayload = {
+      request: {
+        url: `${baseUrl}${path}`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-PARTNER-ID': partnerId,
+          'X-TIMESTAMP': timestamp,
+          'X-SIGNATURE': '[REDACTED]',
+          'X-EXTERNAL-ID': externalId,
+          'CHANNEL-ID': 'WEB',
+          'ORIGIN': process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id',
+        },
+        body: bodyString,
+      },
+      response: { status: response.status, body: responseText },
+      capturedAt: new Date().toISOString(),
+    }
 
     if (!response.ok) {
       let errorData: { responseCode?: string; responseMessage?: string; message?: string } = {}
