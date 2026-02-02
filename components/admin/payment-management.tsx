@@ -229,8 +229,8 @@ export function PaymentManagement() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Stats Cards - responsive grid to prevent overflow */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Transaksi</CardTitle>
@@ -283,8 +283,8 @@ export function PaymentManagement() {
       {/* Filters */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-4 min-w-0">
+            <div className="flex-1 min-w-[200px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
@@ -296,7 +296,7 @@ export function PaymentManagement() {
               </div>
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full sm:w-40 lg:w-48 min-w-0">
                 <SelectValue placeholder="Filter Status" />
               </SelectTrigger>
               <SelectContent>
@@ -308,7 +308,7 @@ export function PaymentManagement() {
               </SelectContent>
             </Select>
             <Select value={methodFilter} onValueChange={setMethodFilter}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full sm:w-40 lg:w-48 min-w-0">
                 <SelectValue placeholder="Filter Metode" />
               </SelectTrigger>
               <SelectContent>
@@ -319,7 +319,7 @@ export function PaymentManagement() {
               </SelectContent>
             </Select>
             <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full sm:w-40 lg:w-48 min-w-0">
                 <SelectValue placeholder="Filter Tanggal" />
               </SelectTrigger>
               <SelectContent>

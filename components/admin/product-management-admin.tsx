@@ -420,8 +420,8 @@ export function ProductManagementAdmin() {
         <p className="text-muted-foreground">Kelola semua produk di platform</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+      {/* Stats Cards - responsive grid to prevent overflow on narrow viewports */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Produk</CardTitle>
@@ -486,8 +486,8 @@ export function ProductManagementAdmin() {
       {/* Filters */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-4 min-w-0">
+            <div className="flex-1 min-w-[200px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
@@ -499,7 +499,7 @@ export function ProductManagementAdmin() {
               </div>
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full sm:w-40 lg:w-48 min-w-0">
                 <SelectValue placeholder="Filter Kategori" />
               </SelectTrigger>
               <SelectContent>
@@ -511,7 +511,7 @@ export function ProductManagementAdmin() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full sm:w-40 lg:w-48 min-w-0">
                 <SelectValue placeholder="Filter Status" />
               </SelectTrigger>
               <SelectContent>

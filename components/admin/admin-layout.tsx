@@ -140,8 +140,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <h1 className="font-semibold">Jual Digital - Admin Panel</h1>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-6">{children}</main>
+        {/* Page content - min-w-0 so flex child can shrink and prevent horizontal overflow */}
+        <main className="flex-1 p-6 min-w-0 overflow-x-auto">{children}</main>
       </div>
     </div>
   )
