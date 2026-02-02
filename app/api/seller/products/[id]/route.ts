@@ -184,11 +184,10 @@ export async function GET(
       console.error("Error fetching variants:", variantsError)
     }
 
-    return NextResponse.json({ 
-      product,
-      variants: variants || []
-    })
-
+    const res = NextResponse.json({ product, variants: variants || [] })
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    res.headers.set('Pragma', 'no-cache')
+    return res
   } catch (error) {
     console.error("Error in GET /api/seller/products/[id]:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

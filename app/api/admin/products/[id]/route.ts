@@ -55,8 +55,10 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ product })
-
+    const res = NextResponse.json({ product })
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    res.headers.set('Pragma', 'no-cache')
+    return res
   } catch (error) {
     console.error('[ADMIN PRODUCT API] Error:', error)
     return NextResponse.json(

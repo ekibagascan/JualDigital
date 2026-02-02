@@ -17,8 +17,11 @@ export async function GET(
     }
 
     const variants = await productService.getProductVariants(productId)
-    
-    return NextResponse.json({ variants })
+
+    const res = NextResponse.json({ variants })
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    res.headers.set('Pragma', 'no-cache')
+    return res
   } catch (error) {
     console.error('Error fetching product variants:', error)
     return NextResponse.json(

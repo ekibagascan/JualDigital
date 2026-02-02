@@ -70,7 +70,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
     const fetchProduct = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`/api/seller/products/${productId}`)
+        const response = await fetch(`/api/seller/products/${productId}?t=${Date.now()}`, { cache: 'no-store' })
 
         if (!response.ok) {
           throw new Error('Failed to fetch product')
@@ -444,6 +444,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
         title: "Berhasil",
         description: "Produk berhasil diperbarui",
       })
+      router.refresh()
     } catch (error) {
       console.error("Error updating product:", error)
       toast({

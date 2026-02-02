@@ -68,7 +68,7 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
     const fetchVariants = async () => {
       try {
         setLoadingVariants(true)
-        const response = await fetch(`/api/products/${product.id}/variants`)
+        const response = await fetch(`/api/products/${product.id}/variants?t=${Date.now()}`, { cache: 'no-store' })
         const data = await response.json()
 
         if (response.ok && data.variants) {

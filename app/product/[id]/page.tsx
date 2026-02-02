@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
+import { unstable_noStore as noStore } from "next/cache"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { ProductDetails } from "@/components/product/product-details"
@@ -27,6 +28,7 @@ interface ExtendedProduct {
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
+  noStore()
   const { id } = await params
   const product = await productService.getProduct(id)
 

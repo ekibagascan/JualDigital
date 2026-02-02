@@ -52,7 +52,7 @@ export function AdminEditProductForm({ productId }: AdminEditProductFormProps) {
             setLoading(true)
             setError(null)
 
-            const response = await fetch(`/api/admin/products/${productId}`)
+            const response = await fetch(`/api/admin/products/${productId}?t=${Date.now()}`, { cache: 'no-store' })
             if (!response.ok) {
                 throw new Error('Failed to fetch product')
             }
@@ -91,6 +91,7 @@ export function AdminEditProductForm({ productId }: AdminEditProductFormProps) {
                 description: "Informasi produk telah disimpan.",
             })
 
+            router.refresh()
             router.push('/admin/products')
         } catch (error) {
             console.error('Failed to update product:', error)
