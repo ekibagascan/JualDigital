@@ -186,9 +186,13 @@ export async function POST(req: NextRequest) {
       referenceNo,
     })
 
-    // If this is a VA (virtual account) payment and success, capture create payload for GET /api/payments/dana/last-va-payload
+    // If this is a VA (virtual account) payment and success, mark in DB so last-va-payload works across instances
     if (newStatus === 'paid' && isVAPaymentFromWebhookBody(body)) {
       setLastVACreatePayloadFromOrder(partnerReferenceNo)
+      await supabase
+        .from('dana_payload_capture')
+        .update({ payment_method: 'va' })
+        .eq('order_number', partnerReferenceNo)
     }
 
     // Check if order was already paid - only send email if status is changing TO paid

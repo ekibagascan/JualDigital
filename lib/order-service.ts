@@ -3,7 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 // import { createInvoice } from './xendit'
 import { WhatsAppService } from '@/lib/whatsapp-service'
 import { getPaymentSettings } from './settings-service'
-import { createDanaOrder } from './dana'
+import { createDanaOrder, getLastCreatePayload } from './dana'
 import { createCryptoPayment } from './bci-payment'
 
 export interface OrderItem {
@@ -322,6 +322,27 @@ export class OrderService {
         if (updateError) {
           console.error('Order update error:', updateError)
           throw new Error('Failed to update order with DANA transaction')
+        }
+
+        // Persist create-transaction payload so last-create-payload / last-va-payload work across instances/restarts
+        const captured = getLastCreatePayload()
+        if (captured) {
+          const { error: captureErr } = await this.supabase
+            .from('dana_payload_capture')
+            .insert({
+              order_number: order.order_number,
+              order_id: order.id,
+              request_url: captured.request.url,
+              request_method: captured.request.method,
+              request_headers: captured.request.headers,
+              request_body: captured.request.body,
+              response_status: captured.response.status,
+              response_body: captured.response.body,
+              payment_method: null,
+            })
+          if (captureErr) {
+            console.error('[ORDER CREATION] Failed to persist DANA payload:', captureErr)
+          }
         }
 
         console.log('[ORDER CREATION] Created DANA order:', danaOrder.referenceNo)
