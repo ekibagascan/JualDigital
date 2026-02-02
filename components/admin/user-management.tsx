@@ -94,47 +94,40 @@ export function UserManagement() {
     }
   }, [mounted])
 
-  // Auto-refresh every 10 seconds to keep data fresh (more aggressive)
+  // Background sync every 60 seconds (silent - no loading spinner)
   useEffect(() => {
     if (!mounted) return
 
     const interval = setInterval(() => {
-      fetchUsers()
-    }, 10000) // 10 seconds - more frequent updates
+      fetchUsers(true)
+    }, 60000)
 
     return () => clearInterval(interval)
   }, [mounted])
 
-  // Refresh on page visibility change and window focus
+  // Silent refetch when tab becomes visible (no loading spinner)
   useEffect(() => {
     if (!mounted) return
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchUsers()
+        fetchUsers(true)
       }
     }
 
-    const handleFocus = () => {
-      fetchUsers()
-    }
-
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleFocus)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleFocus)
-    }
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [mounted])
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (silent = false) => {
     try {
-      setLoading(true)
-      setError(null)
+      if (!silent) {
+        setLoading(true)
+        setError(null)
+      }
 
-      // Add cache-busting timestamp and no-cache headers
       const response = await fetch(`/api/admin/users?t=${Date.now()}`, {
+        cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
@@ -188,9 +181,9 @@ export function UserManagement() {
       setStats(data.stats)
     } catch (error) {
       console.error('Failed to fetch users:', error)
-      setError('Gagal memuat data pengguna')
+      if (!silent) setError('Gagal memuat data pengguna')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -327,27 +320,11 @@ export function UserManagement() {
         console.log('[USER MANAGEMENT] User should now disappear from pending list (status changed to active)')
       }
 
-      // Don't refresh immediately - let the optimistic update work
-      // Only refresh after a delay to catch replication lag, but preserve optimistic state
-      setTimeout(async () => {
-        await fetchUsers()
-        // Remove from processing set after refresh
-        setProcessingUsers(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(user.id)
-          return newSet
-        })
+      // One silent background sync after 2s to align with Supabase (no loading, no flash)
+      setTimeout(() => {
+        fetchUsers(true)
+        optimisticUpdatesRef.current.delete(user.id)
       }, 2000)
-
-      // One more refresh after 5 seconds to be absolutely sure
-      setTimeout(async () => {
-        await fetchUsers()
-        // Clear optimistic update if API has caught up
-        const currentUser = users.find(u => u.id === user.id)
-        if (currentUser && currentUser.status === 'active') {
-          optimisticUpdatesRef.current.delete(user.id)
-        }
-      }, 5000)
 
       toast({
         title: "Aplikasi disetujui",
@@ -464,10 +441,8 @@ export function UserManagement() {
       setRejectionReason("")
       setSelectedUser(null)
 
-      // Also refresh data after a short delay to ensure everything is in sync
-      setTimeout(async () => {
-        await fetchUsers()
-      }, 500)
+      // Silent background sync after 1s (no loading spinner)
+      setTimeout(() => fetchUsers(true), 1000)
 
       toast({
         title: "Aplikasi ditolak",
@@ -562,7 +537,7 @@ export function UserManagement() {
         </div>
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
           <p className="text-destructive text-sm">{error}</p>
-          <Button onClick={fetchUsers} className="mt-2">
+          <Button onClick={() => fetchUsers()} className="mt-2">
             Coba Lagi
           </Button>
         </div>
