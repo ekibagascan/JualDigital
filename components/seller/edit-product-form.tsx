@@ -1057,15 +1057,20 @@ export function EditProductForm({ productId }: EditProductFormProps) {
             </div>
 
             {/* Aktifkan produk toggle - ONLY DIFFERENCE FROM CREATE FORM */}
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="status"
-                checked={productData.status === "active"}
-                onCheckedChange={(checked) =>
-                  handleInputChange("status", checked ? "active" : "draft")
-                }
-              />
-              <Label htmlFor="status">Aktifkan produk</Label>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="status"
+                  checked={productData.status === "active"}
+                  onCheckedChange={(checked) =>
+                    handleInputChange("status", checked ? "active" : "draft")
+                  }
+                />
+                <Label htmlFor="status">Aktifkan produk (tampilkan di toko)</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Nyalakan agar produk tampil di toko dan bisa dibeli pelanggan.
+              </p>
             </div>
           </CardContent>
         </Card>

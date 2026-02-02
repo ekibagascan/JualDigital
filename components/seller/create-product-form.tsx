@@ -350,7 +350,7 @@ export function CreateProductForm() {
         throw new Error(errorData.error || 'Failed to create product')
       }
 
-      await response.json()
+      const data = await response.json()
 
       // Handle file uploads if any
       if (formData.files.length > 0) {
@@ -358,11 +358,12 @@ export function CreateProductForm() {
         console.log('[CREATE PRODUCT] File upload not implemented yet')
       }
 
-
-
+      const isActive = data?.product?.status === 'active'
       toast({
         title: "Produk berhasil ditambahkan!",
-        description: "Produk Anda sedang dalam review dan akan segera dipublikasikan.",
+        description: isActive
+          ? "Produk langsung tampil di toko dan bisa dibeli pelanggan."
+          : "Produk disimpan sebagai draft. Buka Edit produk lalu nyalakan \"Aktifkan produk\" agar tampil di toko dan bisa dibeli.",
       })
 
       router.push("/seller/products")

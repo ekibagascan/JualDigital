@@ -422,17 +422,22 @@ export function ProductManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      className={
-                        product.status === "active"
-                          ? "bg-green-100 text-green-800"
-                          : product.status === "draft"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                      }
-                    >
-                      {product.status === "active" ? "Aktif" : product.status === "draft" ? "Draft" : "Tidak Aktif"}
-                    </Badge>
+                    <div>
+                      <Badge
+                        className={
+                          product.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : product.status === "draft"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-red-100 text-red-800"
+                        }
+                      >
+                        {product.status === "active" ? "Aktif" : product.status === "draft" ? "Draft" : "Tidak Aktif"}
+                      </Badge>
+                      {product.status === "draft" && (
+                        <p className="text-xs text-muted-foreground mt-1">Edit lalu aktifkan untuk memublikasikan</p>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
