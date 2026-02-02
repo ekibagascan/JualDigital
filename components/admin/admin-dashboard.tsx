@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, Package, DollarSign, Wallet, ShoppingCart, RefreshCw, TrendUp, TrendDown } from "lucide-react"
+import { Users, Package, DollarSign, Wallet, ShoppingCart, RefreshCw, TrendingUp, TrendingDown } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface DashboardStats {
@@ -198,7 +198,7 @@ export default function AdminDashboard() {
                 ? "text-green-600"
                 : "text-red-600"
                 }`}>
-                {stat.changeType === "positive" ? <TrendUp className="h-3 w-3" /> : <TrendDown className="h-3 w-3" />}
+                {stat.changeType === "positive" ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {stat.change} dari bulan lalu
               </p>
             </CardContent>
@@ -230,7 +230,7 @@ export default function AdminDashboard() {
                         Rp {order.total_amount?.toLocaleString() || '0'}
                       </p>
                       <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${order.status === 'paid' ? 'bg-green-500/10 text-green-700' :
-                          order.status === 'pending' ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700'
+                        order.status === 'pending' ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700'
                         }`}>
                         {order.status === 'paid' ? 'Lunas' :
                           order.status === 'pending' ? 'Menunggu' : 'Gagal'}
