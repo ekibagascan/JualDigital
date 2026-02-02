@@ -190,14 +190,58 @@ function generateSignature(
 }
 
 /** Last create-transaction request/response (for DANA pilot submission - get via GET /api/payments/dana/last-create-payload) */
-let lastCreatePayload: {
+export type CreatePayloadEntry = {
   request: { url: string; method: string; headers: Record<string, string>; body: string }
   response: { status: number; body: string }
   capturedAt: string
-} | null = null
+}
 
-export function getLastCreatePayload(): typeof lastCreatePayload {
+let lastCreatePayload: CreatePayloadEntry | null = null
+
+/** Create payloads by order (partnerReferenceNo) - for VA capture when callback arrives. Keep last 50. */
+const CREATE_PAYLOAD_CACHE_MAX = 50
+const createPayloadByOrder = new Map<string, CreatePayloadEntry>()
+
+export function getLastCreatePayload() {
   return lastCreatePayload
+}
+
+/** Last create-transaction for a VA (virtual account) payment - set when DANA callback indicates VA. */
+let lastVACreatePayload: CreatePayloadEntry | null = null
+
+export function getLastVACreatePayload() {
+  return lastVACreatePayload
+}
+
+/**
+ * Call from DANA callback when payment is VA. Copies the stored create payload for this order to lastVACreatePayload.
+ * GET /api/payments/dana/last-va-payload returns it.
+ */
+export function setLastVACreatePayloadFromOrder(partnerReferenceNo: string) {
+  const payload = createPayloadByOrder.get(partnerReferenceNo)
+  if (payload) {
+    lastVACreatePayload = payload
+    console.log('[DANA] Set last VA create payload for order:', partnerReferenceNo)
+  }
+}
+
+/** Copy last create payload to last VA payload (for manual capture when webhook does not send payment method). */
+export function setLastVACreatePayloadFromLastCreate() {
+  if (lastCreatePayload) {
+    lastVACreatePayload = lastCreatePayload
+    console.log('[DANA] Set last VA create payload from last create (manual)')
+  }
+}
+
+/** Returns true if webhook body indicates VA (virtual account) payment. */
+export function isVAPaymentFromWebhookBody(body: Record<string, unknown>): boolean {
+  const paymentMethod = (body.paymentMethodType ?? body.paymentMethod ?? body.payment_method) as string | undefined
+  const additionalInfo = body.additionalInfo as Record<string, unknown> | undefined
+  const paymentInfo = (body.paymentInfo ?? additionalInfo?.paymentInfo) as Record<string, unknown> | undefined
+  const infoPaymentMethod = (paymentInfo?.paymentMethodType ?? paymentInfo?.paymentMethod ?? additionalInfo?.paymentMethodType) as string | undefined
+  const str = [paymentMethod, infoPaymentMethod].filter(Boolean).join(' ').toUpperCase()
+  const vaKeywords = ['VA', 'VIRTUAL_ACCOUNT', 'VIRTUAL ACCOUNT', 'BANK_TRANSFER', 'VIRTUAL_BANK', 'BANK_VA']
+  return vaKeywords.some((k) => str.includes(k))
 }
 
 /**
@@ -357,10 +401,11 @@ export async function createDanaOrder(
     console.log('[DANA] Create order response body:', responseText)
 
     // Capture for DANA pilot submission (request + response)
-    lastCreatePayload = {
+    const partnerRef = orderData.partnerReferenceNo
+    const captured = {
       request: {
         url: `${baseUrl}${path}`,
-        method: 'POST',
+        method: 'POST' as const,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -375,6 +420,12 @@ export async function createDanaOrder(
       },
       response: { status: response.status, body: responseText },
       capturedAt: new Date().toISOString(),
+    }
+    lastCreatePayload = captured
+    createPayloadByOrder.set(partnerRef, captured)
+    if (createPayloadByOrder.size > CREATE_PAYLOAD_CACHE_MAX) {
+      const firstKey = createPayloadByOrder.keys().next().value
+      if (firstKey) createPayloadByOrder.delete(firstKey)
     }
 
     if (!response.ok) {

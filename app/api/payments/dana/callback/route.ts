@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { verifyWebhookSignature } from '@/lib/dana'
+import { verifyWebhookSignature, isVAPaymentFromWebhookBody, setLastVACreatePayloadFromOrder } from '@/lib/dana'
 import { sendDownloadEmail } from '@/lib/email-service'
 import { WhatsAppService } from '@/lib/whatsapp-service'
 
@@ -185,6 +185,11 @@ export async function POST(req: NextRequest) {
       partnerReferenceNo,
       referenceNo,
     })
+
+    // If this is a VA (virtual account) payment and success, capture create payload for GET /api/payments/dana/last-va-payload
+    if (newStatus === 'paid' && isVAPaymentFromWebhookBody(body)) {
+      setLastVACreatePayloadFromOrder(partnerReferenceNo)
+    }
 
     // Check if order was already paid - only send email if status is changing TO paid
     const wasAlreadyPaid = order.status === 'paid'
