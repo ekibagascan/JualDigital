@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { unstable_noStore as noStore } from 'next/cache'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/lib/email-service'
 
-
 export const dynamic = 'force-dynamic'
 
-
 export async function GET(req: NextRequest) {
+  noStore()
   try {
     // Check admin authentication
     const adminAuth = req.cookies.get('admin-auth')?.value

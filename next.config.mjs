@@ -22,13 +22,19 @@ const nextConfig = {
     ],
   },
   headers: async () => [
+    // Static assets and pages (long cache)
     {
       source: "/(.*)",
       headers: [
-        {
-          key: "Cache-Control",
-          value: "public, max-age=31536000, immutable",
-        },
+        { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+      ],
+    },
+    // API routes: never cache - must come last so it overrides for /api/* (admin, users, products, etc.)
+    {
+      source: "/api/:path*",
+      headers: [
+        { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, max-age=0" },
+        { key: "Pragma", value: "no-cache" },
       ],
     },
   ],

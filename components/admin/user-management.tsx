@@ -126,14 +126,10 @@ export function UserManagement() {
         setError(null)
       }
 
-      const response = await fetch(`/api/admin/users?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      })
+      const response = await fetch(
+        `/api/admin/users?t=${Date.now()}&r=${Math.random().toString(36).slice(2)}`,
+        { cache: 'no-store', method: 'GET', headers: { 'Pragma': 'no-cache' } }
+      )
       if (!response.ok) {
         throw new Error('Failed to fetch users')
       }
