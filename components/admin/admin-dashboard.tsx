@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, Package, DollarSign, ShoppingCart, RefreshCw } from "lucide-react"
+import { Users, Package, DollarSign, Wallet, ShoppingCart, RefreshCw, TrendUp, TrendDown } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface DashboardStats {
@@ -20,7 +20,9 @@ interface RecentOrder {
   status: string
   created_at: string
   user_id: string
-  profiles: { email: string } | null
+  userName?: string
+  userEmail?: string
+  profiles?: { email: string } | null
 }
 
 interface TopProduct {
@@ -37,32 +39,13 @@ interface DashboardData {
   topProducts: TopProduct[]
 }
 
-// Fallback data in case API fails
+// Fallback data in case API fails (must match API: 5 stats)
 const fallbackStats: DashboardStats[] = [
-  {
-    title: "Total Pengguna",
-    value: "0",
-    change: "0%",
-    changeType: "positive",
-  },
-  {
-    title: "Total Produk",
-    value: "0",
-    change: "0%",
-    changeType: "positive",
-  },
-  {
-    title: "Total Pendapatan",
-    value: "Rp 0",
-    change: "0%",
-    changeType: "positive",
-  },
-  {
-    title: "Total Pesanan",
-    value: "0",
-    change: "0%",
-    changeType: "positive",
-  },
+  { title: "Total Pengguna", value: "0", change: "0%", changeType: "positive" },
+  { title: "Total Produk", value: "0", change: "0%", changeType: "positive" },
+  { title: "Total Pendapatan Seller", value: "Rp 0", change: "0%", changeType: "positive" },
+  { title: "Total Pendapatan Admin", value: "Rp 0", change: "0%", changeType: "positive" },
+  { title: "Total Pesanan", value: "0", change: "0%", changeType: "positive" },
 ]
 
 export default function AdminDashboard() {
@@ -194,26 +177,28 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {stats.map((stat, index) => (
-          <Card key={index}>
+          <Card key={index} className="border-border/80 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
-              <div className="h-4 w-4 text-muted-foreground">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                 {index === 0 && <Users className="h-4 w-4" />}
                 {index === 1 && <Package className="h-4 w-4" />}
                 {index === 2 && <DollarSign className="h-4 w-4" />}
-                {index === 3 && <ShoppingCart className="h-4 w-4" />}
+                {index === 3 && <Wallet className="h-4 w-4" />}
+                {index === 4 && <ShoppingCart className="h-4 w-4" />}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className={`text-xs ${stat.changeType === "positive"
+              <div className="text-2xl font-bold tracking-tight">{stat.value}</div>
+              <p className={`text-xs mt-1 flex items-center gap-1 ${stat.changeType === "positive"
                 ? "text-green-600"
                 : "text-red-600"
                 }`}>
+                {stat.changeType === "positive" ? <TrendUp className="h-3 w-3" /> : <TrendDown className="h-3 w-3" />}
                 {stat.change} dari bulan lalu
               </p>
             </CardContent>
@@ -221,58 +206,60 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Pesanan Terbaru</CardTitle>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4 border-border/80 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Pesanan Terbaru</CardTitle>
+            <p className="text-xs text-muted-foreground">5 pesanan terakhir</p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-0 divide-y divide-border/60">
               {recentOrders.length > 0 ? (
                 recentOrders.map((order) => (
-                  <div key={order.id} className="flex items-center space-x-4">
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
+                  <div key={order.id} className="flex items-center justify-between py-4 first:pt-0">
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className="text-sm font-medium leading-none truncate">
                         {order.order_number}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        {order.profiles?.email || 'Email tidak tersedia'}
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {order.userEmail || order.profiles?.email || 'Email tidak tersedia'}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-semibold">
                         Rp {order.total_amount?.toLocaleString() || '0'}
                       </p>
-                      <p className={`text-xs ${order.status === 'paid' ? 'text-green-600' :
-                        order.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
+                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${order.status === 'paid' ? 'bg-green-500/10 text-green-700' :
+                          order.status === 'pending' ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700'
                         }`}>
                         {order.status === 'paid' ? 'Lunas' :
                           order.status === 'pending' ? 'Menunggu' : 'Gagal'}
-                      </p>
+                      </span>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">Belum ada pesanan</p>
+                <p className="text-sm text-muted-foreground py-6">Belum ada pesanan</p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Produk Terlaris</CardTitle>
+        <Card className="col-span-3 border-border/80 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Produk Terlaris</CardTitle>
+            <p className="text-xs text-muted-foreground">Berdasarkan penjualan</p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-0 divide-y divide-border/60">
               {topProducts.length > 0 ? (
                 topProducts.map((product, index) => (
                   <div
-                    key={index}
-                    className="flex items-center space-x-4 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
-                    onClick={() => router.push(`/product/${product.id}`)}
+                    key={product.id || index}
+                    className="flex items-center gap-4 py-4 first:pt-0 cursor-pointer hover:bg-muted/40 -mx-2 px-2 rounded-lg transition-colors"
+                    onClick={() => product.id && router.push(`/product/${product.id}`)}
                   >
-                    <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                    <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
                       {product.image ? (
                         <img
                           src={product.image}
@@ -284,28 +271,28 @@ export default function AdminDashboard() {
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full bg-muted rounded-lg flex items-center justify-center">
-                          <Package className="h-4 w-4 text-muted-foreground" />
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Package className="h-5 w-5 text-muted-foreground" />
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 space-y-1 min-w-0">
-                      <p className="text-sm font-medium leading-none truncate">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-tight line-clamp-2">
                         {product.name}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         {product.sales} terjual
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-medium">
+                      <p className="text-sm font-semibold">
                         Rp {product.revenue.toLocaleString()}
                       </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">Belum ada data produk</p>
+                <p className="text-sm text-muted-foreground py-6">Belum ada data produk</p>
               )}
             </div>
           </CardContent>

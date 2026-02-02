@@ -146,11 +146,13 @@ export async function GET(req: NextRequest) {
       }
     }) || []
 
-    // 6. Top Selling Products - only count paid orders
+    // 6. Top Selling Products - only count paid orders (use product_title from order_items so deleted products still show name)
     const { data: topProductItems, error: topProductItemsError } = await supabase
       .from('order_items')
       .select(`
         product_id, 
+        product_title,
+        product_image,
         quantity, 
         seller_earnings,
         orders!inner(status)
@@ -285,13 +287,15 @@ export async function GET(req: NextRequest) {
 
     const ordersChange = (lastMonthOrders || 0) > 0 ? (((thisMonthOrders || 0) - (lastMonthOrders || 0)) / (lastMonthOrders || 0)) * 100 : 0
 
-    // Process top products data with real product information
+    // Process top products: prefer products table, fallback to order_items.product_title (survives deleted products)
     const processedTopProducts = topProductItems?.map(item => {
       const product = topProducts?.find(p => p.id === item.product_id)
+      const title = product?.title || (item as { product_title?: string }).product_title || 'Unknown Product'
+      const image = product?.image_url || (item as { product_image?: string }).product_image || ''
       return {
         id: item.product_id,
-        name: product?.title || 'Unknown Product',
-        image: product?.image_url || '',
+        name: title,
+        image,
         sales: item.quantity || 0,
         revenue: (() => {
           const earnings = typeof item.seller_earnings === 'string' 

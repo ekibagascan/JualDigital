@@ -12,12 +12,12 @@ const nextConfig = {
     unoptimized: true,
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: '**.supabase.co',
+        protocol: "https",
+        hostname: "**.supabase.co",
       },
       {
-        protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
       },
     ],
   },
@@ -33,7 +33,10 @@ const nextConfig = {
     {
       source: "/api/:path*",
       headers: [
-        { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, max-age=0" },
+        {
+          key: "Cache-Control",
+          value: "no-store, no-cache, must-revalidate, max-age=0",
+        },
         { key: "Pragma", value: "no-cache" },
       ],
     },
