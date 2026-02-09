@@ -30,21 +30,22 @@ export async function POST(req: NextRequest) {
     // Get all approved sellers (role = seller, status = active)
     const { data: sellers, error } = await supabase
       .from('profiles')
-      .select('id, name, email, shop_name')
+      .select('id, name, email, shop_name, role, status')
       .eq('role', 'seller')
-      .eq('status', 'active')
 
     if (error) {
       console.error('[BROADCAST] Error fetching sellers:', error)
-      return NextResponse.json({ error: 'Failed to fetch sellers' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to fetch sellers', details: error.message }, { status: 500 })
     }
+
+    console.log('[BROADCAST] Found sellers:', sellers?.length, 'statuses:', sellers?.map(s => s.status))
 
     if (!sellers || sellers.length === 0) {
       return NextResponse.json({ message: 'No approved sellers found', count: 0 })
     }
 
-    // Filter out sellers without email
-    const sellersWithEmail = sellers.filter(s => s.email)
+    // Filter: only active sellers with email
+    const sellersWithEmail = sellers.filter(s => s.email && s.status === 'active')
 
     if (dryRun) {
       return NextResponse.json({
