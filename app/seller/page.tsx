@@ -19,7 +19,11 @@ import {
     BarChart3,
     CreditCard,
     ClipboardList,
-    Settings
+    Settings,
+    Link2,
+    Copy,
+    Check,
+    ExternalLink
 } from "lucide-react"
 import Link from "next/link"
 
@@ -37,6 +41,9 @@ export default function SellerDashboard() {
     const [isLoading, setIsLoading] = useState(true)
     const [profileRole, setProfileRole] = useState<string | null>(null)
     const [profileLoading, setProfileLoading] = useState(true)
+    const [storeSlug, setStoreSlug] = useState<string | null>(null)
+    const [storeUrl, setStoreUrl] = useState<string | null>(null)
+    const [slugCopied, setSlugCopied] = useState(false)
 
     useEffect(() => {
         const fetchProfileRole = async () => {
@@ -96,12 +103,31 @@ export default function SellerDashboard() {
             } else {
                 console.error('[SELLER DASHBOARD] API error:', response.status, response.statusText)
             }
+
+            // Load store slug
+            const slugResponse = await fetch('/api/seller/slug')
+            if (slugResponse.ok) {
+                const slugData = await slugResponse.json()
+                setStoreSlug(slugData.slug || null)
+                setStoreUrl(slugData.storeUrl || null)
+            }
         } catch (error: unknown) {
             console.error('Error loading seller data:', error instanceof Error ? error.message : error)
         } finally {
             setIsLoading(false)
         }
     }, [user?.id])
+
+    const handleCopyStoreLink = async () => {
+        if (!storeUrl) return
+        try {
+            await navigator.clipboard.writeText(storeUrl)
+            setSlugCopied(true)
+            setTimeout(() => setSlugCopied(false), 2000)
+        } catch {
+            console.error('Failed to copy')
+        }
+    }
 
     useEffect(() => {
         if (!loading && !profileLoading) {
@@ -242,6 +268,74 @@ export default function SellerDashboard() {
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Store Link Card */}
+                {storeSlug && storeUrl && (
+                    <Card className="mb-8 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                        <CardContent className="py-4">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <Link2 className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Link Toko Anda</p>
+                                        <p className="text-sm font-mono text-blue-600 dark:text-blue-400 truncate">
+                                            jualdigital.id/{storeSlug}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 sm:ml-auto shrink-0">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleCopyStoreLink}
+                                        className="border-blue-300 dark:border-blue-700"
+                                    >
+                                        {slugCopied ? (
+                                            <><Check className="h-4 w-4 mr-1 text-green-500" /> Tersalin</>
+                                        ) : (
+                                            <><Copy className="h-4 w-4 mr-1" /> Salin Link</>
+                                        )}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                        className="border-blue-300 dark:border-blue-700"
+                                    >
+                                        <a href={storeUrl} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="h-4 w-4 mr-1" /> Buka
+                                        </a>
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {!storeSlug && !isLoading && (
+                    <Card className="mb-8 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                        <CardContent className="py-4">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Link2 className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                                        Buat link pendek toko Anda untuk dibagikan ke media sosial
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                    className="sm:ml-auto border-amber-300 dark:border-amber-700 shrink-0"
+                                >
+                                    <Link href="/seller/settings">
+                                        Buat Link Toko
+                                    </Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

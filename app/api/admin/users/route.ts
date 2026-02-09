@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from 'next/cache'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/lib/email-service'
+import { generateSlug, isReservedSlug } from '@/lib/slug-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -530,6 +531,47 @@ export async function PUT(req: NextRequest) {
             // } else {
             //   console.log('[ADMIN USERS API] Failed to send approval WhatsApp (user may not have phone number)')
             // }
+            // Auto-generate slug for seller store URL if they don't have one
+            if (!updateResult.slug) {
+              try {
+                const businessName = updateResult.business_name || updateResult.name || ''
+                if (businessName) {
+                  let baseSlug = generateSlug(businessName)
+                  
+                  // Ensure it's not a reserved slug
+                  if (isReservedSlug(baseSlug)) {
+                    baseSlug = baseSlug + '-store'
+                  }
+                  
+                  // Check uniqueness and append suffix if needed
+                  let finalSlug = baseSlug
+                  let suffix = 1
+                  // eslint-disable-next-line no-constant-condition
+                  while (true) {
+                    const { data: existingSlug } = await updateSupabase
+                      .from('profiles')
+                      .select('id')
+                      .eq('slug', finalSlug)
+                      .neq('id', userId)
+                      .single()
+                    
+                    if (!existingSlug) break
+                    finalSlug = `${baseSlug}-${suffix}`
+                    suffix++
+                  }
+                  
+                  await updateSupabase
+                    .from('profiles')
+                    .update({ slug: finalSlug })
+                    .eq('id', userId)
+                  
+                  console.log('[ADMIN USERS API] Auto-generated slug for seller:', finalSlug)
+                }
+              } catch (slugError) {
+                console.error('[ADMIN USERS API] Error auto-generating slug:', slugError)
+                // Non-critical, don't block the approval
+              }
+            }
           } else {
             console.log('[ADMIN USERS API] Skipping approval notifications - status not changing from pending to active', {
               previousStatus,

@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/hooks/use-toast"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
-import { ArrowLeft, Camera, Save, Store } from "lucide-react"
+import { ArrowLeft, Camera, Save, Store, Link2, Copy, Check, ExternalLink, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function SellerSettings() {
@@ -32,6 +32,18 @@ export default function SellerSettings() {
         socialMedia: "",
         shopLogo: "",
     })
+
+    // Slug / Store Link state
+    const [slugData, setSlugData] = useState({
+        slug: "",
+        originalSlug: "",
+        storeUrl: "",
+        suggestedSlug: "",
+    })
+    const [slugLoading, setSlugLoading] = useState(false)
+    const [slugSaving, setSlugSaving] = useState(false)
+    const [slugError, setSlugError] = useState("")
+    const [slugCopied, setSlugCopied] = useState(false)
 
     useEffect(() => {
         const fetchProfileRole = async () => {
@@ -73,6 +85,7 @@ export default function SellerSettings() {
             }
 
             loadShopData()
+            loadSlugData()
         }
     }, [user, loading, profileRole, profileLoading, router])
 
@@ -178,6 +191,98 @@ export default function SellerSettings() {
         }
     }
 
+    const loadSlugData = async () => {
+        setSlugLoading(true)
+        try {
+            const response = await fetch('/api/seller/slug')
+            if (response.ok) {
+                const data = await response.json()
+                setSlugData({
+                    slug: data.slug || '',
+                    originalSlug: data.slug || '',
+                    storeUrl: data.storeUrl || '',
+                    suggestedSlug: data.suggestedSlug || '',
+                })
+            }
+        } catch (error) {
+            console.error('Error loading slug data:', error)
+        } finally {
+            setSlugLoading(false)
+        }
+    }
+
+    const handleSlugSave = async () => {
+        const slug = slugData.slug.toLowerCase().trim()
+        if (!slug) {
+            setSlugError('Slug tidak boleh kosong')
+            return
+        }
+        if (slug.length < 3) {
+            setSlugError('Slug minimal 3 karakter')
+            return
+        }
+        if (slug.length > 30) {
+            setSlugError('Slug maksimal 30 karakter')
+            return
+        }
+        if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug)) {
+            setSlugError('Hanya huruf kecil, angka, dan strip (-)')
+            return
+        }
+
+        setSlugSaving(true)
+        setSlugError('')
+        try {
+            const response = await fetch('/api/seller/slug', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug }),
+            })
+            const data = await response.json()
+
+            if (!response.ok) {
+                setSlugError(data.error || 'Gagal menyimpan')
+                return
+            }
+
+            setSlugData(prev => ({
+                ...prev,
+                slug: data.slug,
+                originalSlug: data.slug,
+                storeUrl: data.storeUrl,
+            }))
+
+            toast({
+                title: "Link toko berhasil diperbarui",
+                description: `Toko Anda sekarang bisa diakses di ${data.storeUrl}`,
+            })
+        } catch (error) {
+            console.error('Error saving slug:', error)
+            setSlugError('Terjadi kesalahan. Silakan coba lagi.')
+        } finally {
+            setSlugSaving(false)
+        }
+    }
+
+    const handleCopyLink = async () => {
+        const url = slugData.storeUrl || `https://jualdigital.id/${slugData.slug}`
+        try {
+            await navigator.clipboard.writeText(url)
+            setSlugCopied(true)
+            toast({
+                title: "Link berhasil disalin",
+                description: url,
+            })
+            setTimeout(() => setSlugCopied(false), 2000)
+        } catch {
+            toast({
+                title: "Gagal menyalin",
+                description: "Silakan salin secara manual",
+                variant: "destructive",
+            })
+        }
+    }
+
     if (loading || profileLoading) {
         return (
             <div className="min-h-screen bg-background">
@@ -252,6 +357,7 @@ export default function SellerSettings() {
                     <Tabs defaultValue="shop-info" className="space-y-6">
                         <TabsList>
                             <TabsTrigger value="shop-info">Informasi Toko</TabsTrigger>
+                            <TabsTrigger value="shop-link">Link Toko</TabsTrigger>
                             <TabsTrigger value="shop-logo">Logo Toko</TabsTrigger>
                         </TabsList>
 
@@ -324,6 +430,123 @@ export default function SellerSettings() {
                                             {isLoading ? "Menyimpan..." : "Simpan Pengaturan"}
                                         </Button>
                                     </form>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        {/* Shop Link Tab */}
+                        <TabsContent value="shop-link">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Link2 className="h-5 w-5" />
+                                        Link Toko
+                                    </CardTitle>
+                                    <p className="text-sm text-muted-foreground">
+                                        Buat link pendek untuk toko Anda yang bisa dibagikan ke media sosial
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
+                                    {slugLoading ? (
+                                        <div className="flex items-center gap-2 py-4">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <span className="text-muted-foreground">Memuat...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            {/* Current store link */}
+                                            {slugData.originalSlug && (
+                                                <div className="p-4 bg-muted/50 rounded-lg border">
+                                                    <p className="text-sm font-medium mb-2">Link Toko Anda Saat Ini</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <code className="flex-1 px-3 py-2 bg-background rounded border text-sm font-mono break-all">
+                                                            jualdigital.id/{slugData.originalSlug}
+                                                        </code>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={handleCopyLink}
+                                                        >
+                                                            {slugCopied ? (
+                                                                <Check className="h-4 w-4 text-green-500" />
+                                                            ) : (
+                                                                <Copy className="h-4 w-4" />
+                                                            )}
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            asChild
+                                                        >
+                                                            <a href={slugData.storeUrl || `https://jualdigital.id/${slugData.originalSlug}`} target="_blank" rel="noopener noreferrer">
+                                                                <ExternalLink className="h-4 w-4" />
+                                                            </a>
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Slug input */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="storeSlug">
+                                                    {slugData.originalSlug ? 'Ubah Slug Toko' : 'Buat Slug Toko'}
+                                                </Label>
+                                                <div className="flex items-center gap-0">
+                                                    <span className="px-3 py-2 bg-muted border border-r-0 rounded-l-md text-sm text-muted-foreground whitespace-nowrap">
+                                                        jualdigital.id/
+                                                    </span>
+                                                    <Input
+                                                        id="storeSlug"
+                                                        value={slugData.slug}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                                                            setSlugData(prev => ({ ...prev, slug: val }))
+                                                            setSlugError('')
+                                                        }}
+                                                        placeholder={slugData.suggestedSlug || 'nama-toko-anda'}
+                                                        className="rounded-l-none"
+                                                        maxLength={30}
+                                                    />
+                                                </div>
+                                                {slugError && (
+                                                    <p className="text-sm text-destructive">{slugError}</p>
+                                                )}
+                                                <p className="text-xs text-muted-foreground">
+                                                    Huruf kecil, angka, dan strip (-). Minimal 3, maksimal 30 karakter.
+                                                </p>
+                                            </div>
+
+                                            {/* Preview */}
+                                            {slugData.slug && (
+                                                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                                                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Preview</p>
+                                                    <p className="text-sm text-blue-600 dark:text-blue-400 font-mono">
+                                                        jualdigital.id/{slugData.slug}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            <Button
+                                                type="button"
+                                                onClick={handleSlugSave}
+                                                disabled={slugSaving || !slugData.slug || slugData.slug === slugData.originalSlug}
+                                            >
+                                                {slugSaving ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                        Menyimpan...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Save className="h-4 w-4 mr-2" />
+                                                        Simpan Link Toko
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </TabsContent>
