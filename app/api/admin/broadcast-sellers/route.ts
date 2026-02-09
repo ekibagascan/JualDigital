@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     // Get all sellers from profiles (email is in auth.users, not profiles)
     const { data: sellers, error } = await supabase
       .from('profiles')
-      .select('id, name, shop_name, role, status')
+      .select('id, name, business_name, role, status')
       .eq('role', 'seller')
       .eq('status', 'active')
 
@@ -46,12 +46,12 @@ export async function POST(req: NextRequest) {
     console.log('[BROADCAST] Found active sellers:', sellers.length)
 
     // Get emails from auth.users for each seller
-    const sellersWithEmail: { id: string; name: string; email: string; shop_name: string | null }[] = []
+    const sellersWithEmail: { id: string; name: string; email: string; business_name: string | null }[] = []
     for (const seller of sellers) {
       const { data: authUser } = await supabase.auth.admin.getUserById(seller.id)
       const email = authUser?.user?.email
       if (email) {
-        sellersWithEmail.push({ id: seller.id, name: seller.name, email, shop_name: seller.shop_name })
+        sellersWithEmail.push({ id: seller.id, name: seller.name, email, business_name: seller.business_name })
       }
     }
 
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         dryRun: true,
         count: sellersWithEmail.length,
-        sellers: sellersWithEmail.map(s => ({ name: s.name, email: s.email, shop: s.shop_name })),
+        sellers: sellersWithEmail.map(s => ({ name: s.name, email: s.email, business: s.business_name })),
       })
     }
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     for (const seller of sellersWithEmail) {
       const sellerName = seller.name || 'Seller'
-      const shopName = seller.shop_name || sellerName
+      const shopName = seller.business_name || sellerName
 
       const subject = 'Akun Seller Anda Aktif & Sistem Pembayaran Normal Kembali - Jual Digital'
 
