@@ -27,25 +27,33 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get all approved sellers (role = seller, status = active)
+    // Get all sellers from profiles (email is in auth.users, not profiles)
     const { data: sellers, error } = await supabase
       .from('profiles')
-      .select('id, name, email, shop_name, role, status')
+      .select('id, name, shop_name, role, status')
       .eq('role', 'seller')
+      .eq('status', 'active')
 
     if (error) {
       console.error('[BROADCAST] Error fetching sellers:', error)
       return NextResponse.json({ error: 'Failed to fetch sellers', details: error.message }, { status: 500 })
     }
 
-    console.log('[BROADCAST] Found sellers:', sellers?.length, 'statuses:', sellers?.map(s => s.status))
-
     if (!sellers || sellers.length === 0) {
       return NextResponse.json({ message: 'No approved sellers found', count: 0 })
     }
 
-    // Filter: only active sellers with email
-    const sellersWithEmail = sellers.filter(s => s.email && s.status === 'active')
+    console.log('[BROADCAST] Found active sellers:', sellers.length)
+
+    // Get emails from auth.users for each seller
+    const sellersWithEmail: { id: string; name: string; email: string; shop_name: string | null }[] = []
+    for (const seller of sellers) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(seller.id)
+      const email = authUser?.user?.email
+      if (email) {
+        sellersWithEmail.push({ id: seller.id, name: seller.name, email, shop_name: seller.shop_name })
+      }
+    }
 
     if (dryRun) {
       return NextResponse.json({
