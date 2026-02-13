@@ -282,7 +282,7 @@ export async function createDanaOrder(
       value: formatAmountValue(orderData.amount.value),
       currency: orderData.amount.currency,
     },
-    externalStoreId: '', // Empty string as per DANA example
+    externalStoreId: 'JUALDIGI',
   }
 
   // urlParams is REQUIRED for hosted checkout - must include PAY_RETURN and NOTIFICATION
