@@ -152,9 +152,13 @@ export function useSupabaseCart() {
     
     try {
       // Check if item already exists (considering variants)
+      // Use loose equality for variant_id to handle null vs undefined
+      const variantMatch = (a: string | null | undefined, b: string | null | undefined) => 
+        (a || null) === (b || null)
+      
       const existing = items.find(i => 
         i.product_id === item.product_id && 
-        i.variant_id === item.variant_id
+        variantMatch(i.variant_id, item.variant_id)
       )
       if (existing) {
         await updateQuantity(existing.id, existing.quantity + (item.quantity || 1))
@@ -180,13 +184,12 @@ export function useSupabaseCart() {
       const cartItemData = {
         cart_id: cartId,
         product_id: item.product_id,
-        variant_id: item.variant_id,
+        variant_id: item.variant_id || null, // Normalize undefined to null for DB
         quantity: item.quantity || 1,
         title: item.title,
         price: item.price,
         image_url: item.image_url,
-        seller_id: sellerId, // Use the fetched seller_id
-        // created_at will default to NOW() in the DB
+        seller_id: sellerId,
       }
       
       const { data, error } = await supabase
@@ -196,19 +199,66 @@ export function useSupabaseCart() {
         .single()
       
       if (error) {
+        // Handle 409 Conflict (duplicate) - item exists in DB but not in local state
+        // This can happen due to race conditions or stale local state
+        if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('conflict')) {
+          console.log('Item already exists in cart, fetching and updating quantity...')
+          
+          // Fetch the existing item from DB
+          let query = supabase
+            .from("cart_items")
+            .select("*")
+            .eq("cart_id", cartId)
+            .eq("product_id", item.product_id)
+          
+          if (item.variant_id) {
+            query = query.eq("variant_id", item.variant_id)
+          } else {
+            query = query.is("variant_id", null)
+          }
+          
+          const { data: existingItem } = await query.single()
+          
+          if (existingItem) {
+            // Update quantity on the existing DB row
+            const newQty = existingItem.quantity + (item.quantity || 1)
+            await supabase
+              .from("cart_items")
+              .update({ quantity: newQty })
+              .eq("id", existingItem.id)
+            
+            // Update local state
+            setItems(prev => {
+              const found = prev.find(i => i.id === existingItem.id)
+              if (found) {
+                return prev.map(i => i.id === existingItem.id ? { ...i, quantity: newQty } : i)
+              }
+              return [...prev, {
+                ...existingItem,
+                quantity: newQty,
+                title: item.title,
+                variant_name: item.variant_name,
+                price: item.price,
+                image_url: item.image_url,
+                seller_id: sellerId,
+              }]
+            })
+            return
+          }
+        }
+        
         console.error('Error adding item to cart:', error)
         throw error
       }
       
       if (data) {
-        // Add product details for display with proper seller_id
         const newItem = {
           ...data,
           title: item.title,
           variant_name: item.variant_name,
           price: item.price,
           image_url: item.image_url,
-          seller_id: sellerId, // Use the fetched seller_id
+          seller_id: sellerId,
         }
         setItems(prev => [...prev, newItem])
       }
