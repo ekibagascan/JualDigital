@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
       downloadLimit,
       imageUrl,
       imageUrls,
-      thumbnailIndex
+      thumbnailIndex,
+      submitForReview, // true = pending_review, false/undefined = draft
     } = body
 
     // If auth failed, try to get user from sellerId in body
@@ -97,49 +98,69 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check seller trust level to determine initial status
-    const trustScore = await calculateSellerTrustScore(user.id)
-    const initialStatus = trustScore.canSelfActivate ? 'active' : 'draft'
+    // Determine initial status
+    let initialStatus = 'draft'
+    if (submitForReview) {
+      // Seller clicked "Simpan dan Pasarkan" - submit for admin review
+      initialStatus = 'pending_review'
+    } else {
+      // Check seller trust level - trusted sellers can self-activate
+      const trustScore = await calculateSellerTrustScore(user.id)
+      initialStatus = trustScore.canSelfActivate ? 'active' : 'draft'
+    }
 
-    // Create product first
+    // Map delivery method: form uses "upload", DB expects "file"
+    const dbDeliveryMethod = deliveryMethod === 'upload' ? 'file' : (deliveryMethod || 'file')
+
+    // Safely parse price
+    const parsedPrice = parseFloat(price)
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      return NextResponse.json(
+        { error: 'Harga tidak valid' },
+        { status: 400 }
+      )
+    }
+
+    // Create product
+    const productData = {
+      title,
+      description,
+      long_description: longDescription || null,
+      category,
+      price: parsedPrice,
+      original_price: originalPrice ? parseFloat(originalPrice) : null,
+      seller_id: user.id,
+      status: initialStatus,
+      language: language || 'id',
+      tags: tags || [],
+      live_preview: livePreview || null,
+      license: license || null,
+      format: format || null,
+      delivery_method: dbDeliveryMethod,
+      download_limit: downloadLimit || -1,
+      file_url: null,
+      download_link: dbDeliveryMethod === 'link' && productLinks && productLinks.length > 0 
+        ? productLinks[0].url 
+        : null,
+      image_url: (imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined) 
+        ? imageUrls[thumbnailIndex] || imageUrls[0] 
+        : imageUrl || null,
+      images: imageUrls && imageUrls.length > 0 ? imageUrls : null,
+    }
+
+    console.log('[SELLER PRODUCTS API] Inserting product:', { title, category, price: parsedPrice, status: initialStatus, deliveryMethod: dbDeliveryMethod })
+
     const { data: product, error: productError } = await supabase
       .from('products')
-      .insert({
-        title,
-        description,
-        long_description: longDescription,
-        category,
-        price: parseFloat(price),
-        original_price: originalPrice ? parseFloat(originalPrice) : null,
-        seller_id: user.id,
-        status: initialStatus, // Use trust-based status
-        language: language || 'id',
-        tags: tags || [],
-        live_preview: livePreview || null,
-        license: license || null,
-        format: format || null,
-        delivery_method: deliveryMethod || 'file',
-        download_limit: downloadLimit || -1,
-        // Handle file_url or download_link based on delivery method
-        file_url: deliveryMethod === 'file' ? null : null,
-        download_link: deliveryMethod === 'link' && productLinks && productLinks.length > 0 
-          ? productLinks[0].url 
-          : null,
-
-        // Handle image URL for product thumbnail - use selected thumbnail or first image
-        image_url: (imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined) 
-          ? imageUrls[thumbnailIndex] || imageUrls[0] 
-          : imageUrl || null,
-        // Handle multiple images
-        images: imageUrls && imageUrls.length > 0 ? imageUrls : null
-      })
+      .insert(productData)
       .select()
       .single()
 
     if (productError) {
       console.error('[SELLER PRODUCTS API] Product creation error:', productError)
+      console.error('[SELLER PRODUCTS API] Error details:', JSON.stringify(productError, null, 2))
       return NextResponse.json(
-        { error: 'Failed to create product' },
+        { error: `Failed to create product: ${productError.message}`, details: productError.message, code: productError.code },
         { status: 500 }
       )
     }

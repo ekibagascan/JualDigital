@@ -1,0 +1,65 @@
+{
+  "order_number": "ORD-2026-abc5b1",
+  "captured_at": "2026-02-13T06:23:11.443174+00:00",
+  "request": {
+    "url": "https://api.saas.dana.id/payment-gateway/v1.0/debit/payment-host-to-host.htm",
+    "method": "POST",
+    "headers": {
+      "Accept": "application/json",
+      "ORIGIN": "https://jualdigital.id",
+      "CHANNEL-ID": "WEB",
+      "X-SIGNATURE": "[REDACTED]",
+      "X-TIMESTAMP": "2026-02-13T13:23:11+07:00",
+      "Content-Type": "application/json",
+      "X-PARTNER-ID": "2026012914515986164835",
+      "X-EXTERNAL-ID": "1770963791150450753110"
+    },
+    "body": {
+      "partnerReferenceNo": "ORD-2026-abc5b1",
+      "merchantId": "216620010029027362238",
+      "subMerchantId": "",
+      "amount": {
+        "value": "19900.00",
+        "currency": "IDR"
+      },
+      "externalStoreId": "",
+      "urlParams": [
+        {
+          "url": "https://jualdigital.id/payment/dana/finish?order_id=abc5b189-8d13-4de1-b126-5ceb1c97c296",
+          "type": "PAY_RETURN",
+          "isDeeplink": "Y"
+        },
+        {
+          "url": "https://jualdigital.id/api/payments/dana/callback",
+          "type": "NOTIFICATION",
+          "isDeeplink": "Y"
+        }
+      ],
+      "additionalInfo": {
+        "order": {
+          "orderTitle": "100000 Viral Luxury Rich Lifestyle Reels, Cars, Yacht, Plane,...",
+          "scenario": "REDIRECT",
+          "merchantTransType": "SPECIAL_MOVIE",
+          "buyer": {}
+        },
+        "mcc": "5732",
+        "envInfo": {
+          "sourcePlatform": "IPG",
+          "terminalType": "SYSTEM",
+          "orderTerminalType": "WEB"
+        }
+      },
+      "validUpTo": "2026-02-13T13:53:11+07:00"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "referenceNo": "20260213111230999500166594303472622",
+      "partnerReferenceNo": "ORD-2026-abc5b1",
+      "webRedirectUrl": "https://m.dana.id/n/pg/checkout?bizNo=ORD-2026-abc5b1&timestamp=1770963791251&originSourcePlatform=IPG&mid=216620010029027362238&pgOrderId=20260213111230999500166594303472622&sign=nxnRkSr69E3GpXv8qF0RuXvV%2FuUMf3%2BxVzrnu9jRv1VQBxxATIqaK03K0ceCJvQ3eEuhdbqxzXJ%2Bu3ieR8akAvZVY577oSxf%2FYEVoRvHInIxC%2BbzKdGTbD3hrRYDzDjgPrT%2FpqpOweBgVo5%2BeHRB7VvfwYsGgcYPeOljSaYy2fkWUQPXD6hvJtuPVgqMMaF3GUMuRkWOY5Wz%2BWiD7BZbadcyrts82TqP4d8yB221Zzjo%2FwfhOAK2jRCRfOFq%2F%2FpEk%2FSB7G6I8O4mqUo%2FYqFcI2ijzrNazkjOpu5HScWTpGx75DMrwdm1Fvp1D%2BLEaa7phNvK5DCVWU9cTLfwVGll%2Bw%3D%3D",
+      "responseCode": "2005400",
+      "responseMessage": "Successful"
+    }
+  }
+}

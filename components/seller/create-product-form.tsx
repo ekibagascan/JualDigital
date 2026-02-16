@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, ExternalLink, Save, X, Plus, Upload, Link2, Sparkles, Wand2 } from "lucide-react"
+import { Eye, ExternalLink, Save, X, Plus, Upload, Link2, Sparkles, Wand2, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -204,7 +204,7 @@ export function CreateProductForm() {
     }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, submitForReview = false) => {
     e.preventDefault()
 
     if (!user) {
@@ -319,9 +319,9 @@ export function CreateProductForm() {
         description: formData.description,
         longDescription: formData.longDescription,
         category: formData.category,
-        price: validVariants[0]?.price || formData.price, // Use variant price as primary price
+        price: validVariants[0]?.price || formData.price,
         variants: variantsData,
-        sellerId: user.id, // Send seller ID for authentication
+        sellerId: user.id,
         language: formData.language,
         tags: formData.tags,
         livePreview: formData.livePreview,
@@ -329,10 +329,11 @@ export function CreateProductForm() {
         format: formData.format,
         deliveryMethod: formData.deliveryMethod,
         productLinks: formData.productLinks,
-        downloadLimit: -1, // Set to infinite
-        imageUrl: imageUrl, // Include the uploaded image URL
-        imageUrls: imageUrls, // Include all uploaded image URLs
-        thumbnailIndex: formData.thumbnailIndex, // Include thumbnail selection
+        downloadLimit: -1,
+        imageUrl: imageUrl,
+        imageUrls: imageUrls,
+        thumbnailIndex: formData.thumbnailIndex,
+        submitForReview,
       }
 
       console.log('[CREATE PRODUCT] Sending request body:', requestBody)
@@ -358,13 +359,23 @@ export function CreateProductForm() {
         console.log('[CREATE PRODUCT] File upload not implemented yet')
       }
 
-      const isActive = data?.product?.status === 'active'
-      toast({
-        title: "Produk berhasil ditambahkan!",
-        description: isActive
-          ? "Produk langsung tampil di toko dan bisa dibeli pelanggan."
-          : "Produk disimpan sebagai draft. Buka Edit produk lalu nyalakan \"Aktifkan produk\" agar tampil di toko dan bisa dibeli.",
-      })
+      const productStatus = data?.product?.status
+      const statusMessages: Record<string, { title: string; description: string }> = {
+        active: {
+          title: "Produk berhasil dipublikasikan!",
+          description: "Produk langsung tampil di toko dan bisa dibeli pelanggan.",
+        },
+        pending_review: {
+          title: "Produk berhasil diajukan!",
+          description: "Produk Anda sedang menunggu review dari admin. Anda akan diberitahu setelah produk disetujui.",
+        },
+        draft: {
+          title: "Produk berhasil disimpan!",
+          description: "Produk disimpan sebagai draft. Anda bisa mengeditnya kapan saja.",
+        },
+      }
+      const msg = statusMessages[productStatus] || statusMessages.draft
+      toast({ title: msg.title, description: msg.description })
 
       router.push("/seller/products")
     } catch (error) {
@@ -883,17 +894,37 @@ export function CreateProductForm() {
       </Card>
 
       {/* Submit */}
-      <div className="flex justify-end gap-4">
-        <Button type="button" variant="outline" onClick={() => router.back()}>
+      <div className="flex flex-col sm:flex-row justify-end gap-3">
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
           Batal
         </Button>
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" variant="outline" disabled={isLoading}>
           {isLoading ? (
             "Menyimpan..."
           ) : (
             <>
               <Save className="w-4 h-4 mr-2" />
               Simpan Produk
+            </>
+          )}
+        </Button>
+        <Button
+          type="button"
+          disabled={isLoading}
+          onClick={(e) => {
+            const form = (e.target as HTMLElement).closest('form')
+            if (form) {
+              const fakeEvent = { preventDefault: () => {} } as React.FormEvent
+              handleSubmit(fakeEvent, true)
+            }
+          }}
+        >
+          {isLoading ? (
+            "Menyimpan..."
+          ) : (
+            <>
+              <Send className="w-4 h-4 mr-2" />
+              Simpan &amp; Pasarkan
             </>
           )}
         </Button>

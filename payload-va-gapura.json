@@ -1,0 +1,65 @@
+{
+  "order_number": "ORD-2026-e03126",
+  "captured_at": "2026-02-02T15:58:17+07:00",
+  "request": {
+    "url": "https://api.saas.dana.id/payment-gateway/v1.0/debit/payment-host-to-host.htm",
+    "method": "POST",
+    "headers": {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "ORIGIN": "https://jualdigital.id",
+      "CHANNEL-ID": "WEB",
+      "X-PARTNER-ID": "2026012914515986164835",
+      "X-TIMESTAMP": "2026-02-02T15:58:17+07:00",
+      "X-EXTERNAL-ID": "1770022697478721347339",
+      "X-SIGNATURE": "[REDACTED]"
+    },
+    "body": {
+      "partnerReferenceNo": "ORD-2026-e03126",
+      "merchantId": "216620010029027362238",
+      "subMerchantId": "",
+      "amount": {
+        "value": "11000.00",
+        "currency": "IDR"
+      },
+      "externalStoreId": "",
+      "urlParams": [
+        {
+          "url": "https://jualdigital.id/payment/dana/finish?order_id=e0312646-a3d8-42fe-86e3-9ec33f3338e0",
+          "type": "PAY_RETURN",
+          "isDeeplink": "Y"
+        },
+        {
+          "url": "https://jualdigital.id/api/payments/dana/callback",
+          "type": "NOTIFICATION",
+          "isDeeplink": "Y"
+        }
+      ],
+      "additionalInfo": {
+        "order": {
+          "orderTitle": "100000 Viral Luxury Rich Lifestyle Reels, Cars, Yacht, Plane,...",
+          "scenario": "REDIRECT",
+          "merchantTransType": "SPECIAL_MOVIE",
+          "buyer": {}
+        },
+        "mcc": "5732",
+        "envInfo": {
+          "sourcePlatform": "IPG",
+          "terminalType": "SYSTEM",
+          "orderTerminalType": "WEB"
+        }
+      },
+      "validUpTo": "2026-02-02T16:28:17+07:00"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "referenceNo": "20260202111230999500166101403489952",
+      "partnerReferenceNo": "ORD-2026-e03126",
+      "webRedirectUrl": "https://m.dana.id/n/pg/checkout?bizNo=ORD-2026-e03126&timestamp=1770022697584&originSourcePlatform=IPG&mid=216620010029027362238&pgOrderId=20260202111230999500166101403489952&sign=Kx98QhlCqZ8at%2F6ode768s2wyjiftwIR7yyu5xceqZH5Sc1ErBODU92OeRNPNShkflKJxdMIPfy9gTR9i2yD2KPiDUNBzlWjhq5Eh4OKnf79zH%2FGGiWOgz1V0PO5Pc3jJF0LzvB%2B%2BTP0RlHhuWnY7GgRZZNIjSMvkHoxGdLtsEeu9KbDrCXTjM6cVtI3oZoVQ6OusKpJWFANhpnWPGSUGDbOhLz%2Ft32kI3%2Fj6OzkKoiAdDkLOUtKwrPEOgOn9N5KZiTYrN3pnr1teq3ffrdOMaBjPOjfuk%2FqUAMUx7DwQ%2BiW%2B3JbLqzTIXODcrTx5pWjfaIUN0EyBloBBTWrxlJc6pQ%3D%3D",
+      "responseCode": "2005400",
+      "responseMessage": "Successful"
+    }
+  }
+}
