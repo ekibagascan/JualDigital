@@ -35,7 +35,7 @@ export function ProductsList({ category }: ProductsListProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [, setTotalProducts] = useState(0)
-  const itemsPerPage = 12
+  const itemsPerPage = 24
 
   useEffect(() => {
     const fetchProductsAndSellers = async () => {
@@ -202,7 +202,7 @@ export function ProductsList({ category }: ProductsListProps) {
             <p className="text-sm text-muted-foreground">Loading products...</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-5">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="animate-pulse">
               <div className="bg-muted h-48 rounded-lg mb-4"></div>
@@ -239,7 +239,7 @@ export function ProductsList({ category }: ProductsListProps) {
           </Button>
         </div>
       ) : (
-        <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6" : "space-y-4"}>
+        <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 sm:gap-4 md:gap-5" : "space-y-4"}>
           {products.map((product) => {
             return (
               <ProductCard
