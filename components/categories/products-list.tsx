@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Grid, List } from "lucide-react"
 import { ProductCard } from "@/components/product/product-card"
 import { productService, type Product, ProductService } from "@/lib/product-service"
 
@@ -30,8 +28,7 @@ interface ProductsListProps {
 
 export function ProductsList({ category }: ProductsListProps) {
   const searchParams = useSearchParams()
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [sortBy, setSortBy] = useState("popular")
+  const viewMode: "grid" | "list" = searchParams.get("view") === "list" ? "list" : "grid"
   const [products, setProducts] = useState<Product[]>([])
   const [sellerNameMap, setSellerNameMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -52,8 +49,6 @@ export function ProductsList({ category }: ProductsListProps) {
         const categories = searchParams.get("categories")
         const ratings = searchParams.get("ratings")
         const sort = searchParams.get("sort") || "popular"
-
-        setSortBy(sort)
 
         // Build filter object
         const filters: {
@@ -183,13 +178,6 @@ export function ProductsList({ category }: ProductsListProps) {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleSortChange = (newSort: string) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('sort', newSort)
-    window.history.pushState(null, '', `${window.location.pathname}?${params.toString()}`)
-    setSortBy(newSort)
-  }
-
   const generatePageNumbers = () => {
     const pages = []
     const maxVisiblePages = 5
@@ -238,42 +226,6 @@ export function ProductsList({ category }: ProductsListProps) {
             Menampilkan {products.length} produk
             {category && ` dalam kategori ${category}`}
           </p>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* Sort */}
-          <Select value={sortBy} onValueChange={handleSortChange}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Urutkan berdasarkan" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="popular">Paling Populer</SelectItem>
-              <SelectItem value="newest">Terbaru</SelectItem>
-              <SelectItem value="price-low">Harga Terendah</SelectItem>
-              <SelectItem value="price-high">Harga Tertinggi</SelectItem>
-              <SelectItem value="rating">Rating Tertinggi</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* View Mode */}
-          <div className="flex border rounded-lg">
-            <Button
-              variant={viewMode === "grid" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("grid")}
-              className="rounded-r-none"
-            >
-              <Grid className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("list")}
-              className="rounded-l-none"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
       </div>
 

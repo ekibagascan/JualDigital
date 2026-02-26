@@ -1,12 +1,21 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Grid, List, SlidersHorizontal } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+
+const SORT_OPTIONS = [
+  { value: "popular", label: "Paling Populer" },
+  { value: "newest", label: "Terbaru" },
+  { value: "price-low", label: "Harga Termurah" },
+  { value: "price-high", label: "Harga Tertinggi" },
+  { value: "rating", label: "Rating Tertinggi" },
+]
 
 interface Category {
   id: string
@@ -33,6 +42,9 @@ const RATING_OPTIONS = [
 export function ProductsFilter() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const selectedSort = searchParams.get("sort") || "popular"
+  const viewMode = searchParams.get("view") === "list" ? "list" : "grid"
+  const [open, setOpen] = useState(false)
 
   const [selectedPrice, setSelectedPrice] = useState<string>("all")
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
@@ -47,43 +59,52 @@ export function ProductsFilter() {
     const max = searchParams.get("price_max")
     if (!min && !max) {
       setSelectedPrice("all")
-      return
+    } else {
+      const key = `${min || "0"}-${max || "999999999"}`
+      const matched = PRICE_OPTIONS.find((option) => option.id === key)
+      setSelectedPrice(matched ? matched.id : "all")
     }
-    const key = `${min || "0"}-${max || "999999999"}`
-    const matched = PRICE_OPTIONS.find((option) => option.id === key)
-    setSelectedPrice(matched ? matched.id : "all")
+    setSelectedCategories(searchParams.get("categories")?.split(",").filter(Boolean) || [])
+    setSelectedRating(searchParams.get("ratings") || "")
   }, [searchParams])
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCategories = async () => {
       try {
-        // Fetch categories
-        const categoriesResponse = await fetch('/api/categories')
+        const categoriesResponse = await fetch("/api/categories")
         const categoriesData = await categoriesResponse.json()
-
         if (categoriesData.success) {
           setCategories(categoriesData.categories)
-        } else {
-          console.error('Failed to fetch categories:', categoriesData.error)
         }
       } catch (error) {
-        console.error('Error fetching data:', error)
+        console.error("Failed to fetch categories:", error)
       } finally {
         setLoading(false)
       }
     }
-
-    fetchData()
+    fetchCategories()
   }, [])
 
+  const handleSortChange = (sort: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("sort", sort)
+    router.push(`${window.location.pathname}?${params.toString()}`)
+  }
+
+  const handleViewModeChange = (mode: "grid" | "list") => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("view", mode)
+    router.push(`${window.location.pathname}?${params.toString()}`)
+  }
+
   const handleCategoryChange = (categoryId: string, checked: boolean) => {
-    let newCategories
+    let nextCategories
     if (checked) {
-      newCategories = [...selectedCategories, categoryId]
+      nextCategories = [...selectedCategories, categoryId]
     } else {
-      newCategories = selectedCategories.filter((id) => id !== categoryId)
+      nextCategories = selectedCategories.filter((id) => id !== categoryId)
     }
-    setSelectedCategories(newCategories)
+    setSelectedCategories(nextCategories)
   }
 
   const handleRatingChange = (ratingId: string, checked: boolean) => {
@@ -94,10 +115,9 @@ export function ProductsFilter() {
     setSelectedRating(ratingId)
   }
 
-  const applyFilters = () => {
+  const applyAdvancedFilters = () => {
     const params = new URLSearchParams(searchParams.toString())
 
-    // Update price range with simple presets
     if (selectedPrice === "all") {
       params.delete("price_min")
       params.delete("price_max")
@@ -107,14 +127,12 @@ export function ProductsFilter() {
       params.set("price_max", max)
     }
 
-    // Update categories
     if (selectedCategories.length > 0) {
       params.set("categories", selectedCategories.join(","))
     } else {
       params.delete("categories")
     }
 
-    // Update rating
     if (selectedRating) {
       params.set("ratings", selectedRating)
     } else {
@@ -122,110 +140,144 @@ export function ProductsFilter() {
     }
 
     router.push(`${window.location.pathname}?${params.toString()}`)
+    setOpen(false)
   }
 
-  const clearFilters = () => {
-    setSelectedPrice("all")
-    setSelectedCategories([])
-    setSelectedRating("")
-
-    // Clear URL params
+  const resetAllFilters = () => {
     const params = new URLSearchParams(searchParams.toString())
+    params.set("sort", "popular")
+    params.set("view", "grid")
     params.delete("price_min")
     params.delete("price_max")
     params.delete("categories")
     params.delete("ratings")
 
+    setSelectedPrice("all")
+    setSelectedCategories([])
+    setSelectedRating("")
+
     router.push(`${window.location.pathname}?${params.toString()}`)
+    setOpen(false)
   }
 
   return (
-    <Card className="mx-0 sm:mx-0">
-      <CardHeader className="px-3 sm:px-6">
-        <div className="flex items-center justify-between">
-          <CardTitle>Filter</CardTitle>
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Reset
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {SORT_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              size="sm"
+              variant={selectedSort === option.value ? "default" : "outline"}
+              onClick={() => handleSortChange(option.value)}
+              className="whitespace-nowrap rounded-xl"
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="rounded-xl shrink-0 bg-background">
+            <SlidersHorizontal className="h-4 w-4 mr-1" />
+            Filter
           </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6 px-3 sm:px-6">
-        {/* Price presets */}
-        <div>
-          <Label className="text-sm font-medium mb-3 block">Harga</Label>
-          <div className="flex flex-wrap gap-2">
-            {PRICE_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setSelectedPrice(option.id)}
-                className="focus:outline-none"
-              >
-                <Badge variant={selectedPrice === option.id ? "default" : "secondary"}>{option.label}</Badge>
-              </button>
-            ))}
-          </div>
-        </div>
+        </DialogTrigger>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Filter Produk</DialogTitle>
+          </DialogHeader>
 
-        {/* Categories */}
-        <div>
-          <Label className="text-sm font-medium mb-3 block">Kategori</Label>
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {loading ? (
-              // Loading skeleton for categories
-              [...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                  <div className="flex-1 flex items-center justify-between">
-                    <div className="h-4 bg-muted rounded w-20 animate-pulse" />
-                    <div className="h-4 bg-muted rounded w-8 animate-pulse" />
-                  </div>
-                </div>
-              ))
-            ) : (
-              categories.map((category) => (
-                <div key={category.slug} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={category.slug}
-                    checked={selectedCategories.includes(category.slug)}
-                    onCheckedChange={(checked) => handleCategoryChange(category.slug, checked as boolean)}
-                  />
-                  <Label
-                    htmlFor={category.slug}
-                    className="text-sm flex-1 cursor-pointer flex items-center justify-between"
-                  >
-                    <span>{category.name}</span>
-                    <span className="text-muted-foreground">({category.count.toLocaleString("id-ID")})</span>
-                  </Label>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Rating */}
-        <div>
-          <Label className="text-sm font-medium mb-3 block">Minimal Rating</Label>
-          <div className="space-y-2">
-            {RATING_OPTIONS.map((rating) => (
-              <div key={rating.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`rating-${rating.id}`}
-                  checked={selectedRating === rating.id}
-                  onCheckedChange={(checked) => handleRatingChange(rating.id, checked as boolean)}
-                />
-                <Label htmlFor={`rating-${rating.id}`} className="text-sm cursor-pointer">
-                  {rating.label}
-                </Label>
+          <div className="space-y-6">
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Harga</Label>
+              <div className="flex flex-wrap gap-2">
+                {PRICE_OPTIONS.map((option) => (
+                  <button key={option.id} type="button" onClick={() => setSelectedPrice(option.id)} className="focus:outline-none">
+                    <Badge variant={selectedPrice === option.id ? "default" : "secondary"}>{option.label}</Badge>
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        <Button className="w-full" onClick={applyFilters}>
-          Terapkan Filter
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Kategori</Label>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {loading ? (
+                  [...Array(5)].map((_, i) => (
+                    <div key={i} className="h-4 bg-muted rounded animate-pulse" />
+                  ))
+                ) : (
+                  categories.map((category) => (
+                    <div key={category.slug} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={category.slug}
+                        checked={selectedCategories.includes(category.slug)}
+                        onCheckedChange={(checked) => handleCategoryChange(category.slug, checked as boolean)}
+                      />
+                      <Label htmlFor={category.slug} className="text-sm flex-1 cursor-pointer flex items-center justify-between">
+                        <span>{category.name}</span>
+                        <span className="text-muted-foreground">({category.count.toLocaleString("id-ID")})</span>
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Minimal Rating</Label>
+              <div className="space-y-2">
+                {RATING_OPTIONS.map((rating) => (
+                  <div key={rating.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`rating-${rating.id}`}
+                      checked={selectedRating === rating.id}
+                      onCheckedChange={(checked) => handleRatingChange(rating.id, checked as boolean)}
+                    />
+                    <Label htmlFor={`rating-${rating.id}`} className="text-sm cursor-pointer">
+                      {rating.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={resetAllFilters}>
+                Reset
+              </Button>
+              <Button type="button" onClick={applyAdvancedFilters}>
+                Terapkan Filter
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex border rounded-lg shrink-0">
+        <Button
+          type="button"
+          variant={viewMode === "grid" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => handleViewModeChange("grid")}
+          className="rounded-r-none"
+        >
+          <Grid className="h-4 w-4" />
         </Button>
-      </CardContent>
-    </Card>
+        <Button
+          type="button"
+          variant={viewMode === "list" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => handleViewModeChange("list")}
+          className="rounded-l-none"
+        >
+          <List className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
   )
 }

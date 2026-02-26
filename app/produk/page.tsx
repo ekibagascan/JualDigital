@@ -14,17 +14,13 @@ export default function ProdukPage() {
                     <p className="text-muted-foreground">Jelajahi berbagai produk digital yang tersedia</p>
                 </div>
 
-                <div className="grid lg:grid-cols-4 gap-4 lg:gap-8">
-                    <div className="lg:col-span-1">
-                        <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded" />}>
-                            <ProductsFilter />
-                        </Suspense>
-                    </div>
-                    <div className="lg:col-span-3">
-                        <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded" />}>
-                            <ProductsList />
-                        </Suspense>
-                    </div>
+                <div className="space-y-4">
+                    <Suspense fallback={<div className="h-24 animate-pulse bg-muted rounded" />}>
+                        <ProductsFilter />
+                    </Suspense>
+                    <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded" />}>
+                        <ProductsList />
+                    </Suspense>
                 </div>
             </main>
             <Footer />
