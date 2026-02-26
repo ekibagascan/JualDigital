@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       imageUrl,
       imageUrls,
       thumbnailIndex,
-      submitForReview, // true = pending_review, false/undefined = draft
+      submitForReview, // true = pending (for admin review), false/undefined = draft
     } = body
 
     // If auth failed, try to get user from sellerId in body
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     let initialStatus = 'draft'
     if (submitForReview) {
       // Seller clicked "Simpan dan Pasarkan" - submit for admin review
-      initialStatus = 'pending_review'
+      initialStatus = 'pending'
     } else {
       // Check seller trust level - trusted sellers can self-activate
       const trustScore = await calculateSellerTrustScore(user.id)

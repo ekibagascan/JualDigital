@@ -365,7 +365,7 @@ export function CreateProductForm() {
           title: "Produk berhasil dipublikasikan!",
           description: "Produk langsung tampil di toko dan bisa dibeli pelanggan.",
         },
-        pending_review: {
+        pending: {
           title: "Produk berhasil diajukan!",
           description: "Produk Anda sedang menunggu review dari admin. Anda akan diberitahu setelah produk disetujui.",
         },
