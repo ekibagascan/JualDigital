@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { finalizeTelegramPayment } from "@/lib/telegram-order-service"
+import { finalizeTelegramPayment, initTelegramOrder } from "@/lib/telegram-order-service"
 
 export const dynamic = "force-dynamic"
 
@@ -57,6 +57,60 @@ async function validatePendingInvoicePayload(invoicePayload: string) {
   }
 }
 
+async function callTelegramApi(method: string, payload: Record<string, unknown>) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured")
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Telegram API ${method} failed: ${text}`)
+  }
+}
+
+async function sendTelegramMessage(chatId: string | number, text: string) {
+  await callTelegramApi("sendMessage", {
+    chat_id: chatId,
+    text,
+  })
+}
+
+function parseStartPayload(payload: string): { productId: string; quantity: number } | null {
+  const match = payload.match(/^buy_p_(.+?)(?:_q(\d+))?$/)
+  if (!match) return null
+  const productId = match[1]
+  const quantity = match[2] ? Math.max(1, Math.min(parseInt(match[2], 10), 10)) : 1
+  return { productId, quantity }
+}
+
+async function sendTelegramStarsInvoice(params: {
+  chatId: string | number
+  title: string
+  description: string
+  invoicePayload: string
+  starsAmount: number
+  quantity: number
+}) {
+  await callTelegramApi("sendInvoice", {
+    chat_id: params.chatId,
+    title: params.title,
+    description: params.description,
+    payload: params.invoicePayload,
+    currency: "XTR",
+    prices: [
+      {
+        label: `${params.title} x${params.quantity}`,
+        amount: params.starsAmount,
+      },
+    ],
+  })
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!isAuthorizedWebhook(req)) {
@@ -64,6 +118,55 @@ export async function POST(req: NextRequest) {
     }
 
     const update = await req.json()
+
+    const messageText = update?.message?.text as string | undefined
+    const chatId = update?.message?.chat?.id as string | number | undefined
+    const telegramUserId = update?.message?.from?.id ? String(update.message.from.id) : undefined
+
+    // 0) Handle /start command and deep-link payload.
+    if (messageText && messageText.startsWith("/start") && chatId && telegramUserId) {
+      const payload = messageText.split(" ")[1]
+
+      if (!payload) {
+        await sendTelegramMessage(
+          chatId,
+          "Selamat datang di JualDigital Bot.\n\nUntuk checkout Telegram, silakan klik tombol 'Checkout via Telegram' dari website agar produk dan jumlah otomatis terbawa.",
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      const parsed = parseStartPayload(payload)
+      if (!parsed) {
+        await sendTelegramMessage(
+          chatId,
+          "Link checkout tidak valid. Silakan kembali ke website dan klik tombol checkout Telegram lagi.",
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      try {
+        const order = await initTelegramOrder({
+          productId: parsed.productId,
+          telegramUserId,
+          telegramChatId: String(chatId),
+          quantity: parsed.quantity,
+        })
+
+        await sendTelegramStarsInvoice({
+          chatId,
+          title: order.title,
+          description: `${order.description}\nJumlah: ${order.quantity}`,
+          invoicePayload: order.invoicePayload,
+          starsAmount: order.starsAmount,
+          quantity: order.quantity,
+        })
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : "Gagal memulai checkout Telegram."
+        await sendTelegramMessage(chatId, `Checkout gagal: ${errMsg}`)
+      }
+
+      return NextResponse.json({ ok: true })
+    }
 
     // 1) Validate invoice before Telegram confirms payment.
     if (update?.pre_checkout_query?.id) {
@@ -90,13 +193,26 @@ export async function POST(req: NextRequest) {
       const starsAmount = successfulPayment.total_amount as number | undefined
       const telegramUserId = String(update?.message?.from?.id || "")
 
-      await finalizeTelegramPayment({
+      const result = await finalizeTelegramPayment({
         invoicePayload,
         telegramPaymentChargeId,
         providerPaymentChargeId,
         telegramUserId,
         starsAmount,
       })
+
+      const deliveryText = result.deliveryItems.length > 0
+        ? result.deliveryItems
+          .map((item, idx) => `${idx + 1}. ${item.title}\n${item.downloadUrl || "Link belum tersedia, tim kami akan kirim manual."}`)
+          .join("\n\n")
+        : "Pembayaran berhasil. Produk sedang diproses oleh seller."
+
+      if (update?.message?.chat?.id) {
+        await sendTelegramMessage(
+          update.message.chat.id,
+          `Pembayaran berhasil untuk order ${result.orderNumber}.\n\n${deliveryText}`,
+        )
+      }
 
       return NextResponse.json({ ok: true })
     }
