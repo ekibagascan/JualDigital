@@ -290,63 +290,64 @@ export function CartContent() {
               </div>
             )}
 
-            <Button
-              className="w-full"
-              size="lg"
-              disabled={isProcessing || ownProducts.length > 0 || hasTelegramOnlyCart || hasMixedTelegramCart}
-              onClick={async () => {
-                if (ownProducts.length > 0) {
-                  alert("Please remove your own products from the cart before proceeding.")
-                  return
-                }
-
-                if (hasTelegramOnlyCart || hasMixedTelegramCart) {
-                  return
-                }
-
-                setIsProcessing(true)
-                try {
-                  // Prepare order data
-                  const orderData = {
-                    user_id: user?.id,
-                    items: items.map(item => ({
-                      product_id: item.product_id,
-                      seller_id: item.seller_id,
-                      title: item.title,
-                      price: item.price,
-                      quantity: item.quantity,
-                      image_url: item.image_url,
-                    })),
-                    total_amount: getTotalPrice(),
-                    tax_amount: 0,
-                    payment_method: "fiat", // Always use fiat (crypto is disabled)
-                    note, // Include the note in the order data
+            {!hasTelegramOnlyCart && (
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={isProcessing || ownProducts.length > 0 || hasMixedTelegramCart}
+                onClick={async () => {
+                  if (ownProducts.length > 0) {
+                    alert("Please remove your own products from the cart before proceeding.")
+                    return
                   }
-                  const res = await fetch("/api/checkout", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(orderData),
-                  })
-                  const data = await res.json()
-                  if (data.paymentUrl) {
-                    await clearCart()
-                    window.location.href = data.paymentUrl
-                  } else {
-                    alert(data.error || "Gagal membuat pesanan. Silakan coba lagi.")
+
+                  if (hasMixedTelegramCart) {
+                    return
                   }
-                } catch {
-                  alert("Terjadi kesalahan saat membuat pesanan.")
-                } finally {
-                  setIsProcessing(false)
-                }
-              }}
-            >
-              {isProcessing ? "Memproses..." :
-                ownProducts.length > 0 ? "Remove Own Products First" :
-                  hasTelegramOnlyCart ? "Gunakan Checkout Telegram" :
+
+                  setIsProcessing(true)
+                  try {
+                    // Prepare order data
+                    const orderData = {
+                      user_id: user?.id,
+                      items: items.map(item => ({
+                        product_id: item.product_id,
+                        seller_id: item.seller_id,
+                        title: item.title,
+                        price: item.price,
+                        quantity: item.quantity,
+                        image_url: item.image_url,
+                      })),
+                      total_amount: getTotalPrice(),
+                      tax_amount: 0,
+                      payment_method: "fiat", // Always use fiat (crypto is disabled)
+                      note, // Include the note in the order data
+                    }
+                    const res = await fetch("/api/checkout", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(orderData),
+                    })
+                    const data = await res.json()
+                    if (data.paymentUrl) {
+                      await clearCart()
+                      window.location.href = data.paymentUrl
+                    } else {
+                      alert(data.error || "Gagal membuat pesanan. Silakan coba lagi.")
+                    }
+                  } catch {
+                    alert("Terjadi kesalahan saat membuat pesanan.")
+                  } finally {
+                    setIsProcessing(false)
+                  }
+                }}
+              >
+                {isProcessing ? "Memproses..." :
+                  ownProducts.length > 0 ? "Remove Own Products First" :
                     hasMixedTelegramCart ? "Pisahkan Produk Telegram" :
                       "Lanjut Pembayaran"}
-            </Button>
+              </Button>
+            )}
 
             <div className="mt-4 text-center">
               <Link href="/produk" className="text-sm text-primary hover:underline">
