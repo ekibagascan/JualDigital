@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
-import { Package, Plus, Edit, Eye, Trash2, MoreHorizontal, Star, TrendingUp, Search, Download } from "lucide-react"
+import { Package, Plus, Edit, Eye, Trash2, MoreHorizontal, Star, TrendingUp, Search, Download, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,6 +30,7 @@ interface Product {
   total_revenue: number
   rating: number
   total_reviews: number
+  telegram_enabled?: boolean
 }
 
 export function ProductManagement() {
@@ -224,6 +225,48 @@ export function ProductManagement() {
     }
   }
 
+  const handleToggleTelegram = async (productId: string, currentValue?: boolean) => {
+    if (!user?.id) return
+
+    const newValue = !currentValue
+
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update({ telegram_enabled: newValue })
+        .eq("id", productId)
+        .eq("seller_id", user.id)
+
+      if (error) {
+        toast({
+          title: "Gagal mengubah Telegram checkout",
+          description: error.message || "Terjadi kesalahan saat mengubah Telegram checkout",
+          variant: "destructive"
+        })
+      } else {
+        setProducts((prev) =>
+          prev.map((product) =>
+            product.id === productId
+              ? { ...product, telegram_enabled: newValue }
+              : product
+          )
+        )
+        toast({
+          title: "Telegram checkout diperbarui",
+          description: newValue
+            ? "Produk sekarang bisa dipesan lewat Telegram."
+            : "Telegram checkout untuk produk ini dinonaktifkan.",
+        })
+      }
+    } catch {
+      toast({
+        title: "Gagal mengubah Telegram checkout",
+        description: "Terjadi kesalahan saat mengubah Telegram checkout.",
+        variant: "destructive"
+      })
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -366,6 +409,7 @@ export function ProductManagement() {
                 <TableHead>Pendapatan</TableHead>
                 <TableHead>Rating</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Telegram</TableHead>
                 <TableHead>Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -440,6 +484,15 @@ export function ProductManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    <Badge
+                      variant={product.telegram_enabled ? "default" : "outline"}
+                      className={product.telegram_enabled ? "bg-blue-600 hover:bg-blue-700" : ""}
+                    >
+                      <Send className="w-3 h-3 mr-1" />
+                      {product.telegram_enabled ? "Aktif" : "Nonaktif"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -461,6 +514,10 @@ export function ProductManagement() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleToggleStatus(product.id, product.status)}>
                           {product.status === "active" ? "Nonaktifkan" : "Aktifkan"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleToggleTelegram(product.id, product.telegram_enabled)}>
+                          <Send className="w-4 h-4 mr-2" />
+                          {product.telegram_enabled ? "Nonaktifkan Telegram" : "Aktifkan Telegram"}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleDeleteProduct(product.id)} className="text-red-600">
                           <Trash2 className="w-4 h-4 mr-2" />
