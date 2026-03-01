@@ -8,14 +8,17 @@ import {
 
 export const dynamic = "force-dynamic"
 
-function getProductIdFromPayload(payload: string): string {
-  // Expected format from website deep link: buy_p_<productId>
-  if (!payload.startsWith("buy_p_")) {
-    throw new Error("Invalid start payload format")
-  }
-  const id = payload.replace("buy_p_", "")
-  if (!id) throw new Error("Invalid product payload")
-  return id
+function getProductRequestFromPayload(payload: string): { productId: string; quantity: number } {
+  // Supported formats:
+  // - buy_p_<productId>
+  // - buy_p_<productId>_q<quantity>
+  const match = payload.match(/^buy_p_(.+?)(?:_q(\d+))?$/)
+  if (!match) throw new Error("Invalid start payload format")
+
+  const productId = match[1]
+  const quantity = match[2] ? Math.max(1, Math.min(parseInt(match[2], 10), 10)) : 1
+  if (!productId) throw new Error("Invalid product payload")
+  return { productId, quantity }
 }
 
 export async function GET(req: NextRequest) {
@@ -25,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "payload query parameter is required" }, { status: 400 })
     }
 
-    const productId = getProductIdFromPayload(payload)
+    const { productId, quantity } = getProductRequestFromPayload(payload)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -51,7 +54,9 @@ export async function GET(req: NextRequest) {
         id: product.id,
         title: product.title,
         description: product.description || product.title,
-        starsAmount: getTelegramProductStarsPrice(product as TelegramCheckoutProductLike, product.price),
+        starsUnitPrice: getTelegramProductStarsPrice(product as TelegramCheckoutProductLike, product.price),
+        quantity,
+        starsAmount: getTelegramProductStarsPrice(product as TelegramCheckoutProductLike, product.price) * quantity,
         currency: "XTR",
       },
     })

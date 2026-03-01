@@ -5,6 +5,7 @@ import { WhatsAppService } from '@/lib/whatsapp-service'
 import { getPaymentSettings } from './settings-service'
 import { createDanaOrder, getLastCreatePayload } from './dana'
 import { createCryptoPayment } from './bci-payment'
+import { isTelegramCheckoutProduct } from '@/lib/telegram-checkout'
 
 export interface OrderItem {
   product_id: string
@@ -75,7 +76,7 @@ export class OrderService {
         const productIds = orderData.items.map(item => item.product_id)
         const { data: products, error: productsError } = await this.supabase
           .from('products')
-          .select('id, seller_id, title')
+          .select('id, seller_id, title, tags, delivery_method, telegram_enabled')
           .in('id', productIds)
 
         if (productsError) {
@@ -88,6 +89,12 @@ export class OrderService {
         if (ownProducts.length > 0) {
           const productNames = ownProducts.map(p => p.title || p.id).join(', ')
           throw new Error(`You cannot purchase your own products. Please remove: ${productNames}`)
+        }
+
+        const telegramProducts = products.filter((product) => isTelegramCheckoutProduct(product))
+        if (telegramProducts.length > 0) {
+          const productNames = telegramProducts.map((p) => p.title || p.id).join(', ')
+          throw new Error(`These products must be paid via Telegram checkout: ${productNames}`)
         }
       }
 
@@ -176,7 +183,7 @@ export class OrderService {
 
       const { data: products, error: productsError } = await this.supabase
         .from('products')
-        .select('id, seller_id, title')
+        .select('id, seller_id, title, tags, delivery_method, telegram_enabled')
         .in('id', productIds)
 
       if (productsError) {
@@ -191,6 +198,12 @@ export class OrderService {
 
       const productMap = Object.fromEntries(products.map(p => [p.id, p]))
       console.log('Product map:', productMap)
+
+      const telegramProducts = products.filter((product) => isTelegramCheckoutProduct(product))
+      if (telegramProducts.length > 0) {
+        const productNames = telegramProducts.map((p) => p.title || p.id).join(', ')
+        throw new Error(`These products must be paid via Telegram checkout: ${productNames}`)
+      }
 
       // 4. Create order items
       const orderItems = orderData.items.map(item => {

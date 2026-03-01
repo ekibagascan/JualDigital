@@ -17,6 +17,9 @@ export interface SupabaseCartItem {
   price?: number
   image_url?: string
   seller_id?: string
+  telegram_enabled?: boolean
+  delivery_method?: string | null
+  tags?: string[] | null
 }
 
 export function useSupabaseCart() {
@@ -83,7 +86,7 @@ export function useSupabaseCart() {
             const productIds = cartItems.map(item => item.product_id)
             const { data: products, error: productsError } = await supabase
               .from('products')
-              .select('id, title, price, image_url, seller_id')
+              .select('id, title, price, image_url, seller_id, telegram_enabled, delivery_method, tags')
               .in('id', productIds)
             
             if (productsError) {
@@ -98,6 +101,9 @@ export function useSupabaseCart() {
                   price: product?.price,
                   image_url: product?.image_url,
                   seller_id: product?.seller_id, // Always get seller_id from products table
+                  telegram_enabled: product?.telegram_enabled,
+                  delivery_method: product?.delivery_method,
+                  tags: product?.tags,
                 }
               })
               setItems(itemsWithProducts)

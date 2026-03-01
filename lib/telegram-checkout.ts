@@ -47,6 +47,14 @@ export function getTelegramStartPayload(product: TelegramCheckoutProductLike): s
   return `buy_p_${product.id}`
 }
 
+export function getTelegramStartPayloadWithQuantity(
+  product: TelegramCheckoutProductLike,
+  quantity: number,
+): string {
+  const safeQty = Math.max(1, Math.min(Math.round(quantity || 1), 10))
+  return `buy_p_${product.id}_q${safeQty}`
+}
+
 export function getTelegramBotUrlFromPayload(startPayload: string): string | null {
   const username = normalizeTelegramUsername(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME)
   if (!username) return null

@@ -1,7 +1,7 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-import { Trash2, Plus, Minus, ShoppingBag, AlertTriangle, CreditCard } from "lucide-react"
+import { Trash2, Plus, Minus, ShoppingBag, AlertTriangle, CreditCard, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -11,6 +11,11 @@ import { useCart } from "@/components/providers/cart-provider"
 import { formatCurrency } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { useState, useEffect } from "react"
+import {
+  getTelegramBotUrlFromPayload,
+  getTelegramStartPayloadWithQuantity,
+  isTelegramCheckoutProduct,
+} from "@/lib/telegram-checkout"
 
 export function CartContent() {
   const { items, updateQuantity, removeItem, getTotalPrice, loading, clearCart } = useCart()
@@ -64,6 +69,21 @@ export function CartContent() {
       setOwnProducts([])
     }
   }, [items, user?.id])
+
+  const telegramItems = items.filter((item) => isTelegramCheckoutProduct(item))
+  const fiatItems = items.filter((item) => !isTelegramCheckoutProduct(item))
+  const hasTelegramOnlyCart = telegramItems.length > 0 && fiatItems.length === 0
+  const hasMixedTelegramCart = telegramItems.length > 0 && fiatItems.length > 0
+
+  const singleTelegramItem = telegramItems.length === 1 ? telegramItems[0] : null
+  const telegramCheckoutUrl = singleTelegramItem
+    ? getTelegramBotUrlFromPayload(
+      getTelegramStartPayloadWithQuantity(
+        { id: singleTelegramItem.product_id },
+        singleTelegramItem.quantity || 1,
+      ),
+    )
+    : null
 
   if (loading) {
     return (
@@ -218,8 +238,8 @@ export function CartContent() {
               />
             </div>
 
-            {/* Payment Method Selection - Only show if fiat is enabled */}
-            {paymentSettings.fiatEnabled && (
+            {/* Payment Method Selection - Only show for fiat-eligible carts */}
+            {paymentSettings.fiatEnabled && !hasTelegramOnlyCart && !hasMixedTelegramCart && (
               <div className="mb-4 space-y-2">
                 <label className="block text-sm font-medium mb-2">Metode Pembayaran</label>
                 <RadioGroup
@@ -242,13 +262,45 @@ export function CartContent() {
               </div>
             )}
 
+            {hasTelegramOnlyCart && singleTelegramItem && (
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={!telegramCheckoutUrl}
+                asChild={!!telegramCheckoutUrl}
+              >
+                {telegramCheckoutUrl ? (
+                  <a href={telegramCheckoutUrl} target="_blank" rel="noopener noreferrer">
+                    <Send className="h-4 w-4 mr-2" />
+                    Checkout via Telegram
+                  </a>
+                ) : (
+                  <span>
+                    <Send className="h-4 w-4 mr-2" />
+                    Telegram belum dikonfigurasi
+                  </span>
+                )}
+              </Button>
+            )}
+
+            {hasMixedTelegramCart && (
+              <div className="rounded-md border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800">
+                Keranjang Anda berisi campuran produk Telegram dan non-Telegram. Pisahkan checkout:
+                produk Telegram harus dibayar lewat Telegram.
+              </div>
+            )}
+
             <Button
               className="w-full"
               size="lg"
-              disabled={isProcessing || ownProducts.length > 0}
+              disabled={isProcessing || ownProducts.length > 0 || hasTelegramOnlyCart || hasMixedTelegramCart}
               onClick={async () => {
                 if (ownProducts.length > 0) {
                   alert("Please remove your own products from the cart before proceeding.")
+                  return
+                }
+
+                if (hasTelegramOnlyCart || hasMixedTelegramCart) {
                   return
                 }
 
@@ -290,7 +342,10 @@ export function CartContent() {
               }}
             >
               {isProcessing ? "Memproses..." :
-                ownProducts.length > 0 ? "Remove Own Products First" : "Lanjut Pembayaran"}
+                ownProducts.length > 0 ? "Remove Own Products First" :
+                  hasTelegramOnlyCart ? "Gunakan Checkout Telegram" :
+                    hasMixedTelegramCart ? "Pisahkan Produk Telegram" :
+                      "Lanjut Pembayaran"}
             </Button>
 
             <div className="mt-4 text-center">
