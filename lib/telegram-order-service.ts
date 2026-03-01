@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { WhatsAppService } from "@/lib/whatsapp-service"
 import {
   getTelegramPricingBreakdown,
   isTelegramCheckoutProduct,
@@ -169,7 +170,7 @@ export async function finalizeTelegramPayment(input: FinalizeTelegramPaymentInpu
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number, status, payment_id, transaction_id")
+    .select("id, order_number, status, payment_id, transaction_id, guest_name, user_id, note")
     .eq("id", orderId)
     .single()
 
@@ -224,7 +225,7 @@ export async function finalizeTelegramPayment(input: FinalizeTelegramPaymentInpu
 
   const { data: items, error: itemsError } = await supabase
     .from("order_items")
-    .select("id, product_title, products:product_id(title, download_link, file_url)")
+    .select("id, product_title, seller_id, price, quantity, products:product_id(title, download_link, file_url)")
     .eq("order_id", order.id)
 
   if (itemsError) {
@@ -241,6 +242,43 @@ export async function finalizeTelegramPayment(input: FinalizeTelegramPaymentInpu
       downloadUrl: directLink || fallbackLink || null,
     }
   })
+
+  // Send seller notifications for newly paid Telegram orders (non-blocking).
+  try {
+    if (items && items.length > 0) {
+      const whatsappService = new WhatsAppService()
+
+      let totalIdrSubtotal = 0
+      const parsedNote = typeof order.note === "string" ? JSON.parse(order.note) : order.note
+      if (parsedNote?.pricing?.idrSubtotal) {
+        totalIdrSubtotal = Number(parsedNote.pricing.idrSubtotal) || 0
+      }
+
+      const totalStarsBase = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0)
+      const sellerIds = [...new Set(items.map((item) => item.seller_id).filter(Boolean))]
+
+      for (const sellerId of sellerIds) {
+        const sellerItems = items.filter((item) => item.seller_id === sellerId)
+        const productTitle = sellerItems.map((item) => item.product_title || "Product").join(", ")
+        const totalQuantity = sellerItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+        const sellerStarsBase = sellerItems.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0)
+        const estimatedIdrAmount = totalIdrSubtotal > 0 && totalStarsBase > 0
+          ? Math.round((sellerStarsBase / totalStarsBase) * totalIdrSubtotal)
+          : sellerStarsBase
+
+        await whatsappService.sendOrderNotification(sellerId, {
+          orderNumber: order.order_number,
+          productTitle,
+          amount: estimatedIdrAmount,
+          buyerName: order.guest_name || undefined,
+          quantity: totalQuantity,
+          paymentStatus: "paid",
+        })
+      }
+    }
+  } catch (notificationError) {
+    console.error("[TELEGRAM ORDER] Failed to send seller WhatsApp notifications:", notificationError)
+  }
 
   return {
     alreadyProcessed: false,

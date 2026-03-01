@@ -169,21 +169,21 @@ export async function POST(req: NextRequest) {
         })
 
         const receiptText = [
-          "INVOICE CHECKOUT TELEGRAM",
+          "🎫 INVOICE CHECKOUT TELEGRAM",
           "",
-          `Order: ${order.orderNumber}`,
-          `Produk: ${order.title}`,
-          `Jumlah: ${order.quantity}`,
+          `🧾 Order: ${order.orderNumber}`,
+          `📦 Produk: ${order.title}`,
+          `🔢 Jumlah: ${order.quantity}`,
           "",
-          "Rincian Pembayaran:",
-          `- Harga produk: ${formatIdr(order.idrUnitPrice)} x ${order.quantity} = ${formatIdr(order.idrSubtotal)}`,
-          `- Konversi: 1 Star ~= ${formatIdr(order.idrPerStar)}`,
-          `- Stars dasar: ${order.starsSubtotalBase}`,
-          `- Biaya admin ${order.adminFeePercent}%: +${order.adminFeeStars} Stars`,
-          "------------------------------",
-          `Total bayar: ${order.starsAmount} Stars`,
+          "💳 *Rincian Pembayaran:*",
+          `• Harga produk: ${formatIdr(order.idrUnitPrice)} x ${order.quantity} = ${formatIdr(order.idrSubtotal)}`,
+          `• Konversi: 1 ⭐ ~= ${formatIdr(order.idrPerStar)}`,
+          `• Stars dasar: ${order.starsSubtotalBase} ⭐`,
+          `• Biaya admin ${order.adminFeePercent}%: +${order.adminFeeStars} ⭐`,
+          "────────────────",
+          `✅ Total bayar: ${order.starsAmount} ⭐`,
           "",
-          "Lanjutkan pembayaran dengan tombol di bawah.",
+          "⬇️ Lanjutkan pembayaran dengan tombol di bawah.",
         ].join("\n")
 
         await sendTelegramMessage(chatId, receiptText)
