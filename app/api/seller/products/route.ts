@@ -83,13 +83,20 @@ export async function POST(req: NextRequest) {
     // Check if user is a seller
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, telegram_feature_enabled')
       .eq('id', user.id)
       .single()
 
     if (!profile || profile.role !== 'seller') {
       return NextResponse.json(
         { error: 'Seller access required' },
+        { status: 403 }
+      )
+    }
+
+    if (telegramEnabled && !profile.telegram_feature_enabled) {
+      return NextResponse.json(
+        { error: 'Telegram checkout feature is not enabled for your seller account. Please contact admin.' },
         { status: 403 }
       )
     }

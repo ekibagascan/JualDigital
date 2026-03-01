@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Eye, ExternalLink, Save, X, Plus, Upload, Link2, Sparkles, Wand2, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -47,9 +47,23 @@ export function CreateProductForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string[]>([])
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+  const [telegramFeatureAllowed, setTelegramFeatureAllowed] = useState(false)
 
   const { user } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    const loadTelegramPermission = async () => {
+      if (!user?.id) return
+      const { data } = await supabase
+        .from("profiles")
+        .select("telegram_feature_enabled")
+        .eq("id", user.id)
+        .single()
+      setTelegramFeatureAllowed(!!data?.telegram_feature_enabled)
+    }
+    loadTelegramPermission()
+  }, [user?.id])
 
   // AI Description Generator
   const generateAIDescription = async (type: 'short' | 'long') => {
@@ -338,7 +352,7 @@ export function CreateProductForm() {
         imageUrls: imageUrls,
         thumbnailIndex: formData.thumbnailIndex,
         submitForReview,
-        telegramEnabled: formData.telegramEnabled,
+        telegramEnabled: telegramFeatureAllowed ? formData.telegramEnabled : false,
         telegramPlanCode: formData.telegramPlanCode,
         telegramStarsPrice: formData.telegramStarsPrice,
       }
@@ -535,13 +549,19 @@ export function CreateProductForm() {
           <div className="flex items-center space-x-2">
             <Switch
               id="telegramEnabled"
+              disabled={!telegramFeatureAllowed}
               checked={!!formData.telegramEnabled}
               onCheckedChange={(checked) => handleInputChange("telegramEnabled", checked ? 1 : 0)}
             />
             <Label htmlFor="telegramEnabled">Aktifkan checkout Telegram</Label>
           </div>
+          {!telegramFeatureAllowed && (
+            <p className="text-xs text-muted-foreground">
+              Akses Telegram checkout belum aktif untuk akun seller Anda. Hubungi admin untuk mengaktifkan fitur ini.
+            </p>
+          )}
 
-          {formData.telegramEnabled && (
+          {formData.telegramEnabled && telegramFeatureAllowed && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border bg-muted/30">
               <div>
                 <Label htmlFor="telegramPlanCode">Plan Code (opsional)</Label>

@@ -32,6 +32,16 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, telegram_feature_enabled")
+      .eq("id", user.id)
+      .single()
+
+    if (!profile || profile.role !== "seller") {
+      return NextResponse.json({ error: "Seller access required" }, { status: 403 })
+    }
+
     // Check if product exists and belongs to user
     const { data: existingProduct, error: fetchError } = await supabase
       .from("products")
@@ -50,6 +60,13 @@ export async function PUT(
       originalPrice, productLinks, downloadLimit, imageUrl, imageUrls, fileUrl, status, thumbnailIndex,
       telegramEnabled, telegramPlanCode, telegramStarsPrice
     } = body
+
+    if (telegramEnabled && !profile.telegram_feature_enabled) {
+      return NextResponse.json(
+        { error: "Telegram checkout feature is not enabled for your seller account. Please contact admin." },
+        { status: 403 }
+      )
+    }
 
     // Update product
     const { data: product, error: productError } = await supabase

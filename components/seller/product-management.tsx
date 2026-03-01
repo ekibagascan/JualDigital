@@ -226,21 +226,20 @@ export function ProductManagement() {
   }
 
   const handleToggleTelegram = async (productId: string, currentValue?: boolean) => {
-    if (!user?.id) return
-
     const newValue = !currentValue
 
     try {
-      const { error } = await supabase
-        .from("products")
-        .update({ telegram_enabled: newValue })
-        .eq("id", productId)
-        .eq("seller_id", user.id)
+      const response = await fetch(`/api/seller/products/${productId}/telegram`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newValue }),
+      })
 
-      if (error) {
+      if (!response.ok) {
+        const errorData = await response.json()
         toast({
           title: "Gagal mengubah Telegram checkout",
-          description: error.message || "Terjadi kesalahan saat mengubah Telegram checkout",
+          description: errorData.error || "Terjadi kesalahan saat mengubah Telegram checkout",
           variant: "destructive"
         })
       } else {

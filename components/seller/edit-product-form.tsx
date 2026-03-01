@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Upload, X, Plus, Save, ArrowLeft, Sparkles, Wand2, Eye, ExternalLink, Link2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { useAuth } from "@/hooks/use-auth"
+import { supabase } from "@/lib/supabase-client"
 
 
 interface ProductData {
@@ -57,6 +59,7 @@ interface EditProductFormProps {
 
 export function EditProductForm({ productId }: EditProductFormProps) {
   const router = useRouter()
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [productData, setProductData] = useState<ProductData | null>(null)
@@ -67,6 +70,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
   const [productLinks, setProductLinks] = useState<{ name: string; url: string }[]>([])
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([])
   const [thumbnailIndex, setThumbnailIndex] = useState(0)
+  const [telegramFeatureAllowed, setTelegramFeatureAllowed] = useState(false)
 
   // Fetch product data from API
   useEffect(() => {
@@ -137,6 +141,19 @@ export function EditProductForm({ productId }: EditProductFormProps) {
 
     fetchProduct()
   }, [productId])
+
+  useEffect(() => {
+    const loadTelegramPermission = async () => {
+      if (!user?.id) return
+      const { data } = await supabase
+        .from("profiles")
+        .select("telegram_feature_enabled")
+        .eq("id", user.id)
+        .single()
+      setTelegramFeatureAllowed(!!data?.telegram_feature_enabled)
+    }
+    loadTelegramPermission()
+  }, [user?.id])
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -400,7 +417,7 @@ export function EditProductForm({ productId }: EditProductFormProps) {
         status: productData.status,
         deliveryMethod: productData.delivery_method,
         thumbnailIndex: thumbnailIndex,
-        telegramEnabled: !!productData.telegram_enabled,
+        telegramEnabled: telegramFeatureAllowed ? !!productData.telegram_enabled : false,
         telegramPlanCode: productData.telegram_plan_code || "",
         telegramStarsPrice: productData.telegram_stars_price || "",
       }
@@ -835,13 +852,19 @@ export function EditProductForm({ productId }: EditProductFormProps) {
             <div className="flex items-center space-x-2">
               <Switch
                 id="telegram_enabled"
+                disabled={!telegramFeatureAllowed}
                 checked={!!productData.telegram_enabled}
                 onCheckedChange={(checked) => handleInputChange("telegram_enabled", checked ? 1 : 0)}
               />
               <Label htmlFor="telegram_enabled">Aktifkan checkout Telegram</Label>
             </div>
+            {!telegramFeatureAllowed && (
+              <p className="text-xs text-muted-foreground">
+                Akses Telegram checkout belum aktif untuk akun seller Anda. Hubungi admin untuk mengaktifkan fitur ini.
+              </p>
+            )}
 
-            {productData.telegram_enabled && (
+            {productData.telegram_enabled && telegramFeatureAllowed && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border bg-muted/30">
                 <div>
                   <Label htmlFor="telegram_plan_code">Plan Code (opsional)</Label>

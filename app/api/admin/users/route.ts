@@ -178,7 +178,8 @@ export async function GET(req: NextRequest) {
         rating: user.rating || 0,
         total_reviews: user.total_reviews || 0,
         followers: user.followers || 0,
-        lastOrder: lastOrder?.toISOString() || null
+        lastOrder: lastOrder?.toISOString() || null,
+        telegram_feature_enabled: user.telegram_feature_enabled || false,
       }
     }) || []
 
@@ -260,7 +261,7 @@ export async function PUT(req: NextRequest) {
       }
     )
 
-    const { userId, action, role, status, rejectionReason } = await req.json()
+    const { userId, action, role, status, rejectionReason, telegramFeatureEnabled } = await req.json()
 
     if (!userId || !action) {
       return NextResponse.json(
@@ -269,7 +270,7 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    const updateData: Record<string, string> = {}
+    const updateData: Record<string, unknown> = {}
 
     if (action === 'updateRole') {
       if (!role) {
@@ -296,6 +297,14 @@ export async function PUT(req: NextRequest) {
       }
       updateData.role = role
       updateData.status = status
+    } else if (action === 'updateTelegramFeature') {
+      if (typeof telegramFeatureEnabled !== 'boolean') {
+        return NextResponse.json(
+          { error: 'telegramFeatureEnabled boolean is required for updateTelegramFeature action' },
+          { status: 400 }
+        )
+      }
+      updateData.telegram_feature_enabled = telegramFeatureEnabled ? 'true' : 'false'
     }
 
     // Get email from auth.users table first (always exists)
@@ -378,6 +387,7 @@ export async function PUT(req: NextRequest) {
         bio: userData.bio,
         role: userData.role,
         status: userData.status,
+        telegram_feature_enabled: userData.telegram_feature_enabled,
       })
     } else {
       // If profile doesn't exist, set defaults from auth user
@@ -386,6 +396,7 @@ export async function PUT(req: NextRequest) {
       // Set default role/status if not in updateData
       if (!updateData.role) upsertData.role = 'buyer'
       if (!updateData.status) upsertData.status = 'pending'
+      upsertData.telegram_feature_enabled = false
     }
     
     // Apply the update data (this will override preserved values)

@@ -42,6 +42,7 @@ interface User {
   total_reviews: number
   followers: number
   lastOrder: string | null
+  telegram_feature_enabled?: boolean
 }
 
 interface UserStats {
@@ -230,6 +231,82 @@ export function UserManagement() {
       description: `Akun ${user.name} berhasil dihapus dari sistem.`,
       variant: "destructive",
     })
+  }
+
+  const handleToggleTelegramFeature = async (user: User) => {
+    if (user.role !== "seller") {
+      toast({
+        title: "Tidak berlaku",
+        description: "Fitur Telegram hanya bisa diatur untuk seller.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (processingUsers.has(user.id)) return
+
+    const nextValue = !user.telegram_feature_enabled
+    try {
+      setProcessingUsers((prev) => new Set(prev).add(user.id))
+
+      // Optimistic update
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === user.id ? { ...u, telegram_feature_enabled: nextValue } : u
+        )
+      )
+
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          action: 'updateTelegramFeature',
+          telegramFeatureEnabled: nextValue,
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update Telegram feature')
+      }
+
+      const result = await response.json()
+      if (result.user) {
+        setUsers((prevUsers) =>
+          prevUsers.map((u) =>
+            u.id === user.id ? { ...u, telegram_feature_enabled: !!result.user.telegram_feature_enabled } : u
+          )
+        )
+      }
+
+      toast({
+        title: "Akses Telegram diperbarui",
+        description: nextValue
+          ? `${user.name} sekarang bisa menggunakan fitur Telegram checkout.`
+          : `${user.name} tidak bisa menggunakan fitur Telegram checkout.`,
+      })
+    } catch (error) {
+      // Revert optimistic update
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === user.id ? { ...u, telegram_feature_enabled: !!user.telegram_feature_enabled } : u
+        )
+      )
+      toast({
+        title: "Gagal memperbarui akses Telegram",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan.",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessingUsers((prev) => {
+        const next = new Set(prev)
+        next.delete(user.id)
+        return next
+      })
+    }
   }
 
   const handlePromoteToAuthor = async (user: User) => {
@@ -767,6 +844,7 @@ export function UserManagement() {
                 <TableHead>Status</TableHead>
                 <TableHead>Aktivitas</TableHead>
                 <TableHead>Statistik</TableHead>
+                <TableHead>Telegram</TableHead>
                 <TableHead>Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -820,6 +898,15 @@ export function UserManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    {user.role === "seller" ? (
+                      <Badge className={user.telegram_feature_enabled ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}>
+                        {user.telegram_feature_enabled ? "Enabled" : "Disabled"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">-</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -839,6 +926,15 @@ export function UserManagement() {
                           <DropdownMenuItem onClick={() => handlePromoteToAuthor(user)}>
                             <Shield className="w-4 h-4 mr-2" />
                             Jadikan Seller
+                          </DropdownMenuItem>
+                        )}
+                        {user.role === "seller" && (
+                          <DropdownMenuItem
+                            onClick={() => handleToggleTelegramFeature(user)}
+                            disabled={processingUsers.has(user.id)}
+                          >
+                            <Shield className="w-4 h-4 mr-2" />
+                            {user.telegram_feature_enabled ? "Disable Telegram Feature" : "Enable Telegram Feature"}
                           </DropdownMenuItem>
                         )}
                         {user.role === "seller" && user.status === "pending" && (
