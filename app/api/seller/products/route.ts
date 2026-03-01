@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
       imageUrls,
       thumbnailIndex,
       submitForReview, // true = pending (for admin review), false/undefined = draft
+      telegramEnabled,
+      telegramPlanCode,
+      telegramStarsPrice,
     } = body
 
     // If auth failed, try to get user from sellerId in body
@@ -146,6 +149,9 @@ export async function POST(req: NextRequest) {
         ? imageUrls[thumbnailIndex] || imageUrls[0] 
         : imageUrl || null,
       images: imageUrls && imageUrls.length > 0 ? imageUrls : null,
+      telegram_enabled: !!telegramEnabled,
+      telegram_plan_code: telegramPlanCode?.trim() || null,
+      telegram_stars_price: telegramStarsPrice ? parseInt(String(telegramStarsPrice), 10) || null : null,
     }
 
     console.log('[SELLER PRODUCTS API] Inserting product:', { title, category, price: parsedPrice, status: initialStatus, deliveryMethod: dbDeliveryMethod })

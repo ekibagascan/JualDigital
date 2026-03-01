@@ -39,6 +39,9 @@ interface ProductData {
   license?: string
   delivery_method: "file" | "link"
   thumbnailIndex?: number
+  telegram_enabled?: boolean
+  telegram_plan_code?: string
+  telegram_stars_price?: number
 }
 
 interface VariantData {
@@ -396,7 +399,10 @@ export function EditProductForm({ productId }: EditProductFormProps) {
         fileUrl: fileUrl,
         status: productData.status,
         deliveryMethod: productData.delivery_method,
-        thumbnailIndex: thumbnailIndex
+        thumbnailIndex: thumbnailIndex,
+        telegramEnabled: !!productData.telegram_enabled,
+        telegramPlanCode: productData.telegram_plan_code || "",
+        telegramStarsPrice: productData.telegram_stars_price || "",
       }
 
       const response = await fetch(`/api/seller/products/${productId}`, {
@@ -812,6 +818,50 @@ export function EditProductForm({ productId }: EditProductFormProps) {
                     <li>Gunakan link yang tidak akan expired</li>
                     <li>Test link secara berkala untuk memastikan masih aktif</li>
                   </ul>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Telegram Checkout</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Aktifkan jika produk ini akan dijual melalui Telegram Stars.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="telegram_enabled"
+                checked={!!productData.telegram_enabled}
+                onCheckedChange={(checked) => handleInputChange("telegram_enabled", checked ? 1 : 0)}
+              />
+              <Label htmlFor="telegram_enabled">Aktifkan checkout Telegram</Label>
+            </div>
+
+            {productData.telegram_enabled && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border bg-muted/30">
+                <div>
+                  <Label htmlFor="telegram_plan_code">Plan Code (opsional)</Label>
+                  <Input
+                    id="telegram_plan_code"
+                    value={productData.telegram_plan_code || ""}
+                    onChange={(e) => handleInputChange("telegram_plan_code", e.target.value)}
+                    placeholder="contoh: netflix_shared_1m"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="telegram_stars_price">Harga Stars</Label>
+                  <Input
+                    id="telegram_stars_price"
+                    type="number"
+                    min={1}
+                    value={productData.telegram_stars_price || ""}
+                    onChange={(e) => handleInputChange("telegram_stars_price", e.target.value)}
+                    placeholder="contoh: 99"
+                  />
                 </div>
               </div>
             )}

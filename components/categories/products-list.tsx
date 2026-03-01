@@ -20,6 +20,11 @@ const transformProduct = (product: Product) => ({
   category: product.category,
   livePreview: product.live_preview,
   seller_id: product.seller_id,
+  delivery_method: product.delivery_method,
+  tags: product.tags,
+  telegram_enabled: product.telegram_enabled,
+  telegram_plan_code: product.telegram_plan_code,
+  telegram_stars_price: product.telegram_stars_price,
 })
 
 interface ProductsListProps {

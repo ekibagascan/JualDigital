@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase-client"
@@ -35,6 +36,9 @@ export function CreateProductForm() {
     deliveryMethod: "upload", // "upload" or "link"
     productLinks: [] as { name: string; url: string }[],
     thumbnailIndex: 0, // Index of the selected thumbnail image
+    telegramEnabled: false,
+    telegramPlanCode: "",
+    telegramStarsPrice: "",
   })
 
   const [variants, setVariants] = useState([{ id: 1, name: "Standard", price: "", description: "" }])
@@ -334,6 +338,9 @@ export function CreateProductForm() {
         imageUrls: imageUrls,
         thumbnailIndex: formData.thumbnailIndex,
         submitForReview,
+        telegramEnabled: formData.telegramEnabled,
+        telegramPlanCode: formData.telegramPlanCode,
+        telegramStarsPrice: formData.telegramStarsPrice,
       }
 
       console.log('[CREATE PRODUCT] Sending request body:', requestBody)
@@ -514,6 +521,50 @@ export function CreateProductForm() {
               </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Telegram Checkout</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Aktifkan jika produk ini akan dibayar via Telegram Stars.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="telegramEnabled"
+              checked={!!formData.telegramEnabled}
+              onCheckedChange={(checked) => handleInputChange("telegramEnabled", checked ? 1 : 0)}
+            />
+            <Label htmlFor="telegramEnabled">Aktifkan checkout Telegram</Label>
+          </div>
+
+          {formData.telegramEnabled && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border bg-muted/30">
+              <div>
+                <Label htmlFor="telegramPlanCode">Plan Code (opsional)</Label>
+                <Input
+                  id="telegramPlanCode"
+                  value={formData.telegramPlanCode}
+                  onChange={(e) => handleInputChange("telegramPlanCode", e.target.value)}
+                  placeholder="contoh: netflix_shared_1m"
+                />
+              </div>
+              <div>
+                <Label htmlFor="telegramStarsPrice">Harga Stars</Label>
+                <Input
+                  id="telegramStarsPrice"
+                  type="number"
+                  min={1}
+                  value={formData.telegramStarsPrice}
+                  onChange={(e) => handleInputChange("telegramStarsPrice", e.target.value)}
+                  placeholder="contoh: 99"
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Star, Download, FileText, Globe, Shield, Heart, Share2, Eye } from "lucide-react"
+import { Star, Download, FileText, Globe, Shield, Heart, Share2, Eye, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast"
 import { HydrationSafe } from "@/components/ui/hydration-safe"
 import type { ProductVariant } from "@/lib/product-service"
 import { useRouter } from "next/navigation"
+import { getTelegramBotUrlFromPayload, getTelegramStartPayload, isTelegramCheckoutProduct } from "@/lib/telegram-checkout"
 
 // Function to format plain text description to HTML
 function formatDescription(text: string): string {
@@ -72,6 +73,10 @@ interface ProductDetailsProps {
     downloadLimit: number
     license: string
     seller_id?: string
+    delivery_method?: string
+    telegram_enabled?: boolean
+    telegram_plan_code?: string
+    telegram_stars_price?: number
   }
 }
 
@@ -102,6 +107,10 @@ export function ProductDetails({ product }: ProductDetailsProps) {
   const { user } = useAuth()
   const { isInWishlist, addToWishlist, removeFromWishlist } = useSupabaseWishlist()
   const router = useRouter()
+  const isTelegramCheckout = isTelegramCheckoutProduct(product)
+  const telegramUrl = isTelegramCheckout
+    ? getTelegramBotUrlFromPayload(getTelegramStartPayload(product))
+    : null
 
   useEffect(() => {
     setMounted(true)
@@ -645,6 +654,27 @@ export function ProductDetails({ product }: ProductDetailsProps) {
             {variants.length > 0 && !selectedVariant ? "Pilih Varian" : "Beli Sekarang"}
           </Button>
         </div>
+        {isTelegramCheckout && (
+          <Button
+            size="lg"
+            variant="secondary"
+            className="w-full"
+            disabled={!telegramUrl}
+            asChild={!!telegramUrl}
+          >
+            {telegramUrl ? (
+              <a href={telegramUrl} target="_blank" rel="noopener noreferrer">
+                <Send className="w-4 h-4 mr-2" />
+                Order via Telegram
+              </a>
+            ) : (
+              <span>
+                <Send className="w-4 h-4 mr-2" />
+                Telegram belum dikonfigurasi
+              </span>
+            )}
+          </Button>
+        )}
 
         {/* Seller Info */}
         <Card>

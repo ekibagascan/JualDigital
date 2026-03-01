@@ -25,6 +25,9 @@ interface ExtendedProduct {
   language?: string
   download_limit?: number
   license?: string
+  telegram_enabled?: boolean
+  telegram_plan_code?: string
+  telegram_stars_price?: number
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
@@ -70,6 +73,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
     license: (product as ExtendedProduct).license || "Personal Use",
     livePreview: product.live_preview,
     seller_id: product.seller_id,
+    delivery_method: product.delivery_method,
+    telegram_enabled: (product as ExtendedProduct).telegram_enabled,
+    telegram_plan_code: (product as ExtendedProduct).telegram_plan_code,
+    telegram_stars_price: (product as ExtendedProduct).telegram_stars_price,
   }
 
   return (

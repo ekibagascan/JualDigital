@@ -43,6 +43,9 @@ export interface Product {
   live_preview?: string
   delivery_method: string
   featured?: boolean
+  telegram_enabled?: boolean
+  telegram_plan_code?: string
+  telegram_stars_price?: number
 }
 
 export interface ProductVariant {

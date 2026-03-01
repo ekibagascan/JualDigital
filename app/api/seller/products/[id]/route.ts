@@ -47,7 +47,8 @@ export async function PUT(
     const {
       title, description, longDescription, category, price, variants,
       language, deliveryMethod, tags, livePreview, license, format,
-      originalPrice, productLinks, downloadLimit, imageUrl, imageUrls, fileUrl, status, thumbnailIndex
+      originalPrice, productLinks, downloadLimit, imageUrl, imageUrls, fileUrl, status, thumbnailIndex,
+      telegramEnabled, telegramPlanCode, telegramStarsPrice
     } = body
 
     // Update product
@@ -72,7 +73,10 @@ export async function PUT(
         file_url: deliveryMethod === 'file' ? (fileUrl || existingProduct.file_url) : null,
         download_link: deliveryMethod === 'link' && productLinks && productLinks.length > 0 ? productLinks[0].url : null,
         image_url: imageUrl || (imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined ? imageUrls[thumbnailIndex] : existingProduct.image_url),
-        images: imageUrls && imageUrls.length > 0 ? imageUrls : existingProduct.images
+        images: imageUrls && imageUrls.length > 0 ? imageUrls : existingProduct.images,
+        telegram_enabled: !!telegramEnabled,
+        telegram_plan_code: telegramPlanCode?.trim() || null,
+        telegram_stars_price: telegramStarsPrice ? parseInt(String(telegramStarsPrice), 10) || null : null,
       })
       .eq("id", params.id)
       .select()

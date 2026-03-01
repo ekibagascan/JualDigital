@@ -4,7 +4,7 @@ import type React from "react"
 
 import Image from "next/image"
 import Link from "next/link"
-import { Star, Download, BadgeIcon, Heart, ShoppingCart, Eye, ExternalLink } from "lucide-react"
+import { Star, Download, BadgeIcon, Heart, ShoppingCart, Eye, ExternalLink, Send } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { getTelegramBotUrlFromPayload, getTelegramStartPayload, isTelegramCheckoutProduct } from "@/lib/telegram-checkout"
 
 interface Product {
   id: string
@@ -32,6 +33,11 @@ interface Product {
   isNew?: boolean
   livePreview?: string
   seller_id: string
+  delivery_method?: string
+  tags?: string[]
+  telegram_enabled?: boolean
+  telegram_plan_code?: string
+  telegram_stars_price?: number
 }
 
 interface ProductCardProps {
@@ -55,6 +61,10 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
   const { user } = useAuth()
   const { isInWishlist, addToWishlist, removeFromWishlist } = useSupabaseWishlist()
   const router = useRouter()
+  const isTelegramCheckout = isTelegramCheckoutProduct(product)
+  const telegramUrl = isTelegramCheckout
+    ? getTelegramBotUrlFromPayload(getTelegramStartPayload(product))
+    : null
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -354,6 +364,27 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
               <span className="sm:hidden">Beli</span>
             </Button>
           </div>
+          {isTelegramCheckout && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full text-xs"
+              disabled={!telegramUrl}
+              asChild={!!telegramUrl}
+            >
+              {telegramUrl ? (
+                <a href={telegramUrl} target="_blank" rel="noopener noreferrer">
+                  <Send className="w-3 h-3 mr-1" />
+                  Order via Telegram
+                </a>
+              ) : (
+                <span>
+                  <Send className="w-3 h-3 mr-1" />
+                  Telegram belum dikonfigurasi
+                </span>
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
 
