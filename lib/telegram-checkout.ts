@@ -8,6 +8,18 @@ export interface TelegramCheckoutProductLike {
   telegram_stars_price?: number | null
 }
 
+export interface TelegramPricingBreakdown {
+  idrUnitPrice: number
+  quantity: number
+  idrSubtotal: number
+  starsUnitBase: number
+  starsSubtotalBase: number
+  adminFeePercent: number
+  adminFeeStars: number
+  totalStars: number
+  idrPerStar: number
+}
+
 const TELEGRAM_TAGS = new Set(["telegram", "telegram_checkout", "telegram-stars"])
 
 function slugify(input: string): string {
@@ -69,4 +81,46 @@ export function getTelegramProductStarsPrice(product: TelegramCheckoutProductLik
     return Math.max(1, Math.round(fallbackPrice))
   }
   return 1
+}
+
+function getEnvNumber(name: string, fallback: number): number {
+  const raw = process.env[name]
+  if (!raw) return fallback
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+export function getTelegramPricingBreakdown(params: {
+  product: TelegramCheckoutProductLike
+  fallbackIdrPrice?: number
+  quantity?: number
+}): TelegramPricingBreakdown {
+  const quantity = Math.max(1, Math.min(Math.round(params.quantity || 1), 10))
+  const idrUnitPrice = Math.max(0, Math.round(params.fallbackIdrPrice || 0))
+  const idrSubtotal = idrUnitPrice * quantity
+
+  // Example default: 1 Star ~= IDR 1,000
+  const idrPerStar = getEnvNumber("TELEGRAM_IDR_PER_STAR", 1000)
+  const adminFeePercent = getEnvNumber("TELEGRAM_ADMIN_FEE_PERCENT", 5)
+
+  const configuredStars = params.product.telegram_stars_price
+  const starsUnitBase = typeof configuredStars === "number" && configuredStars > 0
+    ? Math.max(1, Math.round(configuredStars))
+    : Math.max(1, Math.ceil(idrUnitPrice / idrPerStar))
+
+  const starsSubtotalBase = starsUnitBase * quantity
+  const adminFeeStars = Math.ceil((starsSubtotalBase * adminFeePercent) / 100)
+  const totalStars = starsSubtotalBase + adminFeeStars
+
+  return {
+    idrUnitPrice,
+    quantity,
+    idrSubtotal,
+    starsUnitBase,
+    starsSubtotalBase,
+    adminFeePercent,
+    adminFeeStars,
+    totalStars,
+    idrPerStar,
+  }
 }

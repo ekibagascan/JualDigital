@@ -80,6 +80,10 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
   })
 }
 
+function formatIdr(value: number): string {
+  return `Rp ${Math.round(value).toLocaleString("id-ID")}`
+}
+
 function parseStartPayload(payload: string): { productId: string; quantity: number } | null {
   const match = payload.match(/^buy_p_(.+?)(?:_q(\d+))?$/)
   if (!match) return null
@@ -94,12 +98,24 @@ async function sendTelegramStarsInvoice(params: {
   description: string
   invoicePayload: string
   starsAmount: number
+  starsSubtotalBase: number
+  adminFeeStars: number
+  adminFeePercent: number
+  idrSubtotal: number
+  idrPerStar: number
   quantity: number
 }) {
   await callTelegramApi("sendInvoice", {
     chat_id: params.chatId,
     title: params.title,
-    description: params.description,
+    description: [
+      params.description,
+      `Jumlah: ${params.quantity}`,
+      `Harga dasar: ${params.starsSubtotalBase} Stars`,
+      `Biaya admin ${params.adminFeePercent}%: +${params.adminFeeStars} Stars`,
+      `Total bayar: ${params.starsAmount} Stars`,
+      `Perkiraan nilai: Rp ${params.idrSubtotal.toLocaleString("id-ID")} (rate 1 Star ~= Rp ${params.idrPerStar.toLocaleString("id-ID")})`,
+    ].join("\n"),
     payload: params.invoicePayload,
     currency: "XTR",
     prices: [
@@ -152,12 +168,37 @@ export async function POST(req: NextRequest) {
           quantity: parsed.quantity,
         })
 
+        const receiptText = [
+          "INVOICE CHECKOUT TELEGRAM",
+          "",
+          `Order: ${order.orderNumber}`,
+          `Produk: ${order.title}`,
+          `Jumlah: ${order.quantity}`,
+          "",
+          "Rincian Pembayaran:",
+          `- Harga produk: ${formatIdr(order.idrUnitPrice)} x ${order.quantity} = ${formatIdr(order.idrSubtotal)}`,
+          `- Konversi: 1 Star ~= ${formatIdr(order.idrPerStar)}`,
+          `- Stars dasar: ${order.starsSubtotalBase}`,
+          `- Biaya admin ${order.adminFeePercent}%: +${order.adminFeeStars} Stars`,
+          "------------------------------",
+          `Total bayar: ${order.starsAmount} Stars`,
+          "",
+          "Lanjutkan pembayaran dengan tombol di bawah.",
+        ].join("\n")
+
+        await sendTelegramMessage(chatId, receiptText)
+
         await sendTelegramStarsInvoice({
           chatId,
           title: order.title,
-          description: `${order.description}\nJumlah: ${order.quantity}`,
+          description: order.description,
           invoicePayload: order.invoicePayload,
           starsAmount: order.starsAmount,
+          starsSubtotalBase: order.starsSubtotalBase,
+          adminFeeStars: order.adminFeeStars,
+          adminFeePercent: order.adminFeePercent,
+          idrSubtotal: order.idrSubtotal,
+          idrPerStar: order.idrPerStar,
           quantity: order.quantity,
         })
       } catch (error) {

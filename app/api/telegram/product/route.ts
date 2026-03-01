@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import {
-  getTelegramProductStarsPrice,
+  getTelegramPricingBreakdown,
   isTelegramCheckoutProduct,
   type TelegramCheckoutProductLike,
 } from "@/lib/telegram-checkout"
@@ -19,6 +19,10 @@ function getProductRequestFromPayload(payload: string): { productId: string; qua
   const quantity = match[2] ? Math.max(1, Math.min(parseInt(match[2], 10), 10)) : 1
   if (!productId) throw new Error("Invalid product payload")
   return { productId, quantity }
+}
+
+function formatIdr(value: number): string {
+  return `Rp ${value.toLocaleString("id-ID")}`
 }
 
 export async function GET(req: NextRequest) {
@@ -48,15 +52,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Product is not available for Telegram checkout" }, { status: 400 })
     }
 
+    const pricing = getTelegramPricingBreakdown({
+      product: product as TelegramCheckoutProductLike,
+      fallbackIdrPrice: product.price,
+      quantity,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
         id: product.id,
         title: product.title,
         description: product.description || product.title,
-        starsUnitPrice: getTelegramProductStarsPrice(product as TelegramCheckoutProductLike, product.price),
-        quantity,
-        starsAmount: getTelegramProductStarsPrice(product as TelegramCheckoutProductLike, product.price) * quantity,
+        quantity: pricing.quantity,
+        starsUnitBase: pricing.starsUnitBase,
+        starsSubtotalBase: pricing.starsSubtotalBase,
+        adminFeePercent: pricing.adminFeePercent,
+        adminFeeStars: pricing.adminFeeStars,
+        starsAmount: pricing.totalStars,
+        idrUnitPrice: pricing.idrUnitPrice,
+        idrSubtotal: pricing.idrSubtotal,
+        idrPerStar: pricing.idrPerStar,
+        transparentConversionText: [
+          `${formatIdr(pricing.idrUnitPrice)} x ${pricing.quantity} = ${formatIdr(pricing.idrSubtotal)}`,
+          `Konversi: 1 Star ~= ${formatIdr(pricing.idrPerStar)}`,
+          `Stars dasar: ${pricing.starsSubtotalBase}`,
+          `Biaya admin ${pricing.adminFeePercent}%: +${pricing.adminFeeStars} Stars`,
+          `Total bayar: ${pricing.totalStars} Stars`,
+        ].join("\n"),
         currency: "XTR",
       },
     })

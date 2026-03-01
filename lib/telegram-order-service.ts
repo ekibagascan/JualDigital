@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import {
-  getTelegramProductStarsPrice,
+  getTelegramPricingBreakdown,
   isTelegramCheckoutProduct,
   type TelegramCheckoutProductLike,
 } from "@/lib/telegram-checkout"
@@ -78,15 +78,17 @@ export async function initTelegramOrder(input: InitTelegramOrderInput) {
     throw new Error("Product is not enabled for Telegram checkout")
   }
 
-  const starsPrice = getTelegramProductStarsPrice(product as TelegramCheckoutProductLike, product.price)
-  const totalStars = starsPrice * quantity
+  const pricing = getTelegramPricingBreakdown({
+    product: product as TelegramCheckoutProductLike,
+    fallbackIdrPrice: product.price,
+    quantity,
+  })
 
   const notePayload = {
     channel: "telegram",
     telegram_user_id: input.telegramUserId,
     telegram_chat_id: input.telegramChatId || null,
-    stars_unit_price: starsPrice,
-    stars_total: totalStars,
+    pricing,
   }
 
   const { data: order, error: orderError } = await supabase
@@ -95,8 +97,8 @@ export async function initTelegramOrder(input: InitTelegramOrderInput) {
       user_id: null,
       guest_name: `Telegram User ${input.telegramUserId}`,
       guest_email: null,
-      total_amount: totalStars,
-      tax_amount: 0,
+      total_amount: pricing.totalStars,
+      tax_amount: pricing.adminFeeStars,
       platform_fee: 0,
       status: "pending",
       payment_method: "TELEGRAM_STARS",
@@ -116,9 +118,9 @@ export async function initTelegramOrder(input: InitTelegramOrderInput) {
     seller_id: product.seller_id,
     product_title: product.title,
     product_image: null,
-    price: starsPrice,
+    price: pricing.starsUnitBase,
     quantity,
-    seller_earnings: starsPrice * quantity,
+    seller_earnings: pricing.starsSubtotalBase,
   })
 
   if (orderItemsError) {
@@ -139,7 +141,7 @@ export async function initTelegramOrder(input: InitTelegramOrderInput) {
     orderId: order.id,
     eventType: "invoice_sent",
     telegramUserId: input.telegramUserId,
-    starsAmount: totalStars,
+    starsAmount: pricing.totalStars,
     rawPayload: { invoicePayload },
   })
 
@@ -150,7 +152,13 @@ export async function initTelegramOrder(input: InitTelegramOrderInput) {
     title: product.title,
     description: product.description || product.title,
     currency: "XTR",
-    starsAmount: totalStars,
+    starsAmount: pricing.totalStars,
+    starsSubtotalBase: pricing.starsSubtotalBase,
+    adminFeeStars: pricing.adminFeeStars,
+    adminFeePercent: pricing.adminFeePercent,
+    idrUnitPrice: pricing.idrUnitPrice,
+    idrSubtotal: pricing.idrSubtotal,
+    idrPerStar: pricing.idrPerStar,
     quantity,
   }
 }

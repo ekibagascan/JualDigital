@@ -38,6 +38,22 @@ Required:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_BOT_WEBHOOK_SECRET`
 
+Optional pricing controls:
+
+- `TELEGRAM_IDR_PER_STAR` (default: `1000`)
+- `TELEGRAM_ADMIN_FEE_PERCENT` (default: `5`)
+
+Pricing behavior:
+
+- Base stars are converted from IDR product price (`ceil(IDR / TELEGRAM_IDR_PER_STAR)`), unless product has explicit `telegram_stars_price`.
+- Admin fee is applied on top of base stars (`ceil(base_stars * TELEGRAM_ADMIN_FEE_PERCENT / 100)`).
+- Invoice description includes transparent breakdown:
+  - IDR subtotal
+  - conversion rate
+  - base stars
+  - admin fee stars
+  - total stars
+
 ## Database migration
 
 Run:
