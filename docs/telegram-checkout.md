@@ -45,7 +45,7 @@ Optional pricing controls:
 
 Pricing behavior:
 
-- Base stars are converted from IDR product price (`ceil(IDR / TELEGRAM_IDR_PER_STAR)`), unless product has explicit `telegram_stars_price`.
+- Base stars are converted from IDR product price (`ceil(IDR / TELEGRAM_IDR_PER_STAR)`).
 - Admin fee is applied on top of base stars (`ceil(base_stars * TELEGRAM_ADMIN_FEE_PERCENT / 100)`).
 - Invoice description includes transparent breakdown:
   - IDR subtotal

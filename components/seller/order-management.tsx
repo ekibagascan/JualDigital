@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth } from "@/hooks/use-auth"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, sumOrderItemsLineTotal, orderLineSubtotal } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase-client"
 import React from "react"
@@ -313,7 +313,11 @@ export function OrderManagement() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
-                            {formatCurrency(orders.filter(o => o.status === 'paid').reduce((sum, o) => sum + o.total_amount, 0))}
+                            {formatCurrency(
+                                orders
+                                    .filter((o) => o.status === "paid")
+                                    .reduce((sum, o) => sum + sumOrderItemsLineTotal(o.order_items), 0),
+                            )}
                         </div>
                         <p className="text-xs text-muted-foreground">Dari pesanan dibayar</p>
                     </CardContent>
@@ -408,7 +412,7 @@ export function OrderManagement() {
                                                                 <div className="min-w-0 flex-1">
                                                                     <div className="text-sm font-medium truncate">{item.product_title}</div>
                                                                     <div className="text-xs text-muted-foreground">
-                                                                        Qty: {item.quantity} × {formatCurrency(item.price)}
+                                                                        Qty: {item.quantity} × {formatCurrency(Number(item.price))}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -416,7 +420,9 @@ export function OrderManagement() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="font-medium text-sm">{formatCurrency(order.total_amount)}</div>
+                                                    <div className="font-medium text-sm">
+                                                        {formatCurrency(sumOrderItemsLineTotal(order.order_items))}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-1 whitespace-nowrap">
@@ -483,11 +489,11 @@ export function OrderManagement() {
                                                                                 <div className="flex-1 min-w-0">
                                                                                     <p className="font-medium truncate">{item.product_title}</p>
                                                                                     <p className="text-sm text-muted-foreground">
-                                                                                        Qty: {item.quantity} × {formatCurrency(item.price)}
+                                                                                        Qty: {item.quantity} × {formatCurrency(Number(item.price))}
                                                                                     </p>
                                                                                 </div>
                                                                                 <div className="text-right">
-                                                                                    <p className="font-medium">{formatCurrency(item.price * item.quantity)}</p>
+                                                                                    <p className="font-medium">{formatCurrency(orderLineSubtotal(item))}</p>
                                                                                 </div>
                                                                             </div>
                                                                         ))}
@@ -502,7 +508,9 @@ export function OrderManagement() {
                                                             )}
                                                             <div className="flex justify-between items-center pt-4 border-t">
                                                                 <div>
-                                                                    <p className="text-lg font-bold">Total: {formatCurrency(order.total_amount)}</p>
+                                                                    <p className="text-lg font-bold">
+                                                                        Total: {formatCurrency(sumOrderItemsLineTotal(order.order_items))}
+                                                                    </p>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
                                                                     {getStatusIcon(order.status)}

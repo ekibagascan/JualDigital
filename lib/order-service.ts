@@ -6,6 +6,7 @@ import { getPaymentSettings } from './settings-service'
 import { createDanaOrder, getLastCreatePayload } from './dana'
 import { createCryptoPayment } from './bci-payment'
 import { isTelegramCheckoutProduct } from '@/lib/telegram-checkout'
+import { sumOrderItemsLineTotal } from '@/lib/utils'
 
 export interface OrderItem {
   product_id: string
@@ -14,6 +15,8 @@ export interface OrderItem {
   price: number
   quantity: number
   image_url?: string
+  /** When set, unit price must come from this variant (not base product.price). */
+  variant_id?: string | null
 }
 
 export interface CreateOrderRequest {
@@ -71,31 +74,38 @@ export class OrderService {
 
   async createOrder(orderData: CreateOrderRequest): Promise<{ order: Order; paymentUrl?: string }> {
     try {
-      // Validate that user is not trying to purchase their own products
-      if (orderData.user_id) {
-        const productIds = orderData.items.map(item => item.product_id)
-        const { data: products, error: productsError } = await this.supabase
-          .from('products')
-          .select('id, seller_id, title, tags, delivery_method, telegram_enabled')
-          .in('id', productIds)
+      const productIds = [...new Set(orderData.items.map((item) => item.product_id))]
 
-        if (productsError) {
-          console.error('Error fetching products for validation:', productsError)
-          throw new Error('Failed to validate order items')
+      const { data: products, error: productsError } = await this.supabase
+        .from('products')
+        .select('id, seller_id, title, price, tags, delivery_method, telegram_enabled')
+        .in('id', productIds)
+
+      if (productsError) {
+        console.error('Error fetching products:', productsError)
+        throw new Error('Failed to validate order items')
+      }
+
+      const productMap = Object.fromEntries((products || []).map((p) => [p.id, p]))
+
+      for (const item of orderData.items) {
+        if (!productMap[item.product_id]) {
+          throw new Error('One or more products are no longer available')
         }
+      }
 
-        // Check if any product belongs to the current user
-        const ownProducts = products.filter(product => product.seller_id === orderData.user_id)
+      if (orderData.user_id) {
+        const ownProducts = (products || []).filter((product) => product.seller_id === orderData.user_id)
         if (ownProducts.length > 0) {
-          const productNames = ownProducts.map(p => p.title || p.id).join(', ')
+          const productNames = ownProducts.map((p) => p.title || p.id).join(', ')
           throw new Error(`You cannot purchase your own products. Please remove: ${productNames}`)
         }
+      }
 
-        const telegramProducts = products.filter((product) => isTelegramCheckoutProduct(product))
-        if (telegramProducts.length > 0) {
-          const productNames = telegramProducts.map((p) => p.title || p.id).join(', ')
-          throw new Error(`These products must be paid via Telegram checkout: ${productNames}`)
-        }
+      const telegramProducts = (products || []).filter((product) => isTelegramCheckoutProduct(product))
+      if (telegramProducts.length > 0) {
+        const productNames = telegramProducts.map((p) => p.title || p.id).join(', ')
+        throw new Error(`These products must be paid via Telegram checkout: ${productNames}`)
       }
 
       // 1. Get payment settings
@@ -128,6 +138,46 @@ export class OrderService {
       console.log('[ORDER CREATION] Final payment type:', finalPaymentType)
       console.log('[ORDER CREATION] Payment method:', paymentMethod)
 
+      const variantIds = [
+        ...new Set(
+          orderData.items
+            .map((i) => i.variant_id)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0),
+        ),
+      ]
+      const variantMap: Record<string, { product_id: string; price: number }> = {}
+      if (variantIds.length > 0) {
+        const { data: variants, error: variantError } = await this.supabase
+          .from('product_variants')
+          .select('id, product_id, price')
+          .in('id', variantIds)
+        if (variantError) {
+          console.error('Error fetching variants:', variantError)
+          throw new Error('Failed to resolve product variant prices')
+        }
+        for (const v of variants || []) {
+          variantMap[v.id] = { product_id: v.product_id, price: Number(v.price) || 0 }
+        }
+      }
+
+      const resolveUnitPrice = (item: OrderItem): number => {
+        const product = productMap[item.product_id]
+        if (!product) throw new Error('Product not found')
+        if (item.variant_id) {
+          const v = variantMap[item.variant_id]
+          if (!v || v.product_id !== item.product_id) {
+            throw new Error('Invalid or expired product variant — refresh cart and try again')
+          }
+          return Math.round(v.price)
+        }
+        return Math.round(Number(product.price) || 0)
+      }
+
+      const subtotal = orderData.items.reduce(
+        (sum, item) => sum + resolveUnitPrice(item) * item.quantity,
+        0,
+      )
+
       // 2. Create order in Supabase
       // IMPORTANT: If user_id is provided, it should NOT be null/undefined
       // Only set guest fields if user_id is NOT provided
@@ -146,7 +196,7 @@ export class OrderService {
         user_id: orderData.user_id || null,
         guest_name: orderData.user_id ? null : (orderData.guest_name || null), // Only set if no user_id
         guest_email: orderData.user_id ? null : (orderData.guest_email || null), // Only set if no user_id
-        total_amount: orderData.total_amount,
+        total_amount: subtotal,
         tax_amount: orderData.tax_amount,
         platform_fee: 0, // No platform fee for now
         status: 'pending',
@@ -177,46 +227,19 @@ export class OrderService {
       console.log('[ORDER CREATION] Order number:', order.order_number)
       console.log('[ORDER CREATION] Payment provider:', paymentMethod)
 
-      // 3. Fetch products to get seller_id and title
-      const productIds = orderData.items.map(item => item.product_id)
-      console.log('Fetching products with IDs:', productIds)
-
-      const { data: products, error: productsError } = await this.supabase
-        .from('products')
-        .select('id, seller_id, title, tags, delivery_method, telegram_enabled')
-        .in('id', productIds)
-
-      if (productsError) {
-        console.error('Error fetching products for order items:', productsError)
-        throw new Error('Failed to fetch product data for order')
-      }
-
-      console.log('Fetched products:', products)
-      console.log('Products found:', products?.length || 0)
-      console.log('Product IDs requested:', productIds)
-      console.log('Product IDs found:', products?.map(p => p.id) || [])
-
-      const productMap = Object.fromEntries(products.map(p => [p.id, p]))
-      console.log('Product map:', productMap)
-
-      const telegramProducts = products.filter((product) => isTelegramCheckoutProduct(product))
-      if (telegramProducts.length > 0) {
-        const productNames = telegramProducts.map((p) => p.title || p.id).join(', ')
-        throw new Error(`These products must be paid via Telegram checkout: ${productNames}`)
-      }
-
-      // 4. Create order items
+      // 3. Create order items (server-resolved IDR unit price; matches cart & WhatsApp)
       const orderItems = orderData.items.map(item => {
         const product = productMap[item.product_id]
+        const unitPrice = resolveUnitPrice(item)
         return {
           order_id: order.id,
           product_id: item.product_id,
           seller_id: product?.seller_id,
           product_title: product?.title,
           product_image: item.image_url,
-          price: item.price,
+          price: unitPrice,
           quantity: item.quantity,
-          seller_earnings: item.price * item.quantity * 0.97, // 3% commission
+          seller_earnings: unitPrice * item.quantity * 0.97, // 3% commission
         }
       })
 
@@ -239,7 +262,7 @@ export class OrderService {
 
       if (finalPaymentType === 'crypto' && paymentMethod === 'bci') {
         // Create BCI crypto payment
-        const totalAmount = Math.round(orderData.total_amount + orderData.tax_amount)
+        const totalAmount = Math.round(subtotal + orderData.tax_amount)
 
         const productTitles = orderData.items.map(item => item.title).join(', ')
         const description = productTitles.length > 100
@@ -287,8 +310,7 @@ export class OrderService {
         const customerPhone = orderData.guest_phone ||
           orderData.user_phone || undefined
 
-        // Calculate total from items to ensure it matches
-        const itemsTotal = Math.round(orderData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0))
+        const itemsTotal = Math.round(subtotal + orderData.tax_amount)
 
         // Prepare customer name (split first/last)
         const nameParts = customerName.split(' ')
@@ -315,7 +337,7 @@ export class OrderService {
           orderItems: orderData.items.map(item => ({
             name: item.title.length > 100 ? item.title.substring(0, 97) + '...' : item.title,
             price: {
-              value: Math.round(item.price).toString(),
+              value: resolveUnitPrice(item).toString(),
               currency: 'IDR',
             },
             quantity: item.quantity,
@@ -501,7 +523,7 @@ export class OrderService {
 
       // Send notification to each seller
       for (const [sellerId, items] of sellerGroups) {
-        const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+        const totalAmount = sumOrderItemsLineTotal(items)
         const productTitles = items.map(item => item.product_title).join(', ')
         const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
 

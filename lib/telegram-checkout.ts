@@ -103,10 +103,9 @@ export function getTelegramPricingBreakdown(params: {
   const idrPerStar = getEnvNumber("TELEGRAM_IDR_PER_STAR", 1000)
   const adminFeePercent = getEnvNumber("TELEGRAM_ADMIN_FEE_PERCENT", 5)
 
-  const configuredStars = params.product.telegram_stars_price
-  const starsUnitBase = typeof configuredStars === "number" && configuredStars > 0
-    ? Math.max(1, Math.round(configuredStars))
-    : Math.max(1, Math.ceil(idrUnitPrice / idrPerStar))
+  // Always derive base stars from IDR conversion to avoid accidental huge manual values.
+  // (e.g. seller entering IDR value into telegram_stars_price by mistake)
+  const starsUnitBase = Math.max(1, Math.ceil(idrUnitPrice / idrPerStar))
 
   const starsSubtotalBase = starsUnitBase * quantity
   const adminFeeStars = Math.ceil((starsSubtotalBase * adminFeePercent) / 100)

@@ -317,6 +317,7 @@ export function CartContent() {
                         price: item.price,
                         quantity: item.quantity,
                         image_url: item.image_url,
+                        variant_id: item.variant_id ?? null,
                       })),
                       total_amount: getTotalPrice(),
                       tax_amount: 0,

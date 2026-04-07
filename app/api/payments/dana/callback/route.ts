@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyWebhookSignature, isVAPaymentFromWebhookBody, setLastVACreatePayloadFromOrder } from '@/lib/dana'
 import { sendDownloadEmail } from '@/lib/email-service'
 import { WhatsAppService } from '@/lib/whatsapp-service'
+import { sumOrderItemsLineTotal } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -378,7 +379,7 @@ Tim Jual Digital
           for (const sellerId of sellerIds) {
             const sellerItems = orderItems.filter(item => item.seller_id === sellerId)
             const productTitles = sellerItems.map(item => item.product_title || 'Product').join(', ')
-            const totalAmount = sellerItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+            const totalAmount = sumOrderItemsLineTotal(sellerItems)
             const totalQuantity = sellerItems.reduce((sum, item) => sum + item.quantity, 0)
 
             try {

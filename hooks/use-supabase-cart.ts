@@ -93,17 +93,48 @@ export function useSupabaseCart() {
               console.error('Error fetching product details:', productsError)
             } else {
               const productMap = Object.fromEntries(products.map(p => [p.id, p]))
+              const variantIds = [
+                ...new Set(
+                  cartItems
+                    .map((ci) => ci.variant_id)
+                    .filter((id): id is string => typeof id === "string" && id.length > 0),
+                ),
+              ]
+              let variantById: Record<string, { price: number; name?: string | null }> = {}
+              if (variantIds.length > 0) {
+                const { data: variants, error: variantsError } = await supabase
+                  .from("product_variants")
+                  .select("id, price, name")
+                  .in("id", variantIds)
+                if (variantsError) {
+                  console.error("Error fetching cart variant prices:", variantsError)
+                } else {
+                  variantById = Object.fromEntries(
+                    (variants || []).map((v) => [
+                      v.id,
+                      { price: Number(v.price) || 0, name: v.name },
+                    ]),
+                  )
+                }
+              }
               const itemsWithProducts = cartItems.map(item => {
                 const product = productMap[item.product_id]
+                const variant = item.variant_id ? variantById[item.variant_id] : undefined
+                const resolvedPrice = item.variant_id
+                  ? variant != null
+                    ? variant.price
+                    : Number(item.price) || Number(product?.price) || 0
+                  : Number(product?.price) || Number(item.price) || 0
                 return {
                   ...item,
                   title: product?.title,
-                  price: product?.price,
+                  price: resolvedPrice,
                   image_url: product?.image_url,
                   seller_id: product?.seller_id, // Always get seller_id from products table
                   telegram_enabled: product?.telegram_enabled,
                   delivery_method: product?.delivery_method,
                   tags: product?.tags,
+                  variant_name: variant?.name ?? item.variant_name,
                 }
               })
               setItems(itemsWithProducts)

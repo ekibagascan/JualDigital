@@ -5,6 +5,7 @@ import { OrderService } from '@/lib/order-service'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendDownloadEmail } from '@/lib/email-service'
 import { WhatsAppService } from '@/lib/whatsapp-service'
+import { sumOrderItemsLineTotal } from '@/lib/utils'
 
 // OPTIONS handler for CORS preflight
 export async function OPTIONS() {
@@ -335,7 +336,7 @@ async function processWebhook(body: Record<string, unknown>) {
 
         // Send notification to each seller
         for (const [sellerId, items] of sellerGroups) {
-          const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+          const totalAmount = sumOrderItemsLineTotal(items)
           const productTitles = items.map(item => item.product_title).join(', ')
           const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
 

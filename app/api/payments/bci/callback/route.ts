@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyWebhookSignature } from '@/lib/bci-payment'
 import { sendDownloadEmail } from '@/lib/email-service'
 import { WhatsAppService } from '@/lib/whatsapp-service'
+import { orderLineSubtotal } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -198,7 +199,7 @@ Tim Jual Digital
               await whatsappService.sendOrderNotification(sellerId, {
                 orderNumber: order.order_number,
                 productTitle: item.product_title || item.products?.title || 'Product',
-                amount: item.price * item.quantity,
+                amount: orderLineSubtotal(item),
                 quantity: item.quantity,
                 buyerName: order.guest_name || undefined,
                 paymentStatus: 'paid',
