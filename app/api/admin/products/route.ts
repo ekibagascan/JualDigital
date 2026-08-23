@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
+import { isAdminRequest } from '@/lib/admin-session'
 import { createServerClient } from '@supabase/ssr'
 
 export async function GET(req: NextRequest) {
@@ -7,8 +8,7 @@ export async function GET(req: NextRequest) {
     console.log('[ADMIN PRODUCTS API] ===== API CALLED =====')
 
     // Check admin authentication
-    const adminAuth = req.cookies.get('admin-auth')?.value
-    if (!adminAuth || adminAuth !== 'authenticated') {
+    if (!isAdminRequest(req)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

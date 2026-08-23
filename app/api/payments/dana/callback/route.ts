@@ -237,6 +237,15 @@ export async function POST(req: NextRequest) {
       console.warn('[DANA WEBHOOK] Order update returned no data')
     }
 
+    if (isChangingToPaid) {
+      try {
+        const { fulfillPaidOrder } = await import('@/lib/fulfillment-service')
+        await fulfillPaidOrder(supabase, order.id)
+      } catch (fulfillErr) {
+        console.error('[DANA WEBHOOK] Fulfillment error:', fulfillErr)
+      }
+    }
+
     // Only send notifications if status is changing FROM non-paid TO paid
     // This prevents duplicate emails when DANA retries the webhook
     if (isChangingToPaid && shouldNotify) {

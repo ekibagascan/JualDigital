@@ -42,6 +42,7 @@ export interface Product {
   updated_at: string
   live_preview?: string
   delivery_method: string
+  product_type?: 'digital_product' | 'service' | 'course' | 'membership'
   featured?: boolean
   telegram_enabled?: boolean
   telegram_plan_code?: string
@@ -81,6 +82,7 @@ export class ProductService {
     categories?: string[]
     min_rating?: number
     sort?: string
+    product_type?: string
   }): Promise<Product[]> {
     try {
       let query = supabase
@@ -90,6 +92,10 @@ export class ProductService {
 
       if (options?.category) {
         query = query.eq('category', options.category)
+      }
+
+      if (options?.product_type) {
+        query = query.eq('product_type', options.product_type)
       }
 
       if (options?.categories && options.categories.length > 0) {

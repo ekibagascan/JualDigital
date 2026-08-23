@@ -77,6 +77,7 @@ interface ProductDetailsProps {
     telegram_enabled?: boolean
     telegram_plan_code?: string
     telegram_stars_price?: number
+    product_type?: 'digital_product' | 'service' | 'course' | 'membership'
   }
 }
 
@@ -559,9 +560,35 @@ export function ProductDetails({ product }: ProductDetailsProps) {
               <Badge variant="destructive">-{discountPercentage}%</Badge>
             )}
             <Badge variant="outline">{product.category}</Badge>
+            {product.product_type && product.product_type !== "digital_product" && (
+              <Badge variant="secondary">
+                {product.product_type === "service"
+                  ? "Jasa"
+                  : product.product_type === "course"
+                    ? "Kursus"
+                    : product.product_type === "membership"
+                      ? "Keanggotaan"
+                      : product.product_type}
+              </Badge>
+            )}
           </div>
           <h1 className="text-3xl font-bold mb-2">{product.title}</h1>
           <p className="text-muted-foreground mb-4">{product.description}</p>
+
+          {product.product_type === "course" && (
+            <div className="mb-4">
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/belajar/${product.id}`}>Buka ruang belajar</Link>
+              </Button>
+            </div>
+          )}
+          {product.product_type === "membership" && (
+            <div className="mb-4">
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/komunitas/${product.id}`}>Buka komunitas</Link>
+              </Button>
+            </div>
+          )}
 
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-1">

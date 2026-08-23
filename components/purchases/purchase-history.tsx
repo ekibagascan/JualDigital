@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
+import { MyLibraryPanels } from "@/components/purchases/my-library-panels"
 
 interface OrderItem {
   id: string
@@ -321,6 +322,7 @@ export function PurchaseHistory() {
           Refresh
         </Button>
       </div>
+      <MyLibraryPanels />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">Semua ({orders.length})</TabsTrigger>

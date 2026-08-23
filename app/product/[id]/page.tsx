@@ -77,6 +77,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     telegram_enabled: (product as ExtendedProduct).telegram_enabled,
     telegram_plan_code: (product as ExtendedProduct).telegram_plan_code,
     telegram_stars_price: (product as ExtendedProduct).telegram_stars_price,
+    product_type: product.product_type,
   }
 
   return (

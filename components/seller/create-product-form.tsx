@@ -18,7 +18,24 @@ import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase-client"
 
+type ProductType = "digital_product" | "service" | "course" | "membership"
+
+type ServicePackageForm = {
+  tier: "basic" | "standard" | "premium"
+  title: string
+  description: string
+  price: string
+  delivery_days: string
+  revisions: string
+  features: string
+}
+
+type CourseLessonForm = { title: string; content_type: string; is_preview: boolean; body: string }
+type CourseSectionForm = { title: string; lessons: CourseLessonForm[] }
+type MembershipTierForm = { name: string; description: string; price_monthly: string; price_yearly: string; perks: string }
+
 export function CreateProductForm() {
+  const [productType, setProductType] = useState<ProductType>("digital_product")
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -42,6 +59,20 @@ export function CreateProductForm() {
   })
 
   const [variants, setVariants] = useState([{ id: 1, name: "Standard", price: "", description: "" }])
+
+  const [servicePackages, setServicePackages] = useState<ServicePackageForm[]>([
+    { tier: "basic", title: "Basic", description: "", price: "", delivery_days: "3", revisions: "1", features: "" },
+    { tier: "standard", title: "Standard", description: "", price: "", delivery_days: "5", revisions: "2", features: "" },
+    { tier: "premium", title: "Premium", description: "", price: "", delivery_days: "7", revisions: "3", features: "" },
+  ])
+
+  const [courseSections, setCourseSections] = useState<CourseSectionForm[]>([
+    { title: "Bab 1", lessons: [{ title: "Pengenalan", content_type: "video", is_preview: true, body: "" }] },
+  ])
+
+  const [membershipTiers, setMembershipTiers] = useState<MembershipTierForm[]>([
+    { name: "Supporter", description: "", price_monthly: "", price_yearly: "", perks: "" },
+  ])
 
   const [newTag, setNewTag] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -234,16 +265,6 @@ export function CreateProductForm() {
       return
     }
 
-    const validVariants = variants.filter((v) => v.name && v.price)
-    if (validVariants.length === 0) {
-      toast({
-        title: "Varian tidak lengkap",
-        description: "Minimal satu varian dengan nama dan harga harus diisi.",
-        variant: "destructive",
-      })
-      return
-    }
-
     if (!formData.title || !formData.description || !formData.category) {
       toast({
         title: "Data tidak lengkap",
@@ -253,34 +274,69 @@ export function CreateProductForm() {
       return
     }
 
-    // Check if at least one variant has price
-    const hasValidPrice = variants.some(v => v.name && v.price && parseFloat(v.price) > 0)
-    if (!hasValidPrice) {
-      toast({
-        title: "Harga tidak valid",
-        description: "Minimal satu varian dengan nama dan harga harus diisi.",
-        variant: "destructive",
-      })
-      return
+    const validVariants = variants.filter((v) => v.name && v.price)
+
+    if (productType === "digital_product" || productType === "course") {
+      if (validVariants.length === 0) {
+        toast({
+          title: "Varian tidak lengkap",
+          description: "Minimal satu varian dengan nama dan harga harus diisi.",
+          variant: "destructive",
+        })
+        return
+      }
+      const hasValidPrice = variants.some((v) => v.name && v.price && parseFloat(v.price) > 0)
+      if (!hasValidPrice) {
+        toast({
+          title: "Harga tidak valid",
+          description: "Minimal satu varian dengan nama dan harga harus diisi.",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
-    // Validate delivery method
-    if (formData.deliveryMethod === "upload" && formData.files.length === 0) {
-      toast({
-        title: "File produk diperlukan",
-        description: "Silakan upload file produk atau pilih metode link.",
-        variant: "destructive",
-      })
-      return
+    if (productType === "digital_product") {
+      if (formData.deliveryMethod === "upload" && formData.files.length === 0) {
+        toast({
+          title: "File produk diperlukan",
+          description: "Silakan upload file produk atau pilih metode link.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (formData.deliveryMethod === "link" && formData.productLinks.length === 0) {
+        toast({
+          title: "Link produk diperlukan",
+          description: "Silakan tambahkan minimal satu link produk.",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
-    if (formData.deliveryMethod === "link" && formData.productLinks.length === 0) {
-      toast({
-        title: "Link produk diperlukan",
-        description: "Silakan tambahkan minimal satu link produk.",
-        variant: "destructive",
-      })
-      return
+    if (productType === "service") {
+      const validPkgs = servicePackages.filter((p) => p.title && p.price && parseFloat(p.price) > 0)
+      if (validPkgs.length === 0) {
+        toast({
+          title: "Paket jasa tidak lengkap",
+          description: "Minimal satu paket dengan judul dan harga harus diisi.",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    if (productType === "membership") {
+      const validTiers = membershipTiers.filter((t) => t.name && t.price_monthly && parseFloat(t.price_monthly) > 0)
+      if (validTiers.length === 0) {
+        toast({
+          title: "Paket keanggotaan tidak lengkap",
+          description: "Minimal satu tier dengan nama dan harga bulanan harus diisi.",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     setIsLoading(true)
@@ -332,13 +388,13 @@ export function CreateProductForm() {
       }
 
       // Create product via API
-      const requestBody = {
+      const requestBody: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
         longDescription: formData.longDescription,
         category: formData.category,
-        price: validVariants[0]?.price || formData.price,
-        variants: variantsData,
+        price: validVariants[0]?.price || formData.price || servicePackages.find((p) => p.price)?.price || membershipTiers.find((t) => t.price_monthly)?.price_monthly,
+        variants: productType === "digital_product" || productType === "course" ? variantsData : [],
         sellerId: user.id,
         language: formData.language,
         tags: formData.tags,
@@ -352,9 +408,59 @@ export function CreateProductForm() {
         imageUrls: imageUrls,
         thumbnailIndex: formData.thumbnailIndex,
         submitForReview,
-        telegramEnabled: telegramFeatureAllowed ? formData.telegramEnabled : false,
+        telegramEnabled: productType === "digital_product" && telegramFeatureAllowed ? formData.telegramEnabled : false,
         telegramPlanCode: formData.telegramPlanCode,
         telegramStarsPrice: formData.telegramStarsPrice,
+        productType,
+      }
+
+      if (productType === "service") {
+        requestBody.servicePackages = servicePackages
+          .filter((p) => p.title && p.price)
+          .map((p) => ({
+            tier: p.tier,
+            title: p.title,
+            description: p.description,
+            price: parseFloat(p.price),
+            delivery_days: parseInt(p.delivery_days, 10) || 3,
+            revisions: parseInt(p.revisions, 10) || 1,
+            features: p.features
+              .split(",")
+              .map((f) => f.trim())
+              .filter(Boolean),
+          }))
+      }
+
+      if (productType === "course") {
+        requestBody.courseSections = courseSections
+          .filter((s) => s.title)
+          .map((s) => ({
+            title: s.title,
+            lessons: s.lessons
+              .filter((l) => l.title)
+              .map((l) => ({
+                title: l.title,
+                content_type: l.content_type || "video",
+                is_preview: !!l.is_preview,
+                body: l.body || null,
+              })),
+          }))
+      }
+
+      if (productType === "membership") {
+        requestBody.membershipTiers = membershipTiers
+          .filter((t) => t.name && t.price_monthly)
+          .map((t, idx) => ({
+            name: t.name,
+            description: t.description,
+            price_monthly: parseFloat(t.price_monthly),
+            price_yearly: t.price_yearly ? parseFloat(t.price_yearly) : null,
+            perks: t.perks
+              .split(",")
+              .map((p) => p.trim())
+              .filter(Boolean),
+            sort_order: idx,
+          }))
       }
 
       console.log('[CREATE PRODUCT] Sending request body:', requestBody)
@@ -433,6 +539,46 @@ export function CreateProductForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Jenis Listing */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Jenis Listing</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Pilih jenis produk yang ingin Anda jual
+          </p>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup
+            value={productType}
+            onValueChange={(value) => setProductType(value as ProductType)}
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          >
+            {(
+              [
+                { value: "digital_product", label: "Produk digital", desc: "File, akun, template, unduhan" },
+                { value: "service", label: "Jasa", desc: "Freelance / gig dengan paket & brief" },
+                { value: "course", label: "Kursus", desc: "Kurikulum dengan pelajaran video/teks" },
+                { value: "membership", label: "Keanggotaan", desc: "Konten berlangganan / komunitas" },
+              ] as const
+            ).map((opt) => (
+              <label
+                key={opt.value}
+                htmlFor={`ptype-${opt.value}`}
+                className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
+                  productType === opt.value ? "border-primary bg-primary/5" : ""
+                }`}
+              >
+                <RadioGroupItem value={opt.value} id={`ptype-${opt.value}`} className="mt-1" />
+                <div>
+                  <p className="font-medium">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </RadioGroup>
+        </CardContent>
+      </Card>
+
       {/* Basic Information */}
       <Card>
         <CardHeader>
@@ -515,6 +661,8 @@ export function CreateProductForm() {
                   <SelectItem value="software">Software</SelectItem>
                   <SelectItem value="template">Template</SelectItem>
                   <SelectItem value="kursus">Kursus Online</SelectItem>
+                  <SelectItem value="jasa">Jasa</SelectItem>
+                  <SelectItem value="keanggotaan">Keanggotaan</SelectItem>
                   <SelectItem value="video">Video</SelectItem>
                   <SelectItem value="music">Musik</SelectItem>
                 </SelectContent>
@@ -538,6 +686,7 @@ export function CreateProductForm() {
         </CardContent>
       </Card>
 
+      {productType === "digital_product" && (
       <Card>
         <CardHeader>
           <CardTitle>Telegram Checkout</CardTitle>
@@ -587,8 +736,10 @@ export function CreateProductForm() {
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* Pricing & Variants */}
+      {/* Pricing & Variants — digital + course */}
+      {(productType === "digital_product" || productType === "course") && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -675,8 +826,324 @@ export function CreateProductForm() {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Product Delivery Method */}
+      {/* Service packages */}
+      {productType === "service" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Paket Jasa (3 Tier)</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Atur paket Basic, Standard, dan Premium untuk listing jasa Anda.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {servicePackages.map((pkg, index) => (
+              <div key={pkg.tier} className="p-4 border rounded-lg space-y-3">
+                <h4 className="font-medium capitalize">{pkg.tier}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Judul paket *</Label>
+                    <Input
+                      value={pkg.title}
+                      onChange={(e) => {
+                        const next = [...servicePackages]
+                        next[index] = { ...pkg, title: e.target.value }
+                        setServicePackages(next)
+                      }}
+                      placeholder="Contoh: Desain logo basic"
+                    />
+                  </div>
+                  <div>
+                    <Label>Harga (Rp) *</Label>
+                    <Input
+                      type="number"
+                      value={pkg.price}
+                      onChange={(e) => {
+                        const next = [...servicePackages]
+                        next[index] = { ...pkg, price: e.target.value }
+                        setServicePackages(next)
+                      }}
+                      placeholder="150000"
+                    />
+                  </div>
+                  <div>
+                    <Label>Hari pengerjaan</Label>
+                    <Input
+                      type="number"
+                      value={pkg.delivery_days}
+                      onChange={(e) => {
+                        const next = [...servicePackages]
+                        next[index] = { ...pkg, delivery_days: e.target.value }
+                        setServicePackages(next)
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label>Jumlah revisi</Label>
+                    <Input
+                      type="number"
+                      value={pkg.revisions}
+                      onChange={(e) => {
+                        const next = [...servicePackages]
+                        next[index] = { ...pkg, revisions: e.target.value }
+                        setServicePackages(next)
+                      }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Deskripsi</Label>
+                  <Textarea
+                    value={pkg.description}
+                    onChange={(e) => {
+                      const next = [...servicePackages]
+                      next[index] = { ...pkg, description: e.target.value }
+                      setServicePackages(next)
+                    }}
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <Label>Fitur (pisahkan dengan koma)</Label>
+                  <Input
+                    value={pkg.features}
+                    onChange={(e) => {
+                      const next = [...servicePackages]
+                      next[index] = { ...pkg, features: e.target.value }
+                      setServicePackages(next)
+                    }}
+                    placeholder="Source file, 2 konsep, revisi unlimited"
+                  />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Course curriculum */}
+      {productType === "course" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Kurikulum Kursus
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setCourseSections([
+                    ...courseSections,
+                    { title: `Bab ${courseSections.length + 1}`, lessons: [{ title: "", content_type: "video", is_preview: false, body: "" }] },
+                  ])
+                }
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Tambah Bab
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {courseSections.map((section, sIdx) => (
+              <div key={sIdx} className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={section.title}
+                    onChange={(e) => {
+                      const next = [...courseSections]
+                      next[sIdx] = { ...section, title: e.target.value }
+                      setCourseSections(next)
+                    }}
+                    placeholder="Judul bab"
+                  />
+                  {courseSections.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCourseSections(courseSections.filter((_, i) => i !== sIdx))}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                {section.lessons.map((lesson, lIdx) => (
+                  <div key={lIdx} className="grid grid-cols-1 md:grid-cols-3 gap-2 pl-2 border-l-2">
+                    <Input
+                      value={lesson.title}
+                      onChange={(e) => {
+                        const next = [...courseSections]
+                        const lessons = [...section.lessons]
+                        lessons[lIdx] = { ...lesson, title: e.target.value }
+                        next[sIdx] = { ...section, lessons }
+                        setCourseSections(next)
+                      }}
+                      placeholder="Judul pelajaran"
+                    />
+                    <Select
+                      value={lesson.content_type}
+                      onValueChange={(value) => {
+                        const next = [...courseSections]
+                        const lessons = [...section.lessons]
+                        lessons[lIdx] = { ...lesson, content_type: value }
+                        next[sIdx] = { ...section, lessons }
+                        setCourseSections(next)
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="video">Video</SelectItem>
+                        <SelectItem value="text">Teks</SelectItem>
+                        <SelectItem value="file">File</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={lesson.is_preview}
+                        onCheckedChange={(checked) => {
+                          const next = [...courseSections]
+                          const lessons = [...section.lessons]
+                          lessons[lIdx] = { ...lesson, is_preview: checked }
+                          next[sIdx] = { ...section, lessons }
+                          setCourseSections(next)
+                        }}
+                      />
+                      <Label className="text-xs">Preview gratis</Label>
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const next = [...courseSections]
+                    next[sIdx] = {
+                      ...section,
+                      lessons: [...section.lessons, { title: "", content_type: "video", is_preview: false, body: "" }],
+                    }
+                    setCourseSections(next)
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Tambah pelajaran
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Membership tiers */}
+      {productType === "membership" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Paket Keanggotaan
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setMembershipTiers([
+                    ...membershipTiers,
+                    { name: "", description: "", price_monthly: "", price_yearly: "", perks: "" },
+                  ])
+                }
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Tambah Tier
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {membershipTiers.map((tier, index) => (
+              <div key={index} className="p-4 border rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <h4 className="font-medium">Tier {index + 1}</h4>
+                  {membershipTiers.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMembershipTiers(membershipTiers.filter((_, i) => i !== index))}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Nama *</Label>
+                    <Input
+                      value={tier.name}
+                      onChange={(e) => {
+                        const next = [...membershipTiers]
+                        next[index] = { ...tier, name: e.target.value }
+                        setMembershipTiers(next)
+                      }}
+                      placeholder="Supporter"
+                    />
+                  </div>
+                  <div>
+                    <Label>Harga bulanan *</Label>
+                    <Input
+                      type="number"
+                      value={tier.price_monthly}
+                      onChange={(e) => {
+                        const next = [...membershipTiers]
+                        next[index] = { ...tier, price_monthly: e.target.value }
+                        setMembershipTiers(next)
+                      }}
+                      placeholder="49000"
+                    />
+                  </div>
+                  <div>
+                    <Label>Harga tahunan (opsional)</Label>
+                    <Input
+                      type="number"
+                      value={tier.price_yearly}
+                      onChange={(e) => {
+                        const next = [...membershipTiers]
+                        next[index] = { ...tier, price_yearly: e.target.value }
+                        setMembershipTiers(next)
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label>Benefit (pisahkan koma)</Label>
+                    <Input
+                      value={tier.perks}
+                      onChange={(e) => {
+                        const next = [...membershipTiers]
+                        next[index] = { ...tier, perks: e.target.value }
+                        setMembershipTiers(next)
+                      }}
+                      placeholder="Akses chat, konten eksklusif"
+                    />
+                  </div>
+                </div>
+                <Textarea
+                  value={tier.description}
+                  onChange={(e) => {
+                    const next = [...membershipTiers]
+                    next[index] = { ...tier, description: e.target.value }
+                    setMembershipTiers(next)
+                  }}
+                  placeholder="Deskripsi tier"
+                  rows={2}
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Product Delivery Method — digital only */}
+      {productType === "digital_product" && (
       <Card>
         <CardHeader>
           <CardTitle>Metode Pengiriman Produk</CardTitle>
@@ -787,6 +1254,7 @@ export function CreateProductForm() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Images Upload */}
       <Card>

@@ -39,10 +39,19 @@ const RATING_OPTIONS = [
   { id: "3", label: "3+ Bintang" },
 ]
 
+const TYPE_OPTIONS = [
+  { value: "", label: "Semua jenis" },
+  { value: "digital_product", label: "Produk digital" },
+  { value: "service", label: "Jasa" },
+  { value: "course", label: "Kursus" },
+  { value: "membership", label: "Keanggotaan" },
+]
+
 export function ProductsFilter() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const selectedSort = searchParams.get("sort") || "popular"
+  const selectedType = searchParams.get("type") || ""
   const viewMode = searchParams.get("view") === "list" ? "list" : "grid"
   const [open, setOpen] = useState(false)
 
@@ -88,6 +97,13 @@ export function ProductsFilter() {
   const handleSortChange = (sort: string) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set("sort", sort)
+    router.push(`${window.location.pathname}?${params.toString()}`)
+  }
+
+  const handleTypeChange = (type: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (type) params.set("type", type)
+    else params.delete("type")
     router.push(`${window.location.pathname}?${params.toString()}`)
   }
 
@@ -151,6 +167,7 @@ export function ProductsFilter() {
     params.delete("price_max")
     params.delete("categories")
     params.delete("ratings")
+    params.delete("type")
 
     setSelectedPrice("all")
     setSelectedCategories([])
@@ -161,6 +178,21 @@ export function ProductsFilter() {
   }
 
   return (
+    <div className="space-y-3">
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {TYPE_OPTIONS.map((option) => (
+        <Button
+          key={option.value || "all-types"}
+          type="button"
+          size="sm"
+          variant={selectedType === option.value ? "default" : "outline"}
+          onClick={() => handleTypeChange(option.value)}
+          className="whitespace-nowrap rounded-xl"
+        >
+          {option.label}
+        </Button>
+      ))}
+    </div>
     <div className="flex items-center gap-2">
       <div className="flex-1 min-w-0">
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -278,6 +310,7 @@ export function ProductsFilter() {
           <List className="h-4 w-4" />
         </Button>
       </div>
+    </div>
     </div>
   )
 }

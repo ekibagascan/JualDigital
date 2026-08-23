@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
       telegramEnabled,
       telegramPlanCode,
       telegramStarsPrice,
+      productType,
+      servicePackages,
+      courseSections,
+      membershipTiers,
     } = body
 
     // If auth failed, try to get user from sellerId in body
@@ -101,11 +105,22 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!title || !description || !category || !price) {
+    const allowedTypes = ['digital_product', 'service', 'course', 'membership'] as const
+    type ProductType = (typeof allowedTypes)[number]
+    const resolvedType: ProductType = allowedTypes.includes(productType as ProductType)
+      ? (productType as ProductType)
+      : 'digital_product'
+
+    if (!title || !description || !category) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Judul, deskripsi, dan kategori wajib diisi' },
         { status: 400 }
       )
+    }
+
+    // Price required for digital; service/membership use package/tier prices
+    if (resolvedType === 'digital_product' && (price === undefined || price === null || price === '')) {
+      return NextResponse.json({ error: 'Harga wajib diisi' }, { status: 400 })
     }
 
     // Determine initial status
@@ -122,8 +137,13 @@ export async function POST(req: NextRequest) {
     // Map delivery method: form uses "upload", DB expects "file"
     const dbDeliveryMethod = deliveryMethod === 'upload' ? 'file' : (deliveryMethod || 'file')
 
-    // Safely parse price
-    const parsedPrice = parseFloat(price)
+    // Derive display price from type-specific packages when needed
+    let parsedPrice = parseFloat(price)
+    if (resolvedType === 'service' && Array.isArray(servicePackages) && servicePackages.length) {
+      parsedPrice = Math.min(...servicePackages.map((p: { price: number | string }) => parseFloat(String(p.price))))
+    } else if (resolvedType === 'membership' && Array.isArray(membershipTiers) && membershipTiers.length) {
+      parsedPrice = Math.min(...membershipTiers.map((t: { price_monthly: number | string }) => parseFloat(String(t.price_monthly))))
+    }
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       return NextResponse.json(
         { error: 'Harga tidak valid' },
@@ -137,6 +157,7 @@ export async function POST(req: NextRequest) {
       description,
       long_description: longDescription || null,
       category,
+      product_type: resolvedType,
       price: parsedPrice,
       original_price: originalPrice ? parseFloat(originalPrice) : null,
       seller_id: user.id,
@@ -146,17 +167,17 @@ export async function POST(req: NextRequest) {
       live_preview: livePreview || null,
       license: license || null,
       format: format || null,
-      delivery_method: dbDeliveryMethod,
+      delivery_method: resolvedType === 'digital_product' ? dbDeliveryMethod : 'link',
       download_limit: downloadLimit || -1,
       file_url: null,
-      download_link: dbDeliveryMethod === 'link' && productLinks && productLinks.length > 0 
+      download_link: resolvedType === 'digital_product' && dbDeliveryMethod === 'link' && productLinks && productLinks.length > 0 
         ? productLinks[0].url 
         : null,
       image_url: (imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined) 
         ? imageUrls[thumbnailIndex] || imageUrls[0] 
         : imageUrl || null,
       images: imageUrls && imageUrls.length > 0 ? imageUrls : null,
-      telegram_enabled: !!telegramEnabled,
+      telegram_enabled: resolvedType === 'digital_product' ? !!telegramEnabled : false,
       telegram_plan_code: telegramPlanCode?.trim() || null,
       telegram_stars_price: telegramStarsPrice ? parseInt(String(telegramStarsPrice), 10) || null : null,
     }
@@ -178,36 +199,141 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Create product variants if provided
-    if (variants && variants.length > 0 && product) {
-      const variantData = variants.map((variant: { name: string; price: number; description: string }) => ({
-        product_id: product.id,
-        name: variant.name,
-        price: variant.price,
-        description: variant.description || ''
-      }))
-
-      const { error: variantError } = await supabase
-        .from('product_variants')
-        .insert(variantData)
-
-      if (variantError) {
-        console.error('[SELLER PRODUCTS API] Variant creation error:', variantError)
-        // Don't fail the entire request if variants fail, just log the error
-      }
-    } else if (product) {
-      // Create default variant if none provided
-      const { error: defaultVariantError } = await supabase
-        .from('product_variants')
-        .insert({
+    // Create product variants if provided (digital + course display tiers)
+    if (resolvedType === 'digital_product' || resolvedType === 'course') {
+      if (variants && variants.length > 0 && product) {
+        const variantData = variants.map((variant: { name: string; price: number; description: string }) => ({
           product_id: product.id,
-          name: 'Standard',
-          price: parseFloat(price),
-          description: 'Default variant'
-        })
+          name: variant.name,
+          price: variant.price,
+          description: variant.description || ''
+        }))
 
-      if (defaultVariantError) {
-        console.error('[SELLER PRODUCTS API] Default variant creation error:', defaultVariantError)
+        const { error: variantError } = await supabase
+          .from('product_variants')
+          .insert(variantData)
+
+        if (variantError) {
+          console.error('[SELLER PRODUCTS API] Variant creation error:', variantError)
+        }
+      } else if (product) {
+        const { error: defaultVariantError } = await supabase
+          .from('product_variants')
+          .insert({
+            product_id: product.id,
+            name: 'Standard',
+            price: parsedPrice,
+            description: 'Default variant'
+          })
+
+        if (defaultVariantError) {
+          console.error('[SELLER PRODUCTS API] Default variant creation error:', defaultVariantError)
+        }
+      }
+    }
+
+    // Service packages
+    if (resolvedType === 'service' && product && Array.isArray(servicePackages)) {
+      const rows = servicePackages
+        .filter((p: { title?: string; price?: number | string }) => p.title && p.price !== undefined)
+        .map((p: {
+          tier?: string
+          title: string
+          description?: string
+          price: number | string
+          delivery_days?: number
+          revisions?: number
+          features?: string[]
+          sort_order?: number
+        }, idx: number) => ({
+          product_id: product.id,
+          tier: p.tier || ['basic', 'standard', 'premium'][idx] || 'basic',
+          title: p.title,
+          description: p.description || null,
+          price: parseFloat(String(p.price)),
+          delivery_days: p.delivery_days ?? 3,
+          revisions: p.revisions ?? 1,
+          features: p.features || [],
+          sort_order: p.sort_order ?? idx,
+        }))
+      if (rows.length) {
+        const { error: pkgErr } = await supabase.from('service_packages').insert(rows)
+        if (pkgErr) console.error('[SELLER PRODUCTS API] service_packages', pkgErr)
+      }
+    }
+
+    // Course curriculum
+    if (resolvedType === 'course' && product && Array.isArray(courseSections)) {
+      for (let sIdx = 0; sIdx < courseSections.length; sIdx++) {
+        const section = courseSections[sIdx] as {
+          title: string
+          lessons?: Array<{
+            title: string
+            content_type?: string
+            video_path?: string
+            body?: string
+            file_path?: string
+            duration_sec?: number
+            is_preview?: boolean
+          }>
+        }
+        if (!section?.title) continue
+        const { data: sec, error: secErr } = await supabase
+          .from('course_sections')
+          .insert({
+            product_id: product.id,
+            title: section.title,
+            sort_order: sIdx,
+          })
+          .select('id')
+          .single()
+        if (secErr || !sec) {
+          console.error('[SELLER PRODUCTS API] course_sections', secErr)
+          continue
+        }
+        const lessons = section.lessons || []
+        if (lessons.length) {
+          const lessonRows = lessons.map((l, lIdx) => ({
+            section_id: sec.id,
+            title: l.title,
+            content_type: l.content_type || 'video',
+            video_path: l.video_path || null,
+            body: l.body || null,
+            file_path: l.file_path || null,
+            duration_sec: l.duration_sec || 0,
+            is_preview: !!l.is_preview,
+            sort_order: lIdx,
+          }))
+          const { error: lesErr } = await supabase.from('course_lessons').insert(lessonRows)
+          if (lesErr) console.error('[SELLER PRODUCTS API] course_lessons', lesErr)
+        }
+      }
+    }
+
+    // Membership tiers
+    if (resolvedType === 'membership' && product && Array.isArray(membershipTiers)) {
+      const rows = membershipTiers
+        .filter((t: { name?: string; price_monthly?: number | string }) => t.name && t.price_monthly !== undefined)
+        .map((t: {
+          name: string
+          description?: string
+          price_monthly: number | string
+          price_yearly?: number | string
+          perks?: string[]
+          sort_order?: number
+        }, idx: number) => ({
+          product_id: product.id,
+          name: t.name,
+          description: t.description || null,
+          price_monthly: parseFloat(String(t.price_monthly)),
+          price_yearly: t.price_yearly != null ? parseFloat(String(t.price_yearly)) : null,
+          perks: t.perks || [],
+          sort_order: t.sort_order ?? idx,
+          is_active: true,
+        }))
+      if (rows.length) {
+        const { error: tierErr } = await supabase.from('membership_tiers').insert(rows)
+        if (tierErr) console.error('[SELLER PRODUCTS API] membership_tiers', tierErr)
       }
     }
 

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { sendDownloadEmail } from '@/lib/email-service'
 
 export const dynamic = 'force-dynamic'
+import { isAdminRequest } from '@/lib/admin-session'
 
 /**
  * POST /api/admin/broadcast-sellers
@@ -14,8 +15,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   try {
-    const adminAuth = req.cookies.get('admin-auth')?.value
-    if (!adminAuth || adminAuth !== 'authenticated') {
+    if (!isAdminRequest(req)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

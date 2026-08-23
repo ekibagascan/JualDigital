@@ -35,3 +35,10 @@ product_update_marketing.sql
 dana_production_private_key.pem
 dana_production_public_key.pem
 *.pem
+# Sensitive dumps — never commit
+all-emails.txt
+email-list.json
+profiles_rows.json
+users.sql
+dana-payload-production.json
+payload-va-gapura.json

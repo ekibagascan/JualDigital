@@ -4,12 +4,12 @@ import { OrderService } from '@/lib/order-service'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+import { isAdminRequest } from '@/lib/admin-session'
 
 export async function POST(req: NextRequest) {
   try {
     // Check admin authentication
-    const adminAuth = req.cookies.get('admin-auth')?.value
-    if (!adminAuth || adminAuth !== 'authenticated') {
+    if (!isAdminRequest(req)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -68,6 +68,13 @@ export async function POST(req: NextRequest) {
 
       // Update order status using OrderService to trigger fulfillment
       await orderService.updateOrderStatus(orderId, 'paid')
+
+      try {
+        const { fulfillPaidOrder } = await import('@/lib/fulfillment-service')
+        await fulfillPaidOrder(supabase, orderId)
+      } catch (fulfillErr) {
+        console.error('[CONFIRM PAYMENT] Fulfillment error:', fulfillErr)
+      }
 
       // Send download emails to customers
       const { data: orderItems } = await supabase

@@ -17,6 +17,8 @@ export interface OrderItem {
   image_url?: string
   /** When set, unit price must come from this variant (not base product.price). */
   variant_id?: string | null
+  /** When set (jasa), unit price comes from service_packages. */
+  package_id?: string | null
 }
 
 export interface CreateOrderRequest {
@@ -160,9 +162,38 @@ export class OrderService {
         }
       }
 
+      const packageIds = [
+        ...new Set(
+          orderData.items
+            .map((i) => i.package_id)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0),
+        ),
+      ]
+      const packageMap: Record<string, { product_id: string; price: number }> = {}
+      if (packageIds.length > 0) {
+        const { data: packages, error: packageError } = await this.supabase
+          .from('service_packages')
+          .select('id, product_id, price')
+          .in('id', packageIds)
+        if (packageError) {
+          console.error('Error fetching service packages:', packageError)
+          throw new Error('Failed to resolve service package prices')
+        }
+        for (const p of packages || []) {
+          packageMap[p.id] = { product_id: p.product_id, price: Number(p.price) || 0 }
+        }
+      }
+
       const resolveUnitPrice = (item: OrderItem): number => {
         const product = productMap[item.product_id]
         if (!product) throw new Error('Product not found')
+        if (item.package_id) {
+          const pkg = packageMap[item.package_id]
+          if (!pkg || pkg.product_id !== item.product_id) {
+            throw new Error('Invalid or expired service package — refresh cart and try again')
+          }
+          return Math.round(pkg.price)
+        }
         if (item.variant_id) {
           const v = variantMap[item.variant_id]
           if (!v || v.product_id !== item.product_id) {

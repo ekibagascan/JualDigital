@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+import { isAdminRequest } from '@/lib/admin-session'
 
 // GET settings
 export async function GET(req: NextRequest) {
   try {
     // Check admin authentication
-    const adminAuth = req.cookies.get('admin-auth')?.value
-    if (!adminAuth || adminAuth !== 'authenticated') {
+    if (!isAdminRequest(req)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -65,8 +65,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     // Check admin authentication
-    const adminAuth = req.cookies.get('admin-auth')?.value
-    if (!adminAuth || adminAuth !== 'authenticated') {
+    if (!isAdminRequest(req)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

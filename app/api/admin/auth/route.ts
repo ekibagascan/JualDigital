@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
+import { ADMIN_COOKIE, createAdminSessionToken } from '@/lib/admin-session'
 
 // Simple in-memory rate limiting (in production, use Redis or database)
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>()
@@ -76,13 +77,12 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       )
 
-      // Set secure HTTP-only cookie for admin authentication
-      response.cookies.set('admin-auth', 'authenticated', {
+      response.cookies.set(ADMIN_COOKIE.name, createAdminSessionToken(), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24, // 24 hours
-        path: '/'
+        maxAge: ADMIN_COOKIE.maxAge,
+        path: '/',
       })
 
       return response

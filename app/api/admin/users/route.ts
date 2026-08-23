@@ -6,13 +6,13 @@ import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/
 import { generateSlug, isReservedSlug } from '@/lib/slug-utils'
 
 export const dynamic = 'force-dynamic'
+import { isAdminRequest } from '@/lib/admin-session'
 
 export async function GET(req: NextRequest) {
   noStore()
   try {
     // Check admin authentication
-    const adminAuth = req.cookies.get('admin-auth')?.value
-    if (!adminAuth || adminAuth !== 'authenticated') {
+    if (!isAdminRequest(req)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -237,8 +237,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     // Check admin authentication
-    const adminAuth = req.cookies.get('admin-auth')?.value
-    if (!adminAuth || adminAuth !== 'authenticated') {
+    if (!isAdminRequest(req)) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

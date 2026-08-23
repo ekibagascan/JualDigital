@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { verifyAdminSessionToken } from '@/lib/admin-session'
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,23 +15,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // 🔒 ADMIN ROUTE PROTECTION
-
-  // Check if accessing admin routes (excluding login)
+  // 🔒 ADMIN ROUTE PROTECTION — signed session token only
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
-    // Check for admin authentication cookie
     const adminAuth = request.cookies.get('admin-auth')?.value;
-
-    if (!adminAuth) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
-    }
-
-    // Verify admin session
-    try {
-      if (adminAuth !== 'authenticated') {
-        return NextResponse.redirect(new URL('/admin/login', request.url));
-      }
-    } catch {
+    if (!verifyAdminSessionToken(adminAuth)) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
   }
@@ -46,6 +34,9 @@ export function middleware(request: NextRequest) {
     '/wishlist',
     '/seller',
     '/seller/',
+    '/pesanan-jasa',
+    '/belajar',
+    '/komunitas',
   ];
 
   // Cart and checkout should be accessible even without full auth

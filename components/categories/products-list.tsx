@@ -65,12 +65,16 @@ export function ProductsList({ category }: ProductsListProps) {
           categories?: string[]
           min_rating?: number
           sort?: string
+          product_type?: string
         } = {
           category,
           limit: itemsPerPage,
           offset: (currentPage - 1) * itemsPerPage,
           sort,
         }
+
+        const productType = searchParams.get("type")
+        if (productType) filters.product_type = productType
 
         // Add price filters
         if (price_min) filters.price_min = Number.parseInt(price_min)

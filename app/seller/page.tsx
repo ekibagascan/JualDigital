@@ -387,10 +387,15 @@ export default function SellerDashboard() {
                                 Lihat dan kelola pesanan masuk
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-2">
                             <Link href="/seller/orders">
                                 <Button variant="outline" className="w-full">
                                     Lihat Pesanan
+                                </Button>
+                            </Link>
+                            <Link href="/seller/pesanan-jasa">
+                                <Button variant="secondary" className="w-full">
+                                    Pesanan Jasa
                                 </Button>
                             </Link>
                         </CardContent>
