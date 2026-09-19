@@ -37,6 +37,16 @@ function PaymentSuccessContent() {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        // Hand off to native iOS app when opened from Safari checkout
+        if (orderId && typeof window !== "undefined") {
+            const deepLink = `jualdigital://payment/success?order_id=${encodeURIComponent(orderId)}`
+            const ua = navigator.userAgent || ""
+            const isIOS = /iPhone|iPad|iPod/i.test(ua)
+            if (isIOS) {
+                window.location.href = deepLink
+            }
+        }
+
         const fetchOrder = async () => {
             if (orderId) {
                 try {
