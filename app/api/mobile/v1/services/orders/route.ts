@@ -31,7 +31,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Gagal memuat pesanan jasa' }, { status: 500 })
     }
 
-    return NextResponse.json({ orders: data || [] })
+    const orders = (data || []).map((row) => {
+      const product = row.products as { title?: string; image_url?: string } | null
+      const pkg = row.service_packages as { title?: string; id?: string } | null
+      return {
+        ...row,
+        product_title: product?.title || 'Jasa',
+        product_image: product?.image_url || null,
+        package_name: pkg?.title || null,
+        package_id: row.package_id || pkg?.id || null,
+        status: row.status === 'awaiting_requirements' ? 'pending' : row.status,
+        raw_status: row.status,
+      }
+    })
+
+    return NextResponse.json({ orders })
   } catch (error) {
     console.error('[MOBILE SERVICE ORDERS] Error:', error)
     return NextResponse.json({ error: 'Gagal memuat pesanan jasa' }, { status: 500 })

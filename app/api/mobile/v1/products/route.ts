@@ -10,7 +10,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const q = searchParams.get('q')?.trim() || ''
     const category = searchParams.get('category')?.trim() || ''
-    const type = searchParams.get('type')?.trim() || ''
+    const type =
+      searchParams.get('type')?.trim() ||
+      searchParams.get('product_type')?.trim() ||
+      ''
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
     const limit = Math.min(
       50,

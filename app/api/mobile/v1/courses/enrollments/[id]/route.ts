@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { getUserFromRequest, serviceRoleClient } from '@/lib/mobile-auth'
 
-/** GET course enrollments for the authenticated user */
-export async function GET(request: NextRequest) {
+/** GET single course enrollment */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const user = await getUserFromRequest(request)
     if (!user) {
@@ -24,28 +27,34 @@ export async function GET(request: NextRequest) {
         )
       `
       )
+      .eq('id', params.id)
       .eq('user_id', user.id)
-      .order('enrolled_at', { ascending: false })
+      .maybeSingle()
 
     if (error) {
-      console.error('[MOBILE ENROLLMENTS]', error)
-      return NextResponse.json({ error: 'Gagal memuat pendaftaran kursus' }, { status: 500 })
+      console.error('[MOBILE ENROLLMENT]', error)
+      return NextResponse.json({ error: 'Gagal memuat pendaftaran' }, { status: 500 })
+    }
+    if (!data) {
+      return NextResponse.json({ error: 'Pendaftaran tidak ditemukan' }, { status: 404 })
     }
 
-    const enrollments = (data || []).map((row) => {
-      const product = row.products as { title?: string; image_url?: string } | null
-      return {
-        ...row,
-        product_id: row.product_id,
+    const product = data.products as {
+      title?: string
+      image_url?: string
+    } | null
+
+    return NextResponse.json({
+      enrollment: {
+        ...data,
+        product_id: data.product_id,
         product_title: product?.title || 'Kursus',
         product_image: product?.image_url || null,
-        progress_percent: row.progress_percent ?? 0,
-      }
+        progress_percent: data.progress_percent ?? 0,
+      },
     })
-
-    return NextResponse.json({ enrollments })
   } catch (error) {
-    console.error('[MOBILE ENROLLMENTS] Error:', error)
-    return NextResponse.json({ error: 'Gagal memuat pendaftaran kursus' }, { status: 500 })
+    console.error('[MOBILE ENROLLMENT] Error:', error)
+    return NextResponse.json({ error: 'Gagal memuat pendaftaran' }, { status: 500 })
   }
 }

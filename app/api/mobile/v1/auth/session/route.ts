@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const supabase = serviceRoleClient()
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, name, avatar_url, shop_logo, business_name, phone, bio, role, created_at')
+      .select('id, name, avatar_url, shop_logo, business_name, phone, bio, role, seller_status, created_at')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
         business_name: profile?.business_name ?? null,
         shop_logo: profile?.shop_logo ?? null,
         role,
+        seller_status: profile?.seller_status ?? null,
         is_seller: role === 'seller' || role === 'admin',
         created_at: profile?.created_at ?? user.created_at,
       },

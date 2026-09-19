@@ -35,7 +35,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Gagal memuat langganan' }, { status: 500 })
     }
 
-    return NextResponse.json({ subscriptions: data || [] })
+    const subscriptions = (data || []).map((row) => {
+      const product = row.products as { title?: string; image_url?: string } | null
+      const tier = row.membership_tiers as { name?: string; id?: string } | null
+      return {
+        ...row,
+        product_id: row.product_id,
+        product_title: product?.title || 'Keanggotaan',
+        product_image: product?.image_url || null,
+        tier_id: row.tier_id || tier?.id || null,
+        tier_name: tier?.name || null,
+        renews_at: row.current_period_end || row.renews_at || null,
+      }
+    })
+
+    return NextResponse.json({ subscriptions })
   } catch (error) {
     console.error('[MOBILE SUBSCRIPTIONS] Error:', error)
     return NextResponse.json({ error: 'Gagal memuat langganan' }, { status: 500 })
