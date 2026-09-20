@@ -21,6 +21,11 @@ export async function POST(req: NextRequest) {
     const accountNumber = pickBody<string>(body, 'accountNumber', 'account_number')
     const accountName = pickBody<string>(body, 'accountName', 'account_name')
     const fullName = pickBody<string>(body, 'fullName', 'full_name', 'name')
+    const address = pickBody<string>(body, 'address')
+    const city = pickBody<string>(body, 'city')
+    const category = pickBody<string>(body, 'category', 'business_category')
+    const website = pickBody<string>(body, 'website')
+    const socialMedia = pickBody<string>(body, 'socialMedia', 'social_media')
 
     if (!businessName || !phone || !bankName || !accountNumber || !accountName) {
       return NextResponse.json(
@@ -32,7 +37,7 @@ export async function POST(req: NextRequest) {
     const supabase = serviceRoleClient()
     const { data: existing } = await supabase
       .from('profiles')
-      .select('id, name, role, status, seller_status')
+      .select('id, name, role, status')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -65,13 +70,41 @@ export async function POST(req: NextRequest) {
     }
     if (fullName) updatePayload.name = fullName
     else if (!existing?.name) updatePayload.name = businessName
+    if (address) updatePayload.address = address
+    if (city) updatePayload.city = city
+    if (category) updatePayload.business_category = category
+    if (website) updatePayload.website = website
+    if (socialMedia) updatePayload.social_media = socialMedia
 
-    const { data: profile, error } = await supabase
+    let { data: profile, error } = await supabase
       .from('profiles')
       .update(updatePayload)
       .eq('id', user.id)
       .select('id, name, role, status')
       .single()
+
+    if (error) {
+      const corePayload = {
+        phone,
+        business_name: businessName,
+        business_description: description || null,
+        bank_name: bankName,
+        account_number: accountNumber,
+        account_name: accountName,
+        role: 'seller',
+        status: 'pending',
+        updated_at: new Date().toISOString(),
+        name: (fullName || existing?.name || businessName) as string,
+      }
+      const retry = await supabase
+        .from('profiles')
+        .update(corePayload)
+        .eq('id', user.id)
+        .select('id, name, role, status')
+        .single()
+      profile = retry.data
+      error = retry.error
+    }
 
     if (error) {
       console.error('[SELLER REGISTER] update error:', error)
