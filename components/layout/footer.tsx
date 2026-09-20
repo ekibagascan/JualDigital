@@ -41,9 +41,13 @@ export function Footer() {
           {/* Brand */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 rounded bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">JD</span>
-              </div>
+              <img
+                src="/logo.png"
+                alt="Jual Digital"
+                className="h-8 w-8 rounded object-cover"
+                width={32}
+                height={32}
+              />
               <span className="font-bold text-xl">Jual Digital</span>
             </Link>
             <p className="text-sm text-muted-foreground">

@@ -84,9 +84,13 @@ export function Header() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">JD</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Jual Digital"
+              className="h-8 w-8 rounded object-cover"
+              width={32}
+              height={32}
+            />
             <span className="font-bold text-sm sm:text-base md:text-lg whitespace-nowrap">Jual Digital</span>
           </Link>
 
