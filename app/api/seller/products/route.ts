@@ -1,102 +1,122 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
-import { createServerClient } from '@supabase/ssr'
+import { getUserFromRequest, pickBody, serviceRoleClient } from '@/lib/mobile-auth'
 import { calculateSellerTrustScore } from '@/lib/seller-trust-service'
+
+const ALLOWED_TYPES = ['digital_product', 'service', 'course', 'membership'] as const
+type ProductType = (typeof ALLOWED_TYPES)[number]
+
+function normalizeLanguage(lang: unknown): string {
+  const s = String(lang || 'id').trim().toLowerCase()
+  if (!s || s === 'indonesia' || s === 'indonesian' || s === 'id') return 'id'
+  if (s === 'english' || s === 'en') return 'en'
+  if (s === 'both' || s === 'bilingual') return 'both'
+  return String(lang)
+}
+
+function normalizeLicense(license: unknown): string | null {
+  if (license === undefined || license === null || license === '') return null
+  const s = String(license).trim().toLowerCase()
+  if (s === 'personal') return 'personal'
+  if (s === 'commercial' || s === 'komersial') return 'commercial'
+  if (s === 'extended') return 'extended'
+  return String(license)
+}
+
+function parsePrice(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (value === undefined || value === null || value === '') return NaN
+  return parseFloat(String(value))
+}
+
+function asObject(body: unknown): Record<string, unknown> {
+  return body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
+}
+
+function linkList(body: Record<string, unknown>, downloadLink: unknown) {
+  const raw = pickBody<unknown>(body, 'productLinks', 'product_links')
+  const links = Array.isArray(raw) ? raw : []
+  if (links.length) return links as Array<{ name?: string; url?: string }>
+  if (typeof downloadLink === 'string' && downloadLink.trim()) {
+    return [{ name: 'Download', url: downloadLink.trim() }]
+  }
+  return []
+}
+
+async function requireSeller(userId: string) {
+  const supabase = serviceRoleClient()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, telegram_feature_enabled')
+    .eq('id', userId)
+    .single()
+
+  if (!profile || (profile.role !== 'seller' && profile.role !== 'admin')) {
+    return { supabase, profile: null as typeof profile }
+  }
+  return { supabase, profile }
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // Create Supabase client with service role key
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Route handler - cookies set via response
-          },
-        },
-      }
-    )
+    const user = await getUserFromRequest(req)
+    const body = asObject(await req.json())
 
-    // Get user from auth token (try multiple cookie names)
-    let user = null
+    let actor = user
+    const sellerId = pickBody<string>(body, 'sellerId', 'seller_id')
+    const supabaseProbe = serviceRoleClient()
 
-    // Try to get user from auth
-    const { data: { user: authUser }, error: userError } = await supabase.auth.getUser()
-    
-    if (!userError && authUser) {
-      user = authUser
-    }
-
-    // Get request body for product data
-    const body = await req.json()
-    const { 
-      title, 
-      description, 
-      longDescription, 
-      category, 
-      price, 
-      variants, 
-      sellerId,
-      language,
-      deliveryMethod,
-      tags,
-      livePreview,
-      license,
-      format,
-      originalPrice,
-      productLinks,
-      downloadLimit,
-      imageUrl,
-      imageUrls,
-      thumbnailIndex,
-      submitForReview, // true = pending (for admin review), false/undefined = draft
-      telegramEnabled,
-      telegramPlanCode,
-      telegramStarsPrice,
-      productType,
-      servicePackages,
-      courseSections,
-      membershipTiers,
-    } = body
-
-    // If auth failed, try to get user from sellerId in body
-    if (!user && sellerId) {
-      // Get user profile by ID
-      const { data: profile } = await supabase
+    if (!actor && sellerId) {
+      const { data: profile } = await supabaseProbe
         .from('profiles')
-        .select('*')
+        .select('id, role')
         .eq('id', sellerId)
         .single()
-      
-      if (profile && profile.role === 'seller') {
-        user = { id: sellerId }
+      if (profile && (profile.role === 'seller' || profile.role === 'admin')) {
+        actor = { id: sellerId } as typeof user
       }
     }
 
-    if (!user) {
+    if (!actor) {
       return NextResponse.json(
         { error: 'Unauthorized - Seller access required' },
         { status: 401 }
       )
     }
 
-    // Check if user is a seller
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, telegram_feature_enabled')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || profile.role !== 'seller') {
-      return NextResponse.json(
-        { error: 'Seller access required' },
-        { status: 403 }
-      )
+    const { supabase, profile } = await requireSeller(actor.id)
+    if (!profile) {
+      return NextResponse.json({ error: 'Seller access required' }, { status: 403 })
     }
+
+    const title = pickBody<string>(body, 'title')
+    const description = pickBody<string>(body, 'description')
+    const category = pickBody<string>(body, 'category')
+    const longDescription = pickBody<string>(body, 'longDescription', 'long_description')
+    const language = pickBody<string>(body, 'language')
+    const deliveryMethod = pickBody<string>(body, 'deliveryMethod', 'delivery_method')
+    const tags = pickBody<string[]>(body, 'tags')
+    const livePreview = pickBody<string>(body, 'livePreview', 'live_preview')
+    const license = pickBody<string>(body, 'license')
+    const format = pickBody<string>(body, 'format')
+    const originalPrice = pickBody<unknown>(body, 'originalPrice', 'original_price')
+    const downloadLimit = pickBody<unknown>(body, 'downloadLimit', 'download_limit')
+    const imageUrl = pickBody<string>(body, 'imageUrl', 'image_url', 'imageURL')
+    const imageUrls = pickBody<string[]>(body, 'imageUrls', 'image_urls')
+    const thumbnailIndex = pickBody<number>(body, 'thumbnailIndex', 'thumbnail_index')
+    const fileUrl = pickBody<string>(body, 'fileUrl', 'file_url', 'fileURL')
+    const downloadLink = pickBody<string>(body, 'downloadLink', 'download_link')
+    const productTypeRaw = pickBody<string>(body, 'productType', 'product_type')
+    const variants = pickBody<Array<{ name: string; price: number; description?: string }>>(body, 'variants')
+    const telegramEnabled = pickBody<boolean>(body, 'telegramEnabled', 'telegram_enabled')
+    const telegramPlanCode = pickBody<string>(body, 'telegramPlanCode', 'telegram_plan_code')
+    const telegramStarsPrice = pickBody<unknown>(body, 'telegramStarsPrice', 'telegram_stars_price')
+    const submitForReview = !!pickBody<boolean>(body, 'submitForReview', 'submit_for_review')
+    let servicePackages = pickBody<unknown[]>(body, 'servicePackages', 'service_packages')
+    const courseSections = pickBody<unknown[]>(body, 'courseSections', 'course_sections')
+    let membershipTiers = pickBody<unknown[]>(body, 'membershipTiers', 'membership_tiers')
+    const productLinks = linkList(body, downloadLink)
+    const price = pickBody<unknown>(body, 'price')
 
     if (telegramEnabled && !profile.telegram_feature_enabled) {
       return NextResponse.json(
@@ -105,10 +125,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const allowedTypes = ['digital_product', 'service', 'course', 'membership'] as const
-    type ProductType = (typeof allowedTypes)[number]
-    const resolvedType: ProductType = allowedTypes.includes(productType as ProductType)
-      ? (productType as ProductType)
+    const resolvedType: ProductType = ALLOWED_TYPES.includes(productTypeRaw as ProductType)
+      ? (productTypeRaw as ProductType)
       : 'digital_product'
 
     if (!title || !description || !category) {
@@ -118,40 +136,56 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Price required for digital; service/membership use package/tier prices
-    if (resolvedType === 'digital_product' && (price === undefined || price === null || price === '')) {
+    let parsedPrice = parsePrice(price)
+    if (resolvedType === 'service' && Array.isArray(servicePackages) && servicePackages.length) {
+      parsedPrice = Math.min(
+        ...servicePackages.map((p: { price?: number | string }) => parsePrice(p.price))
+      )
+    } else if (resolvedType === 'membership' && Array.isArray(membershipTiers) && membershipTiers.length) {
+      parsedPrice = Math.min(
+        ...membershipTiers.map((t: { price_monthly?: number | string }) => parsePrice(t.price_monthly))
+      )
+    }
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
       return NextResponse.json({ error: 'Harga wajib diisi' }, { status: 400 })
     }
 
-    // Determine initial status
+    // Mobile v1: create jasa/kursus/keanggotaan with type + price; extras completed on web later.
+    if (resolvedType === 'service' && (!Array.isArray(servicePackages) || servicePackages.length === 0)) {
+      servicePackages = [
+        {
+          tier: 'basic',
+          title: 'Basic',
+          description: description,
+          price: parsedPrice,
+          delivery_days: 3,
+          revisions: 1,
+          features: [],
+        },
+      ]
+    }
+    if (resolvedType === 'membership' && (!Array.isArray(membershipTiers) || membershipTiers.length === 0)) {
+      membershipTiers = [
+        {
+          name: 'Standard',
+          description: description,
+          price_monthly: parsedPrice,
+          perks: [],
+        },
+      ]
+    }
+
     let initialStatus = 'draft'
     if (submitForReview) {
-      // Seller clicked "Simpan dan Pasarkan" - submit for admin review
       initialStatus = 'pending'
     } else {
-      // Check seller trust level - trusted sellers can self-activate
-      const trustScore = await calculateSellerTrustScore(user.id)
+      const trustScore = await calculateSellerTrustScore(actor.id)
       initialStatus = trustScore.canSelfActivate ? 'active' : 'draft'
     }
 
-    // Map delivery method: form uses "upload", DB expects "file"
-    const dbDeliveryMethod = deliveryMethod === 'upload' ? 'file' : (deliveryMethod || 'file')
+    const dbDeliveryMethod =
+      deliveryMethod === 'upload' ? 'file' : deliveryMethod || (fileUrl ? 'file' : 'link')
 
-    // Derive display price from type-specific packages when needed
-    let parsedPrice = parseFloat(price)
-    if (resolvedType === 'service' && Array.isArray(servicePackages) && servicePackages.length) {
-      parsedPrice = Math.min(...servicePackages.map((p: { price: number | string }) => parseFloat(String(p.price))))
-    } else if (resolvedType === 'membership' && Array.isArray(membershipTiers) && membershipTiers.length) {
-      parsedPrice = Math.min(...membershipTiers.map((t: { price_monthly: number | string }) => parseFloat(String(t.price_monthly))))
-    }
-    if (isNaN(parsedPrice) || parsedPrice < 0) {
-      return NextResponse.json(
-        { error: 'Harga tidak valid' },
-        { status: 400 }
-      )
-    }
-
-    // Create product
     const productData = {
       title,
       description,
@@ -159,30 +193,37 @@ export async function POST(req: NextRequest) {
       category,
       product_type: resolvedType,
       price: parsedPrice,
-      original_price: originalPrice ? parseFloat(originalPrice) : null,
-      seller_id: user.id,
+      original_price: (() => {
+        if (originalPrice == null || originalPrice === '') return null
+        const parsed = parsePrice(originalPrice)
+        return Number.isFinite(parsed) ? parsed : null
+      })(),
+      seller_id: actor.id,
       status: initialStatus,
-      language: language || 'id',
+      language: normalizeLanguage(language),
       tags: tags || [],
       live_preview: livePreview || null,
-      license: license || null,
+      license: normalizeLicense(license),
       format: format || null,
       delivery_method: resolvedType === 'digital_product' ? dbDeliveryMethod : 'link',
       download_limit: downloadLimit || -1,
-      file_url: null,
-      download_link: resolvedType === 'digital_product' && dbDeliveryMethod === 'link' && productLinks && productLinks.length > 0 
-        ? productLinks[0].url 
-        : null,
-      image_url: (imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined) 
-        ? imageUrls[thumbnailIndex] || imageUrls[0] 
-        : imageUrl || null,
-      images: imageUrls && imageUrls.length > 0 ? imageUrls : null,
+      file_url:
+        resolvedType === 'digital_product' && dbDeliveryMethod === 'file' ? fileUrl || null : null,
+      download_link:
+        resolvedType === 'digital_product' && dbDeliveryMethod === 'link' && productLinks.length > 0
+          ? productLinks[0].url || null
+          : null,
+      image_url:
+        imageUrls && imageUrls.length > 0 && thumbnailIndex !== undefined
+          ? imageUrls[thumbnailIndex] || imageUrls[0]
+          : imageUrl || null,
+      images: imageUrls && imageUrls.length > 0 ? imageUrls : imageUrl ? [imageUrl] : null,
       telegram_enabled: resolvedType === 'digital_product' ? !!telegramEnabled : false,
       telegram_plan_code: telegramPlanCode?.trim() || null,
-      telegram_stars_price: telegramStarsPrice ? parseInt(String(telegramStarsPrice), 10) || null : null,
+      telegram_stars_price: telegramStarsPrice
+        ? parseInt(String(telegramStarsPrice), 10) || null
+        : null,
     }
-
-    console.log('[SELLER PRODUCTS API] Inserting product:', { title, category, price: parsedPrice, status: initialStatus, deliveryMethod: dbDeliveryMethod })
 
     const { data: product, error: productError } = await supabase
       .from('products')
@@ -192,77 +233,73 @@ export async function POST(req: NextRequest) {
 
     if (productError) {
       console.error('[SELLER PRODUCTS API] Product creation error:', productError)
-      console.error('[SELLER PRODUCTS API] Error details:', JSON.stringify(productError, null, 2))
       return NextResponse.json(
-        { error: `Failed to create product: ${productError.message}`, details: productError.message, code: productError.code },
+        {
+          error: `Failed to create product: ${productError.message}`,
+          details: productError.message,
+          code: productError.code,
+        },
         { status: 500 }
       )
     }
 
-    // Create product variants if provided (digital + course display tiers)
     if (resolvedType === 'digital_product' || resolvedType === 'course') {
       if (variants && variants.length > 0 && product) {
-        const variantData = variants.map((variant: { name: string; price: number; description: string }) => ({
+        const variantData = variants.map((variant) => ({
           product_id: product.id,
           name: variant.name,
           price: variant.price,
-          description: variant.description || ''
+          description: variant.description || '',
         }))
-
-        const { error: variantError } = await supabase
-          .from('product_variants')
-          .insert(variantData)
-
-        if (variantError) {
-          console.error('[SELLER PRODUCTS API] Variant creation error:', variantError)
-        }
+        const { error: variantError } = await supabase.from('product_variants').insert(variantData)
+        if (variantError) console.error('[SELLER PRODUCTS API] Variant creation error:', variantError)
       } else if (product) {
-        const { error: defaultVariantError } = await supabase
-          .from('product_variants')
-          .insert({
-            product_id: product.id,
-            name: 'Standard',
-            price: parsedPrice,
-            description: 'Default variant'
-          })
-
+        const { error: defaultVariantError } = await supabase.from('product_variants').insert({
+          product_id: product.id,
+          name: 'Standard',
+          price: parsedPrice,
+          description: 'Default variant',
+        })
         if (defaultVariantError) {
           console.error('[SELLER PRODUCTS API] Default variant creation error:', defaultVariantError)
         }
       }
     }
 
-    // Service packages
     if (resolvedType === 'service' && product && Array.isArray(servicePackages)) {
       const rows = servicePackages
         .filter((p: { title?: string; price?: number | string }) => p.title && p.price !== undefined)
-        .map((p: {
-          tier?: string
-          title: string
-          description?: string
-          price: number | string
-          delivery_days?: number
-          revisions?: number
-          features?: string[]
-          sort_order?: number
-        }, idx: number) => ({
-          product_id: product.id,
-          tier: p.tier || ['basic', 'standard', 'premium'][idx] || 'basic',
-          title: p.title,
-          description: p.description || null,
-          price: parseFloat(String(p.price)),
-          delivery_days: p.delivery_days ?? 3,
-          revisions: p.revisions ?? 1,
-          features: p.features || [],
-          sort_order: p.sort_order ?? idx,
-        }))
+        .map(
+          (
+            p: {
+              tier?: string
+              title: string
+              description?: string
+              price: number | string
+              delivery_days?: number
+              revisions?: number
+              features?: string[]
+              sort_order?: number
+            },
+            idx: number
+          ) => ({
+            product_id: product.id,
+            tier: p.tier || ['basic', 'standard', 'premium'][idx] || 'basic',
+            title: p.title,
+            description: p.description || null,
+            price: parsePrice(p.price),
+            delivery_days: p.delivery_days ?? 3,
+            revisions: p.revisions ?? 1,
+            features: p.features || [],
+            sort_order: p.sort_order ?? idx,
+          })
+        )
       if (rows.length) {
         const { error: pkgErr } = await supabase.from('service_packages').insert(rows)
         if (pkgErr) console.error('[SELLER PRODUCTS API] service_packages', pkgErr)
       }
     }
 
-    // Course curriculum
     if (resolvedType === 'course' && product && Array.isArray(courseSections)) {
       for (let sIdx = 0; sIdx < courseSections.length; sIdx++) {
         const section = courseSections[sIdx] as {
@@ -310,27 +347,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Membership tiers
     if (resolvedType === 'membership' && product && Array.isArray(membershipTiers)) {
       const rows = membershipTiers
         .filter((t: { name?: string; price_monthly?: number | string }) => t.name && t.price_monthly !== undefined)
-        .map((t: {
-          name: string
-          description?: string
-          price_monthly: number | string
-          price_yearly?: number | string
-          perks?: string[]
-          sort_order?: number
-        }, idx: number) => ({
-          product_id: product.id,
-          name: t.name,
-          description: t.description || null,
-          price_monthly: parseFloat(String(t.price_monthly)),
-          price_yearly: t.price_yearly != null ? parseFloat(String(t.price_yearly)) : null,
-          perks: t.perks || [],
-          sort_order: t.sort_order ?? idx,
-          is_active: true,
-        }))
+        .map(
+          (
+            t: {
+              name: string
+              description?: string
+              price_monthly: number | string
+              price_yearly?: number | string
+              perks?: string[]
+              sort_order?: number
+            },
+            idx: number
+          ) => ({
+            product_id: product.id,
+            name: t.name,
+            description: t.description || null,
+            price_monthly: parsePrice(t.price_monthly),
+            price_yearly: t.price_yearly != null ? parsePrice(t.price_yearly) : null,
+            perks: t.perks || [],
+            sort_order: t.sort_order ?? idx,
+            is_active: true,
+          })
+        )
       if (rows.length) {
         const { error: tierErr } = await supabase.from('membership_tiers').insert(rows)
         if (tierErr) console.error('[SELLER PRODUCTS API] membership_tiers', tierErr)
@@ -339,57 +380,26 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      product
+      product,
     })
-
   } catch (error) {
     console.error('[SELLER PRODUCTS API] Error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function GET(req: NextRequest) {
   try {
-    // Check seller authentication
-    const authToken = req.cookies.get('sb-e52fc39c-d56c-418c-b470-934337d0286b-auth-token')?.value
-
-    if (!authToken) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+    const user = await getUserFromRequest(req)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Create Supabase client
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Route handler - cookies set via response
-          },
-        },
-      }
-    )
-
-    // Get user from auth token
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+    const { supabase, profile } = await requireSeller(user.id)
+    if (!profile) {
+      return NextResponse.json({ error: 'Seller access required' }, { status: 403 })
     }
 
-    // Get seller's products
     const { data: products, error: productsError } = await supabase
       .from('products')
       .select('*')
@@ -398,21 +408,14 @@ export async function GET(req: NextRequest) {
 
     if (productsError) {
       console.error('[SELLER PRODUCTS API] Products fetch error:', productsError)
-      return NextResponse.json(
-        { error: 'Failed to fetch products' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 })
     }
 
     return NextResponse.json({
-      products
+      products: products || [],
     })
-
   } catch (error) {
     console.error('[SELLER PRODUCTS API] Error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

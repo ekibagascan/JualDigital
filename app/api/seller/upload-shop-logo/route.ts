@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
-import { getUserFromRequest, serviceRoleClient } from '@/lib/mobile-auth'
+import { formFile, getUserFromRequest, serviceRoleClient } from '@/lib/mobile-auth'
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData()
-    const file = formData.get('file') as File
+    const file = formFile(formData, 'file', 'logo', 'image')
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })

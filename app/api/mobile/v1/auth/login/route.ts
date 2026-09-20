@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { createClient } from '@supabase/supabase-js'
-import { serviceRoleClient } from '@/lib/mobile-auth'
+import { mapSellerStatusForMobile, serviceRoleClient } from '@/lib/mobile-auth'
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const admin = serviceRoleClient()
     const { data: profile } = await admin
       .from('profiles')
-      .select('id, name, role, avatar_url, seller_status')
+      .select('id, name, role, avatar_url, status')
       .eq('id', data.user.id)
       .maybeSingle()
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         name: profile?.name,
         role: profile?.role || 'buyer',
         avatar_url: profile?.avatar_url,
-        seller_status: profile?.seller_status,
+        seller_status: mapSellerStatusForMobile(profile),
       },
     })
   } catch (e) {
