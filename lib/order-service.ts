@@ -291,6 +291,27 @@ export class OrderService {
       // 5. Create payment based on payment method
       let paymentUrl: string | undefined
 
+      const isAppleIAP =
+        paymentMethodValue === 'apple_iap' || paymentMethodValue === 'apple'
+
+      if (isAppleIAP) {
+        const { error: updateError } = await this.supabase
+          .from('orders')
+          .update({
+            payment_provider: 'apple',
+            payment_method: 'APPLE_IAP',
+          })
+          .eq('id', order.id)
+
+        if (updateError) {
+          console.error('[ORDER CREATION] Failed to mark Apple IAP order:', updateError)
+          throw new Error('Failed to prepare App Store purchase')
+        }
+
+        console.log('[ORDER CREATION] Apple IAP pending order:', order.id)
+        return { order, paymentUrl: undefined }
+      }
+
       if (finalPaymentType === 'crypto' && paymentMethod === 'bci') {
         // Create BCI crypto payment
         const totalAmount = Math.round(subtotal + orderData.tax_amount)

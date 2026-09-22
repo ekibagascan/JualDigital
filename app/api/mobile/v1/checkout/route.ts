@@ -80,15 +80,27 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const paymentMethodRaw = String(body.payment_method || body.payment_provider || 'fiat')
+    const isAppleIAP = ['apple', 'apple_iap', 'APPLE_IAP'].includes(paymentMethodRaw)
+
     const orderService = new OrderService(supabase)
     const { order, paymentUrl } = await orderService.createOrder({
       user_id: user.id,
       items: orderItems,
       total_amount: orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
       tax_amount: 0,
-      payment_method: body.payment_method || 'fiat',
+      payment_method: isAppleIAP ? 'apple_iap' : paymentMethodRaw || 'fiat',
       note: typeof body.note === 'string' ? body.note : undefined,
     })
+
+    if (isAppleIAP) {
+      return NextResponse.json({
+        order_id: order.id,
+        order_number: order.order_number,
+        checkout_url: null,
+        payment_provider: 'apple',
+      })
+    }
 
     const checkoutUrl =
       paymentUrl ||

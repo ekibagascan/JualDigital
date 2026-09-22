@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { computePeriod } from '@/lib/subscription-billing'
 
 /**
  * After an order becomes paid, create type-specific fulfillment records.
@@ -54,8 +55,11 @@ export async function fulfillPaidOrder(
       if (order?.user_id) {
         await fulfillCourse(supabase, item, product, order.user_id)
       }
+    } else if (type === 'membership') {
+      if (order?.user_id) {
+        await fulfillMembership(supabase, item, product, order.user_id, order.id)
+      }
     }
-    // membership uses subscribe flow, not one-shot cart fulfill
   }
 }
 
@@ -117,4 +121,63 @@ async function fulfillCourse(
     { onConflict: 'user_id,product_id' }
   )
   if (error) console.error('[FULFILL] course_enrollments upsert', error)
+}
+
+async function fulfillMembership(
+  supabase: SupabaseClient,
+  item: { id: string; product_id: string; price: number },
+  product: { id: string },
+  userId: string,
+  orderId: string
+) {
+  const { data: tiers } = await supabase
+    .from('membership_tiers')
+    .select('id, price, price_monthly')
+    .eq('product_id', product.id)
+    .eq('is_active', true)
+
+  const tier =
+    tiers?.find((t) => Number(t.price_monthly || t.price) === Number(item.price)) ||
+    tiers?.[0]
+  if (!tier) {
+    console.warn('[FULFILL] No membership tier for product', product.id)
+    return
+  }
+
+  const period = computePeriod(1)
+  const { data: existing } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('product_id', product.id)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({
+        tier_id: tier.id,
+        status: 'active',
+        current_period_start: period.periodStart.toISOString(),
+        current_period_end: period.periodEnd.toISOString(),
+        cancel_at_period_end: false,
+        external_payment_ref: orderId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id)
+    if (error) console.error('[FULFILL] subscriptions update', error)
+    return
+  }
+
+  const { error } = await supabase.from('subscriptions').insert({
+    user_id: userId,
+    product_id: product.id,
+    tier_id: tier.id,
+    status: 'active',
+    current_period_start: period.periodStart.toISOString(),
+    current_period_end: period.periodEnd.toISOString(),
+    cancel_at_period_end: false,
+    external_payment_ref: orderId,
+  })
+  if (error) console.error('[FULFILL] subscriptions insert', error)
 }
