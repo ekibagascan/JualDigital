@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     console.log('[ADMIN PRODUCTS API] ===== API CALLED =====')
 
     // Check admin authentication
-    if (!isAdminRequest(req)) {
+    if (!(await isAdminRequest(req))) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

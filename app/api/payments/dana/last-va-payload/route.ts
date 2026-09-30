@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getLastVACreatePayload, setLastVACreatePayloadFromLastCreate } from '@/lib/dana'
+import { isAdminRequest } from '@/lib/admin-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,10 @@ function rowToPayload(row: {
  *   (use that if DANA webhook does not send payment method).
  */
 export async function GET(req: NextRequest) {
+  if (!(await isAdminRequest(req))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const fromLastCreate = req.nextUrl.searchParams.get('fromLastCreate') === '1'
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY

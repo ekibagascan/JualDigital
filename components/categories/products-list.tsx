@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ProductCard } from "@/components/product/product-card"
-import { productService, type Product, ProductService } from "@/lib/product-service"
+import { productService, type Product } from "@/lib/product-service"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -93,21 +93,15 @@ export function ProductsList({ category }: ProductsListProps) {
           filters.min_rating = minRating
         }
 
-        const fetchedProducts = await productService.getProducts(filters)
+        const { products: fetchedProducts, count: totalCount, sellerNames } =
+          await productService.getCatalog({
+            ...filters,
+            include_sellers: true,
+          })
         setProducts(fetchedProducts)
-
-        // Get total count for pagination
-        const countFilters = { ...filters }
-        delete countFilters.limit
-        delete countFilters.offset
-        const totalCount = await productService.getProductsCount(countFilters)
         setTotalProducts(totalCount)
-        setTotalPages(Math.ceil(totalCount / itemsPerPage))
-
-        // Batch fetch sellers
-        const uniqueSellerIds = Array.from(new Set(fetchedProducts.map(p => p.seller_id)))
-        const sellerNames = await ProductService.fetchSellerNames(uniqueSellerIds)
-        setSellerNameMap(sellerNames)
+        setTotalPages(Math.ceil(totalCount / itemsPerPage) || 1)
+        setSellerNameMap(sellerNames || {})
       } catch (error) {
         console.error('Error fetching products or sellers:', error)
       } finally {
@@ -141,12 +135,16 @@ export function ProductsList({ category }: ProductsListProps) {
             categories?: string[]
             min_rating?: number
             sort?: string
+            product_type?: string
           } = {
             category,
             limit: itemsPerPage,
             offset: (currentPage - 1) * itemsPerPage,
             sort,
           }
+
+          const productType = searchParams.get("type")
+          if (productType) filters.product_type = productType
 
           // Add price filters
           if (price_min) filters.price_min = Number.parseInt(price_min)
@@ -165,13 +163,13 @@ export function ProductsList({ category }: ProductsListProps) {
             filters.min_rating = minRating
           }
 
-          const fetchedProducts = await productService.getProducts(filters)
+          const { products: fetchedProducts, sellerNames } =
+            await productService.getCatalog({
+              ...filters,
+              include_sellers: true,
+            })
           setProducts(fetchedProducts)
-
-          // Batch fetch sellers
-          const uniqueSellerIds = Array.from(new Set(fetchedProducts.map(p => p.seller_id)))
-          const sellerNames = await ProductService.fetchSellerNames(uniqueSellerIds)
-          setSellerNameMap(sellerNames)
+          setSellerNameMap(sellerNames || {})
         } catch (error) {
           console.error('Error fetching products or sellers:', error)
         } finally {

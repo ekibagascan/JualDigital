@@ -1,5 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
+/** Slim columns for catalog cards/lists — cuts payload vs select('*'). */
+export const PRODUCT_LIST_COLUMNS =
+  'id, title, description, price, original_price, image_url, category, tags, seller_id, status, rating, total_sales, total_reviews, featured, created_at, delivery_method, product_type, live_preview, telegram_enabled, telegram_plan_code, telegram_stars_price'
+
 // Lazy getter for Supabase client to avoid multiple GoTrueClient instances in browser
 let _browserClient: SupabaseClient | null = null
 function getBrowserClient(): SupabaseClient {
@@ -21,6 +25,57 @@ const supabase: SupabaseClient = typeof window !== 'undefined'
       process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
     )
+
+type CatalogOptions = {
+  category?: string
+  status?: string
+  limit?: number
+  offset?: number
+  search?: string
+  price_min?: number
+  price_max?: number
+  categories?: string[]
+  min_rating?: number
+  sort?: string
+  product_type?: string
+  exclude_id?: string
+  mode?: 'featured'
+  include_sellers?: boolean
+}
+
+/** Browser catalog goes through Next.js /api/products (CDN cache) instead of direct Supabase. */
+async function fetchCatalogViaApi(options: CatalogOptions = {}): Promise<{
+  products: Product[]
+  count: number
+  sellerNames?: Record<string, string>
+}> {
+  const params = new URLSearchParams()
+  if (options.mode) params.set('mode', options.mode)
+  if (options.category) params.set('category', options.category)
+  if (options.product_type) params.set('product_type', options.product_type)
+  if (options.search) params.set('q', options.search)
+  if (options.limit != null) params.set('limit', String(options.limit))
+  if (options.offset != null) params.set('offset', String(options.offset))
+  if (options.price_min != null) params.set('price_min', String(options.price_min))
+  if (options.price_max != null) params.set('price_max', String(options.price_max))
+  if (options.min_rating != null) params.set('min_rating', String(options.min_rating))
+  if (options.sort) params.set('sort', options.sort)
+  if (options.exclude_id) params.set('exclude_id', options.exclude_id)
+  if (options.categories?.length) params.set('categories', options.categories.join(','))
+  if (options.include_sellers) params.set('include_sellers', '1')
+
+  const res = await fetch(`/api/products?${params.toString()}`)
+  if (!res.ok) {
+    console.error('Catalog API error:', res.status, await res.text().catch(() => ''))
+    return { products: [], count: 0 }
+  }
+  const data = await res.json()
+  return {
+    products: (data.products || []) as Product[],
+    count: typeof data.count === 'number' ? data.count : (data.products || []).length,
+    sellerNames: data.sellerNames as Record<string, string> | undefined,
+  }
+}
 
 export interface Product {
   id: string
@@ -71,6 +126,29 @@ export interface SellerProfile {
 }
 
 export class ProductService {
+  async getCatalog(options?: CatalogOptions): Promise<{
+    products: Product[]
+    count: number
+    sellerNames?: Record<string, string>
+  }> {
+    if (typeof window !== 'undefined') {
+      return fetchCatalogViaApi(options)
+    }
+    const products = options?.mode === 'featured'
+      ? await this.getFeaturedProducts(options.limit || 4)
+      : await this.getProducts(options)
+    const count = options?.mode === 'featured'
+      ? products.length
+      : await this.getProductsCount(options)
+    let sellerNames: Record<string, string> | undefined
+    if (options?.include_sellers) {
+      sellerNames = await ProductService.fetchSellerNames(
+        products.map((p) => p.seller_id)
+      )
+    }
+    return { products, count, sellerNames }
+  }
+
   async getProducts(options?: {
     category?: string
     status?: string
@@ -83,11 +161,17 @@ export class ProductService {
     min_rating?: number
     sort?: string
     product_type?: string
+    exclude_id?: string
   }): Promise<Product[]> {
     try {
+      if (typeof window !== 'undefined') {
+        const { products } = await fetchCatalogViaApi(options)
+        return products
+      }
+
       let query = supabase
         .from('products')
-        .select('*')
+        .select(PRODUCT_LIST_COLUMNS)
         .eq('status', 'active')
 
       if (options?.category) {
@@ -112,6 +196,10 @@ export class ProductService {
 
       if (options?.min_rating) {
         query = query.gte('rating', options.min_rating)
+      }
+
+      if (options?.exclude_id) {
+        query = query.neq('id', options.exclude_id)
       }
 
       if (options?.search) {
@@ -158,7 +246,7 @@ export class ProductService {
         return []
       }
 
-      return products || []
+      return (products || []) as Product[]
     } catch (error) {
       console.error('Error fetching products:', error)
       return []
@@ -194,7 +282,7 @@ export class ProductService {
     try {
       const { data: variants, error } = await supabase
         .from('product_variants')
-        .select('*')
+        .select('id, product_id, name, price, description')
         .eq('product_id', productId)
         .order('price', { ascending: true })
 
@@ -212,10 +300,14 @@ export class ProductService {
 
   async getFeaturedProducts(limit: number = 4): Promise<Product[]> {
     try {
-      // First, try to get manually featured products
+      if (typeof window !== 'undefined') {
+        const { products } = await fetchCatalogViaApi({ mode: 'featured', limit })
+        return products
+      }
+
       const { data: featuredProducts, error: featuredError } = await supabase
         .from('products')
-        .select('*')
+        .select(PRODUCT_LIST_COLUMNS)
         .eq('status', 'active')
         .eq('featured', true)
         .order('total_sales', { ascending: false })
@@ -226,40 +318,34 @@ export class ProductService {
         console.error('Error fetching featured products:', featuredError)
       }
 
-      // If we have enough manually featured products, return them
       if (featuredProducts && featuredProducts.length >= limit) {
-        return featuredProducts.slice(0, limit)
+        return (featuredProducts as Product[]).slice(0, limit)
       }
 
-      // If we don't have enough featured products, fill with top performers
       const remainingLimit = limit - (featuredProducts?.length || 0)
-      
+
       if (remainingLimit > 0) {
         const { data: topProducts, error: topError } = await supabase
           .from('products')
-          .select('*')
+          .select(PRODUCT_LIST_COLUMNS)
           .eq('status', 'active')
-          .eq('featured', false) // Exclude already featured products
-          .gte('rating', 3.5) // Only products with decent rating
+          .eq('featured', false)
+          .gte('rating', 3.5)
           .order('total_sales', { ascending: false })
           .order('rating', { ascending: false })
-          .order('total_revenue', { ascending: false })
           .limit(remainingLimit)
 
         if (topError) {
           console.error('Error fetching top products:', topError)
         }
 
-        // Combine featured and top products
-        const allProducts = [
-          ...(featuredProducts || []),
-          ...(topProducts || [])
-        ]
-
-        return allProducts.slice(0, limit)
+        return [
+          ...((featuredProducts || []) as Product[]),
+          ...((topProducts || []) as Product[]),
+        ].slice(0, limit)
       }
 
-      return featuredProducts || []
+      return (featuredProducts || []) as Product[]
     } catch (error) {
       console.error('Error in getFeaturedProducts:', error)
       return []
@@ -267,7 +353,7 @@ export class ProductService {
   }
 
   async getNewestProducts(limit: number = 4): Promise<Product[]> {
-    return this.getProducts({ limit })
+    return this.getProducts({ limit, sort: 'newest' })
   }
 
   async getProductsByCategory(category: string, limit?: number): Promise<Product[]> {
@@ -276,28 +362,7 @@ export class ProductService {
 
   async searchProducts(query: string, limit?: number): Promise<Product[]> {
     try {
-      // First try the standard search
-      let results = await this.getProducts({ search: query, limit })
-
-      // If no results, try a more flexible search
-      if (results.length === 0 && query.length > 2) {
-        const { data: products, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('status', 'active')
-          .or(`title.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`)
-          .limit(limit || 20)
-          .order('created_at', { ascending: false })
-
-        if (error) {
-          console.error('Error in flexible search:', error)
-          return []
-        }
-
-        results = products || []
-      }
-
-      return results
+      return await this.getProducts({ search: query, limit, sort: 'newest' })
     } catch (error) {
       console.error('Error in searchProducts:', error)
       return []
@@ -306,21 +371,12 @@ export class ProductService {
 
   async getRelatedProducts(category: string, currentProductId: string, limit: number = 4): Promise<Product[]> {
     try {
-      const { data: products, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('status', 'active')
-        .eq('category', category)
-        .neq('id', currentProductId)
-        .limit(limit)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error fetching related products:', error)
-        return []
-      }
-
-      return products || []
+      return await this.getProducts({
+        category,
+        exclude_id: currentProductId,
+        limit,
+        sort: 'newest',
+      })
     } catch (error) {
       console.error('Error fetching related products:', error)
       return []
@@ -355,9 +411,18 @@ export class ProductService {
     min_rating?: number
   }): Promise<number> {
     try {
+      if (typeof window !== 'undefined') {
+        const { count } = await fetchCatalogViaApi({
+          ...options,
+          limit: 1,
+          offset: 0,
+        })
+        return count
+      }
+
       let query = supabase
         .from('products')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('status', 'active')
 
       if (options?.category) {

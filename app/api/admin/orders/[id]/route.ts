@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     // Check admin authentication
-    if (!isAdminRequest(req)) {
+    if (!(await isAdminRequest(req))) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -118,7 +118,7 @@ export async function PUT(
 ) {
   try {
     // Check admin authentication
-    if (!isAdminRequest(req)) {
+    if (!(await isAdminRequest(req))) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

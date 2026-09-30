@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getLastCreatePayload } from '@/lib/dana'
+import { isAdminRequest } from '@/lib/admin-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,11 @@ function rowToPayload(row: {
  * Returns the last create-transaction request and response (for DANA pilot submission).
  * Persisted in DB so it works across server restarts and multiple instances.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await isAdminRequest(req))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (supabaseUrl && serviceKey) {

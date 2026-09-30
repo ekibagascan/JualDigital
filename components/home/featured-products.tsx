@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ProductCard } from "@/components/product/product-card"
-import { productService, type Product, ProductService } from "@/lib/product-service"
+import { productService, type Product } from "@/lib/product-service"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -30,11 +30,10 @@ export function FeaturedProducts() {
   useEffect(() => {
     const fetchProductsAndSellers = async () => {
       try {
-        const featuredProducts = await productService.getFeaturedProducts(4)
+        const { products: featuredProducts, sellerNames } =
+          await productService.getCatalog({ mode: 'featured', limit: 4, include_sellers: true })
         setProducts(featuredProducts)
-        const uniqueSellerIds = Array.from(new Set(featuredProducts.map(p => p.seller_id)))
-        const sellerNames = await ProductService.fetchSellerNames(uniqueSellerIds)
-        setSellerNameMap(sellerNames)
+        setSellerNameMap(sellerNames || {})
       } catch (error) {
         console.error('Error fetching featured products or sellers:', error)
       } finally {

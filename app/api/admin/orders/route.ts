@@ -6,7 +6,7 @@ import { createServerClient } from '@supabase/ssr'
 export async function GET(req: NextRequest) {
   try {
     // Check admin authentication
-    if (!isAdminRequest(req)) {
+    if (!(await isAdminRequest(req))) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

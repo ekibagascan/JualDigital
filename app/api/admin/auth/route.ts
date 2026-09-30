@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       )
 
-      response.cookies.set(ADMIN_COOKIE.name, createAdminSessionToken(), {
+      response.cookies.set(ADMIN_COOKIE.name, await createAdminSessionToken(), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -110,7 +110,7 @@ export async function DELETE() {
     )
 
     // Clear admin authentication cookie
-    response.cookies.set('admin-auth', '', {
+    response.cookies.set(ADMIN_COOKIE.name, '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

@@ -39,6 +39,11 @@ export class WithdrawalService {
 
   async createWithdrawal(withdrawalData: CreateWithdrawalRequest): Promise<Withdrawal> {
     try {
+      const allowed = await this.canWithdraw(withdrawalData.seller_id, withdrawalData.amount)
+      if (!allowed) {
+        throw new Error('Saldo tidak mencukupi untuk penarikan ini')
+      }
+
       const { data: withdrawals, error } = await supabase
         .from('withdrawals')
         .insert({
@@ -166,38 +171,43 @@ export class WithdrawalService {
 
   async getSellerEarnings(sellerId: string): Promise<{ total_earnings: number; available_balance: number }> {
     try {
-      // Get total earnings from profiles
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('total_earnings')
-        .eq('id', sellerId)
-        .single()
+      // Lifetime earnings from paid order items (same source as seller dashboard)
+      const { data: orderItems, error: orderItemsError } = await supabase
+        .from('order_items')
+        .select('seller_earnings, orders!inner(status)')
+        .eq('seller_id', sellerId)
+        .eq('orders.status', 'paid')
 
-      if (profileError) {
-        console.error('Get profile earnings error:', profileError)
+      if (orderItemsError) {
+        console.error('Get order items earnings error:', orderItemsError)
         return { total_earnings: 0, available_balance: 0 }
       }
 
-      // Get pending and approved withdrawals (both should be subtracted from available balance)
+      const totalEarnings =
+        orderItems?.reduce(
+          (sum, item: { seller_earnings: number }) => sum + (item.seller_earnings || 0),
+          0
+        ) || 0
+
+      // Deduct pending, approved, and completed withdrawals so completed payouts
+      // cannot be withdrawn again. Rejected requests are not deducted.
       const { data: withdrawals, error: withdrawalError } = await supabase
         .from('withdrawals')
         .select('amount, status')
         .eq('seller_id', sellerId)
-        .in('status', ['pending', 'approved'])
+        .in('status', ['pending', 'approved', 'completed'])
 
       if (withdrawalError) {
         console.error('Get withdrawals error:', withdrawalError)
-        return { total_earnings: profile.total_earnings || 0, available_balance: profile.total_earnings || 0 }
+        return { total_earnings: totalEarnings, available_balance: totalEarnings }
       }
 
-      const pendingAmount = withdrawals?.filter(w => w.status === 'pending').reduce((sum, w) => sum + w.amount, 0) || 0
-      const approvedAmount = withdrawals?.filter(w => w.status === 'approved').reduce((sum, w) => sum + w.amount, 0) || 0
-      const totalEarnings = profile.total_earnings || 0
-      const availableBalance = totalEarnings - pendingAmount - approvedAmount
+      const deducted =
+        withdrawals?.reduce((sum, w) => sum + (w.amount || 0), 0) || 0
 
       return {
         total_earnings: totalEarnings,
-        available_balance: Math.max(0, availableBalance),
+        available_balance: Math.max(0, totalEarnings - deducted),
       }
     } catch (error) {
       console.error('Get seller earnings error:', error)

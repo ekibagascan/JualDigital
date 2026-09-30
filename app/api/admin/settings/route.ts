@@ -8,7 +8,7 @@ import { isAdminRequest } from '@/lib/admin-session'
 export async function GET(req: NextRequest) {
   try {
     // Check admin authentication
-    if (!isAdminRequest(req)) {
+    if (!(await isAdminRequest(req))) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     // Check admin authentication
-    if (!isAdminRequest(req)) {
+    if (!(await isAdminRequest(req))) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

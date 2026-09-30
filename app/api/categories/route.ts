@@ -1,29 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
-    const supabase = createServerClient(
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Cookies are set via response object in route handlers, not here
-          },
-        },
-      }
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    // Fetch categories with product counts
     const { data: categories, error: categoriesError } = await supabase
       .from('categories')
-      .select('*')
+      .select('id, name, slug, description, icon, created_at')
       .order('name', { ascending: true })
 
     if (categoriesError) {
@@ -31,12 +20,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 })
     }
 
-    // Get product counts for each category
     const categoriesWithCounts = await Promise.all(
-      categories.map(async (category) => {
+      (categories || []).map(async (category) => {
         const { count, error: countError } = await supabase
           .from('products')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('category', category.slug)
           .eq('status', 'active')
 
@@ -46,18 +34,24 @@ export async function GET(req: NextRequest) {
 
         return {
           ...category,
-          count: count || 0
+          count: count || 0,
         }
       })
     )
 
-    return NextResponse.json({
-      success: true,
-      categories: categoriesWithCounts
-    })
-
+    return NextResponse.json(
+      {
+        success: true,
+        categories: categoriesWithCounts,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        },
+      }
+    )
   } catch (error) {
     console.error('Error in GET /api/categories:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-export const dynamic = 'force-dynamic'
 import { productService } from '@/lib/product-service'
+
+export const revalidate = 60
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +9,7 @@ export async function GET(
 ) {
   try {
     const productId = params.id
-    
+
     if (!productId) {
       return NextResponse.json(
         { error: 'Product ID is required' },
@@ -18,10 +19,14 @@ export async function GET(
 
     const variants = await productService.getProductVariants(productId)
 
-    const res = NextResponse.json({ variants })
-    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-    res.headers.set('Pragma', 'no-cache')
-    return res
+    return NextResponse.json(
+      { variants },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        },
+      }
+    )
   } catch (error) {
     console.error('Error fetching product variants:', error)
     return NextResponse.json(
@@ -29,4 +34,4 @@ export async function GET(
       { status: 500 }
     )
   }
-} 
+}

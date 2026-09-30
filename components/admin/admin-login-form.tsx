@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Shield, Eye, EyeOff, Mail, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,8 +15,6 @@ export function AdminLoginForm() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-
-  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,17 +47,16 @@ export function AdminLoginForm() {
           title: "Login admin berhasil!",
           description: "Selamat datang di Admin Panel.",
         })
-        // Add a small delay to ensure cookie is set
-        setTimeout(() => {
-          router.push("/admin")
-        }, 100)
+        // Hard navigation so middleware sees the new cookie immediately
+        window.location.href = "/admin"
+        return
       } else {
         throw new Error(data.error || 'Login gagal')
       }
-    } catch {
+    } catch (err) {
       toast({
         title: "Login gagal",
-        description: "Email atau password admin salah.",
+        description: err instanceof Error ? err.message : "Email atau password admin salah.",
         variant: "destructive",
       })
     } finally {

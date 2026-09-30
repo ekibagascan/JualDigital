@@ -36,7 +36,6 @@ export function WithdrawalManagement() {
   })
   const [withdrawalForm, setWithdrawalForm] = useState({
     amount: "",
-    method: "",
     accountNumber: "",
     accountName: "",
     bankName: "",
@@ -94,7 +93,7 @@ export function WithdrawalManagement() {
   }
 
   const handleWithdrawalRequest = async () => {
-    if (!withdrawalForm.amount || !withdrawalForm.method || !withdrawalForm.accountNumber || !withdrawalForm.bankName || !withdrawalForm.accountName) {
+    if (!withdrawalForm.amount || !withdrawalForm.accountNumber || !withdrawalForm.bankName || !withdrawalForm.accountName) {
       toast({
         title: "Data tidak lengkap",
         description: "Mohon lengkapi semua field yang diperlukan.",
@@ -139,15 +138,28 @@ export function WithdrawalManagement() {
       setIsDialogOpen(false)
       setWithdrawalForm({
         amount: "",
-        method: "",
         accountNumber: "",
         accountName: "",
         bankName: "",
       })
 
-      // Refresh data
+      // Refresh withdrawals + balance after successful request
       const withdrawalsData = await withdrawalService.getSellerWithdrawals(user.id)
       setWithdrawals(withdrawalsData)
+      const earnings = await withdrawalService.getSellerEarnings(user.id)
+      const pendingAmount = withdrawalsData
+        .filter(w => w.status === 'pending')
+        .reduce((sum, w) => sum + w.amount, 0)
+      const approvedAmount = withdrawalsData
+        .filter(w => w.status === 'approved')
+        .reduce((sum, w) => sum + w.amount, 0)
+      setBalance({
+        available: earnings.available_balance,
+        pending: pendingAmount,
+        approved: approvedAmount,
+        total: earnings.total_earnings,
+        minimumWithdrawal: 100000,
+      })
     } catch (error) {
       console.error('Error creating withdrawal:', error)
       toast({
@@ -220,108 +232,48 @@ export function WithdrawalManagement() {
               </div>
 
               <div>
-                <Label htmlFor="method">Metode Penarikan</Label>
+                <Label htmlFor="bankName">Nama Bank</Label>
                 <Select
-                  value={withdrawalForm.method}
-                  onValueChange={(value) => setWithdrawalForm((prev) => ({ ...prev, method: value }))}
+                  value={withdrawalForm.bankName}
+                  onValueChange={(value) => setWithdrawalForm((prev) => ({ ...prev, bankName: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih metode" />
+                    <SelectValue placeholder="Pilih bank" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bank">Bank Transfer</SelectItem>
-                    <SelectItem value="ewallet">E-Wallet</SelectItem>
+                    <SelectItem value="bca">BCA</SelectItem>
+                    <SelectItem value="mandiri">Mandiri</SelectItem>
+                    <SelectItem value="bni">BNI</SelectItem>
+                    <SelectItem value="bri">BRI</SelectItem>
+                    <SelectItem value="cimb">CIMB Niaga</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              {withdrawalForm.method === "bank" && (
-                <>
-                  <div>
-                    <Label htmlFor="bankName">Nama Bank</Label>
-                    <Select
-                      value={withdrawalForm.bankName}
-                      onValueChange={(value) => setWithdrawalForm((prev) => ({ ...prev, bankName: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih bank" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bca">BCA</SelectItem>
-                        <SelectItem value="mandiri">Mandiri</SelectItem>
-                        <SelectItem value="bni">BNI</SelectItem>
-                        <SelectItem value="bri">BRI</SelectItem>
-                        <SelectItem value="cimb">CIMB Niaga</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="accountNumber">Nomor Rekening</Label>
-                    <Input
-                      id="accountNumber"
-                      placeholder="Masukkan nomor rekening"
-                      value={withdrawalForm.accountNumber}
-                      onChange={(e) => setWithdrawalForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="accountName">Nama Pemilik Rekening</Label>
-                    <Input
-                      id="accountName"
-                      placeholder="Masukkan nama pemilik rekening"
-                      value={withdrawalForm.accountName}
-                      onChange={(e) => setWithdrawalForm((prev) => ({ ...prev, accountName: e.target.value }))}
-                    />
-                  </div>
-                </>
-              )}
-
-              {withdrawalForm.method === "ewallet" && (
-                <>
-                  <div>
-                    <Label htmlFor="bankName">Jenis E-Wallet</Label>
-                    <Select
-                      value={withdrawalForm.bankName}
-                      onValueChange={(value) => setWithdrawalForm((prev) => ({ ...prev, bankName: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih e-wallet" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gopay">GoPay</SelectItem>
-                        <SelectItem value="ovo">OVO</SelectItem>
-                        <SelectItem value="dana">DANA</SelectItem>
-                        <SelectItem value="shopeepay">ShopeePay</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="accountNumber">Nomor HP</Label>
-                    <Input
-                      id="accountNumber"
-                      placeholder="Masukkan nomor HP"
-                      value={withdrawalForm.accountNumber}
-                      onChange={(e) => setWithdrawalForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="accountName">Nama Pemilik Akun</Label>
-                    <Input
-                      id="accountName"
-                      placeholder="Masukkan nama pemilik akun"
-                      value={withdrawalForm.accountName}
-                      onChange={(e) => setWithdrawalForm((prev) => ({ ...prev, accountName: e.target.value }))}
-                    />
-                  </div>
-                </>
-              )}
+              <div>
+                <Label htmlFor="accountNumber">Nomor Rekening</Label>
+                <Input
+                  id="accountNumber"
+                  placeholder="Masukkan nomor rekening"
+                  value={withdrawalForm.accountNumber}
+                  onChange={(e) => setWithdrawalForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="accountName">Nama Pemilik Rekening</Label>
+                <Input
+                  id="accountName"
+                  placeholder="Masukkan nama pemilik rekening"
+                  value={withdrawalForm.accountName}
+                  onChange={(e) => setWithdrawalForm((prev) => ({ ...prev, accountName: e.target.value }))}
+                />
+              </div>
 
               <div className="bg-blue-50 p-3 rounded-lg text-sm">
                 <p className="font-medium text-blue-900 mb-1">Informasi Penting:</p>
                 <ul className="text-blue-800 space-y-1">
-                  <li>• Penarikan diproses dalam 1-3 hari kerja</li>
-                  <li>• Biaya admin: Rp 5.000 (Bank) / Rp 2.500 (E-Wallet)</li>
-                  <li>• Pastikan data rekening/akun benar</li>
+                  <li>• Penarikan hanya via transfer bank</li>
+                  <li>• Diproses dalam 1–3 hari kerja</li>
+                  <li>• Pastikan data rekening benar</li>
                 </ul>
               </div>
 

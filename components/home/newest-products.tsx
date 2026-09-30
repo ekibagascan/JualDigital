@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ProductCard } from "@/components/product/product-card"
-import { productService, type Product, ProductService } from "@/lib/product-service"
+import { productService, type Product } from "@/lib/product-service"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -31,11 +31,10 @@ export function NewestProducts() {
   useEffect(() => {
     const fetchProductsAndSellers = async () => {
       try {
-        const newestProducts = await productService.getNewestProducts(4)
+        const { products: newestProducts, sellerNames } =
+          await productService.getCatalog({ limit: 4, sort: 'newest', include_sellers: true })
         setProducts(newestProducts)
-        const uniqueSellerIds = Array.from(new Set(newestProducts.map(p => p.seller_id)))
-        const sellerNames = await ProductService.fetchSellerNames(uniqueSellerIds)
-        setSellerNameMap(sellerNames)
+        setSellerNameMap(sellerNames || {})
       } catch (error) {
         console.error('Error fetching newest products or sellers:', error)
       } finally {

@@ -15,7 +15,7 @@ import { isAdminRequest } from '@/lib/admin-session'
  */
 export async function POST(req: NextRequest) {
   try {
-    if (!isAdminRequest(req)) {
+    if (!(await isAdminRequest(req))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

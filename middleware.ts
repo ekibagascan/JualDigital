@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyAdminSessionToken } from '@/lib/admin-session'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Skip middleware for API routes (critical for webhooks like Xendit)
+  // Skip middleware for API routes (critical for webhooks like DANA)
   if (pathname.startsWith('/api')) {
     return NextResponse.next();
   }
@@ -15,10 +15,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // 🔒 ADMIN ROUTE PROTECTION — signed session token only
+  // 🔒 ADMIN ROUTE PROTECTION — signed session token only (Web Crypto, Edge-safe)
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
     const adminAuth = request.cookies.get('admin-auth')?.value;
-    if (!verifyAdminSessionToken(adminAuth)) {
+    if (!(await verifyAdminSessionToken(adminAuth))) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
   }

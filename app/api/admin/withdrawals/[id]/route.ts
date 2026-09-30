@@ -1,443 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
-import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { sendWithdrawalApproved, sendWithdrawalRejected, sendWithdrawalCompleted } from '@/lib/email-service'
 
+/**
+ * Admin withdrawal status updates.
+ * Buyer checkout uses DANA — seller payouts are manual bank transfer by admin only.
+ * No Xendit / automatic disbursement.
+ */
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Check admin authentication
-    if (!isAdminRequest(req)) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+    if (!(await isAdminRequest(req))) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
+    const status = body.status as string | undefined
 
-    // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
+    if (!status || !['approved', 'rejected', 'completed', 'pending'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    }
+
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // If approving, initiate Xendit transfer
-    if (body.status === 'approved') {
-      try {
-        // Get withdrawal details first
-        const { data: withdrawals, error: fetchError } = await supabase
-          .from('withdrawals')
-          .select('*')
-          .eq('id', params.id)
+    const { data: existing, error: fetchError } = await supabase
+      .from('withdrawals')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle()
 
-        if (fetchError) {
-          console.error('[ADMIN WITHDRAWAL API] Fetch error:', fetchError)
-          return NextResponse.json(
-            { error: 'Failed to fetch withdrawal details' },
-            { status: 500 }
-          )
-        }
+    if (fetchError) {
+      console.error('[ADMIN WITHDRAWAL API] Fetch error:', fetchError)
+      return NextResponse.json({ error: 'Failed to fetch withdrawal details' }, { status: 500 })
+    }
 
-        if (!withdrawals || withdrawals.length === 0) {
-          console.error('[ADMIN WITHDRAWAL API] Withdrawal not found')
-          return NextResponse.json(
-            { error: 'Withdrawal not found' },
-            { status: 404 }
-          )
-        }
+    if (!existing) {
+      return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 })
+    }
 
-        const withdrawal = withdrawals[0]
-        console.log('[ADMIN WITHDRAWAL API] Found withdrawal:', withdrawal.id)
-        console.log('[ADMIN WITHDRAWAL API] Current withdrawal status:', withdrawal.status)
-        console.log('[ADMIN WITHDRAWAL API] Requested status:', body.status)
+    const updateData: {
+      status: string
+      processed_at?: string
+      rejection_reason?: string
+      xendit_transfer_id?: string
+    } = { status }
 
-        // Initiate Xendit transfer
-        console.log('[ADMIN WITHDRAWAL API] Initiating Xendit transfer...')
-        let transferResult
-        try {
-          transferResult = await initiateXenditTransfer(withdrawal)
-          console.log('[ADMIN WITHDRAWAL API] Xendit transfer result:', transferResult)
-        } catch (transferError) {
-          console.error('[ADMIN WITHDRAWAL API] Xendit transfer exception:', transferError)
-          transferResult = { success: false, error: 'Transfer exception' }
-        }
-        
-        if (!transferResult.success) {
-          console.log('[ADMIN WITHDRAWAL API] Xendit transfer failed, simulating success for development')
-          // For development/testing, simulate successful transfer
-          const simulatedTransferId = `SIM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-          transferResult.success = true
-          transferResult.transferId = simulatedTransferId
-          console.log('[ADMIN WITHDRAWAL API] Simulated transfer ID:', simulatedTransferId)
-        }
+    if (status === 'approved' || status === 'rejected' || status === 'completed') {
+      updateData.processed_at = new Date().toISOString()
+    }
 
-        // Update withdrawal with Xendit transfer ID
-        const updateData: { 
-          status: string; 
-          processed_at?: string; 
-          rejection_reason?: string;
-          xendit_transfer_id?: string;
-        } = {
-          status: body.status,
-          processed_at: new Date().toISOString(),
-          xendit_transfer_id: transferResult.transferId
-        }
+    if (status === 'rejected' && body.rejection_reason) {
+      updateData.rejection_reason = body.rejection_reason
+    }
 
-        console.log('[ADMIN WITHDRAWAL API] Update data prepared:', updateData)
-        console.log('[ADMIN WITHDRAWAL API] Updating withdrawal with ID:', params.id)
-        
-        // First, let's try to fetch the withdrawal again to confirm it exists
-        const { data: checkWithdrawal, error: checkError } = await supabase
-          .from('withdrawals')
-          .select('*')
-          .eq('id', params.id)
-        
-        console.log('[ADMIN WITHDRAWAL API] Check withdrawal exists:', { 
-          found: !!checkWithdrawal, 
-          checkError,
-          currentStatus: checkWithdrawal?.[0]?.status 
-        })
-        
-        console.log('[ADMIN WITHDRAWAL API] Executing update query...')
-        console.log('[ADMIN WITHDRAWAL API] Update query params:', {
-          table: 'withdrawals',
-          id: params.id,
-          updateData: JSON.stringify(updateData)
-        })
-        
-        let updatedWithdrawals: Record<string, unknown>[] | null = null
-        let updateError
-        try {
-          const result = await supabase
-            .from('withdrawals')
-            .update(updateData)
-            .eq('id', params.id)
-            .select()
-          
-          updatedWithdrawals = result.data
-          updateError = result.error
-          console.log('[ADMIN WITHDRAWAL API] Update query completed successfully')
-        } catch (updateException) {
-          console.error('[ADMIN WITHDRAWAL API] Update query exception:', updateException)
-          updateError = updateException as Error
-        }
+    // Manual bank payout reference (legacy column name kept for schema compatibility)
+    if (status === 'approved') {
+      updateData.xendit_transfer_id =
+        typeof body.transfer_id === 'string' && body.transfer_id.trim()
+          ? body.transfer_id.trim()
+          : `MANUAL-${Date.now()}`
+    }
 
-        if (updateError) {
-          console.error('[ADMIN WITHDRAWAL API] Update error:', updateError)
-          console.error('[ADMIN WITHDRAWAL API] Update error details:', JSON.stringify(updateError, null, 2))
-          return NextResponse.json(
-            { error: 'Failed to update withdrawal', details: updateError.message || String(updateError) },
-            { status: 500 }
-          )
-        }
+    const { data: updatedWithdrawals, error: updateError } = await supabase
+      .from('withdrawals')
+      .update(updateData)
+      .eq('id', params.id)
+      .select()
 
-        console.log('[ADMIN WITHDRAWAL API] Update result:', { 
-          updatedCount: updatedWithdrawals?.length || 0,
-          updatedStatus: updatedWithdrawals?.[0]?.status,
-          updatedWithdrawalId: updatedWithdrawals?.[0]?.id,
-          updateError: updateError || null
-        })
-        
-        if (!updatedWithdrawals || updatedWithdrawals.length === 0) {
-          console.error('[ADMIN WITHDRAWAL API] No withdrawal found to update after query')
-          console.error('[ADMIN WITHDRAWAL API] This might indicate RLS blocking or withdrawal ID mismatch')
-          return NextResponse.json(
-            { error: 'Withdrawal not found or update failed' },
-            { status: 404 }
-          )
-        }
+    if (updateError) {
+      console.error('[ADMIN WITHDRAWAL API] Update error:', updateError)
+      return NextResponse.json(
+        { error: 'Failed to update withdrawal', details: updateError.message },
+        { status: 500 }
+      )
+    }
 
-        const updatedWithdrawal = updatedWithdrawals[0] as Record<string, unknown>
-        
-        // Verify the update was actually committed by querying again with a fresh connection
-        // Wait a bit longer for Supabase replication
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const verifySupabase = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          {
-            cookies: {
-              getAll() {
-                return req.cookies.getAll()
-              },
-              setAll() {
-                // Service role doesn't need to set cookies
-              },
-            },
-          }
-        )
-        
-        const { data: verifiedWithdrawal, error: verifyError } = await verifySupabase
-          .from('withdrawals')
-          .select('*')
-          .eq('id', params.id)
-          .single()
-        
-        if (!verifyError && verifiedWithdrawal) {
-          console.log('[ADMIN WITHDRAWAL API] Verified update from Supabase:', { 
-            id: verifiedWithdrawal.id, 
-            status: verifiedWithdrawal.status 
+    if (!updatedWithdrawals?.length) {
+      return NextResponse.json({ error: 'Withdrawal not found or update failed' }, { status: 404 })
+    }
+
+    const updatedWithdrawal = updatedWithdrawals[0]
+
+    try {
+      const { data: sellerProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', updatedWithdrawal.seller_id)
+        .single()
+
+      if (!profileError && sellerProfile?.email) {
+        if (status === 'approved') {
+          await sendWithdrawalApproved({
+            to: sellerProfile.email,
+            sellerName: sellerProfile.name || 'Seller',
+            amount: updatedWithdrawal.amount,
+            bankName: updatedWithdrawal.bank_name,
+            accountNumber: updatedWithdrawal.account_number,
+            accountName: updatedWithdrawal.account_name,
           })
-          
-          // Only use verified data if it matches our expected update OR if verification shows the correct status
-          // Don't overwrite a successful "approved" status with stale "pending" data due to replication lag
-          if (verifiedWithdrawal.status === body.status) {
-            // Verification confirms our update - use verified data (more complete)
-            updatedWithdrawal.status = verifiedWithdrawal.status
-            console.log('[ADMIN WITHDRAWAL API] Verification confirmed status update')
-          } else if (verifiedWithdrawal.status !== updatedWithdrawal.status) {
-            // Status mismatch - trust the update result (it's from the actual update operation)
-            // This handles replication lag where verification might return stale data
-            console.warn('[ADMIN WITHDRAWAL API] Status mismatch detected (likely replication lag). Update result:', updatedWithdrawal.status, 'Verified:', verifiedWithdrawal.status, '- Trusting update result')
-            // Keep updatedWithdrawal.status as is (from the update operation)
-          }
-        } else {
-          console.error('[ADMIN WITHDRAWAL API] Verification query failed:', verifyError)
-          // If verification fails, trust the update result
+        } else if (status === 'rejected') {
+          await sendWithdrawalRejected({
+            to: sellerProfile.email,
+            sellerName: sellerProfile.name || 'Seller',
+            amount: updatedWithdrawal.amount,
+            rejectionReason: body.rejection_reason,
+          })
+        } else if (status === 'completed') {
+          await sendWithdrawalCompleted({
+            to: sellerProfile.email,
+            sellerName: sellerProfile.name || 'Seller',
+            amount: updatedWithdrawal.amount,
+            bankName: updatedWithdrawal.bank_name,
+            accountNumber: updatedWithdrawal.account_number,
+            transferId: updatedWithdrawal.xendit_transfer_id,
+          })
         }
-
-        // Send email notification for approved withdrawal
-        try {
-          // Fetch seller information
-          const { data: sellerProfile, error: profileError } = await supabase
-            .from('profiles')
-            .select('name, email')
-            .eq('id', withdrawal.seller_id)
-            .single()
-
-          if (!profileError && sellerProfile && sellerProfile.email) {
-            const emailSent = await sendWithdrawalApproved({
-              to: sellerProfile.email,
-              sellerName: sellerProfile.name || 'Seller',
-              amount: withdrawal.amount,
-              bankName: withdrawal.bank_name,
-              accountNumber: withdrawal.account_number,
-              accountName: withdrawal.account_name,
-            })
-            
-            if (emailSent) {
-              console.log('[ADMIN WITHDRAWAL API] Approval email sent successfully')
-            } else {
-              console.log('[ADMIN WITHDRAWAL API] Failed to send approval email')
-            }
-          } else {
-            console.log('[ADMIN WITHDRAWAL API] No valid email found for seller, skipping email notification')
-          }
-        } catch (emailError) {
-          console.error('[ADMIN WITHDRAWAL API] Error sending approval email:', emailError)
-          // Don't fail the withdrawal update if email fails
-        }
-
-        return NextResponse.json({ 
-          success: true,
-          withdrawal: updatedWithdrawal,
-          transferId: transferResult.transferId
-        }, {
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-          },
-        })
-
-      } catch (error) {
-        console.error('[ADMIN WITHDRAWAL API] Xendit transfer error:', error)
-        return NextResponse.json(
-          { error: 'Failed to process transfer' },
-          { status: 500 }
-        )
       }
-    } else {
-      // For rejections and other status updates
-      const updateData: { status: string; processed_at?: string; rejection_reason?: string } = {
-        status: body.status
-      }
+    } catch (emailError) {
+      console.error('[ADMIN WITHDRAWAL API] Error sending email:', emailError)
+    }
 
-      if (body.status === 'rejected' || body.status === 'completed') {
-        updateData.processed_at = new Date().toISOString()
-      }
-
-      if (body.status === 'rejected' && body.rejection_reason) {
-        updateData.rejection_reason = body.rejection_reason
-      }
-
-      const { data: updatedWithdrawals, error: updateError } = await supabase
-        .from('withdrawals')
-        .update(updateData)
-        .eq('id', params.id)
-        .select()
-
-      if (updateError) {
-        console.error('[ADMIN WITHDRAWAL API] Update error:', updateError)
-        return NextResponse.json(
-          { error: 'Failed to update withdrawal' },
-          { status: 500 }
-        )
-      }
-
-      if (!updatedWithdrawals || updatedWithdrawals.length === 0) {
-        console.error('[ADMIN WITHDRAWAL API] No withdrawal found to update')
-        return NextResponse.json(
-          { error: 'Withdrawal not found' },
-          { status: 404 }
-        )
-      }
-
-      const updatedWithdrawal = updatedWithdrawals[0]
-
-      // Send email notification based on status
-      try {
-        // Fetch seller information
-        const { data: sellerProfile, error: profileError } = await supabase
-          .from('profiles')
-          .select('name, email')
-          .eq('id', updatedWithdrawal.seller_id)
-          .single()
-
-        if (!profileError && sellerProfile && sellerProfile.email) {
-          if (body.status === 'rejected') {
-            // Send rejection email
-            const emailSent = await sendWithdrawalRejected({
-              to: sellerProfile.email,
-              sellerName: sellerProfile.name || 'Seller',
-              amount: updatedWithdrawal.amount,
-              rejectionReason: body.rejection_reason,
-            })
-            
-            if (emailSent) {
-              console.log('[ADMIN WITHDRAWAL API] Rejection email sent successfully')
-            } else {
-              console.log('[ADMIN WITHDRAWAL API] Failed to send rejection email')
-            }
-          } else if (body.status === 'completed') {
-            // Send completion email
-            const emailSent = await sendWithdrawalCompleted({
-              to: sellerProfile.email,
-              sellerName: sellerProfile.name || 'Seller',
-              amount: updatedWithdrawal.amount,
-              bankName: updatedWithdrawal.bank_name,
-              accountNumber: updatedWithdrawal.account_number,
-              transferId: updatedWithdrawal.xendit_transfer_id,
-            })
-            
-            if (emailSent) {
-              console.log('[ADMIN WITHDRAWAL API] Completion email sent successfully')
-            } else {
-              console.log('[ADMIN WITHDRAWAL API] Failed to send completion email')
-            }
-          }
-        } else {
-          console.log('[ADMIN WITHDRAWAL API] No valid email found for seller, skipping email notification')
-        }
-      } catch (emailError) {
-        console.error('[ADMIN WITHDRAWAL API] Error sending email:', emailError)
-        // Don't fail the withdrawal update if email fails
-      }
-
-      return NextResponse.json({ 
+    return NextResponse.json(
+      {
         success: true,
-        withdrawal: updatedWithdrawal 
-      }, {
+        withdrawal: updatedWithdrawal,
+        payoutMode: 'manual',
+        transferId: updatedWithdrawal.xendit_transfer_id || null,
+      },
+      {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
           'Pragma': 'no-cache',
           'Expires': '0',
         },
-      })
-    }
-
+      }
+    )
   } catch (error) {
     console.error('[ADMIN WITHDRAWAL API] Error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
-// Xendit transfer function
-async function initiateXenditTransfer(withdrawal: {
-  id: string;
-  amount: number;
-  bank_name: string;
-  account_name: string;
-  account_number: string;
-}) {
-  try {
-    const xenditApiKey = process.env.XENDIT_SECRET_KEY
-    if (!xenditApiKey) {
-      return { success: false, error: 'Xendit API key not configured' }
-    }
-
-    const transferData = {
-      external_id: `WIT-${withdrawal.id}`,
-      amount: withdrawal.amount,
-      bank_code: getBankCode(withdrawal.bank_name),
-      account_holder_name: withdrawal.account_name,
-      account_number: withdrawal.account_number,
-      description: `Withdrawal for ${withdrawal.account_name}`,
-    }
-
-    const response = await fetch('https://api.xendit.co/disbursements', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${Buffer.from(xenditApiKey + ':').toString('base64')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(transferData),
-    })
-
-    const result = await response.json()
-
-    if (!response.ok) {
-      console.error('Xendit transfer failed:', result)
-      return { success: false, error: result.message || 'Transfer failed' }
-    }
-    return { 
-      success: true, 
-      transferId: result.id,
-      status: result.status 
-    }
-
-  } catch (error) {
-    console.error('Xendit transfer error:', error)
-    return { success: false, error: 'Network error' }
-  }
-}
-
-// Helper function to map bank names to Xendit bank codes
-function getBankCode(bankName: string): string {
-  const bankMap: { [key: string]: string } = {
-    'BCA': 'BCA',
-    'Bank BCA': 'BCA',
-    'BNI': 'BNI',
-    'Bank BNI': 'BNI',
-    'BRI': 'BRI',
-    'Bank BRI': 'BRI',
-    'Mandiri': 'MANDIRI',
-    'Bank Mandiri': 'MANDIRI',
-    'CIMB Niaga': 'CIMB',
-    'Bank CIMB Niaga': 'CIMB',
-    'Danamon': 'DANAMON',
-    'Bank Danamon': 'DANAMON',
-    'Permata': 'PERMATA',
-    'Bank Permata': 'PERMATA',
-  }
-
-  return bankMap[bankName] || 'BCA' // Default to BCA if not found
-} 
