@@ -86,7 +86,6 @@ export async function GET(req: NextRequest) {
         totalAdminEarnings += Math.max(0, itemTotal - sellerEarnings)
       }
     })
-    const totalRevenue = totalSellerEarnings
 
     // 4. Total Orders - simplified
     const { count: totalOrders, error: ordersError } = await supabase

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import {
   DollarSign,
@@ -443,7 +443,7 @@ function MetricCard({
   title: string
   value: string
   hint: string
-  icon: React.ReactNode
+  icon: ReactNode
   accent?: string
 }) {
   return (

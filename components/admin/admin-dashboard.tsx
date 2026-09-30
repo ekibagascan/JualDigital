@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, Package, DollarSign, Wallet, ShoppingCart, RefreshCw, TrendingUp, TrendingDown } from "lucide-react"
+import { Users, Package, DollarSign, Wallet, ShoppingCart, RefreshCw, TrendingUp, TrendingDown, Percent, ArrowRight } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { formatCurrency } from "@/lib/utils"
 
 interface DashboardStats {
   title: string
@@ -33,13 +35,29 @@ interface TopProduct {
   id: string
 }
 
+interface RevenueSnapshot {
+  grossSales: number
+  platformCommission: number
+  sellerEarnings: number
+  paidOrdersCount: number
+  pendingOrdersCount: number
+  pendingOrdersAmount: number
+  todayCommission: number
+}
+
 interface DashboardData {
   stats: DashboardStats[]
   recentOrders: RecentOrder[]
   topProducts: TopProduct[]
+  revenue?: {
+    grossSales: number
+    platformCommission: number
+    sellerEarnings: number
+  }
 }
 
-// Fallback data in case API fails (must match API: 5 stats)
+const POLL_MS = 15_000
+
 const fallbackStats: DashboardStats[] = [
   { title: "Total Pengguna", value: "0", change: "0%", changeType: "positive" },
   { title: "Total Produk", value: "0", change: "0%", changeType: "positive" },
@@ -52,55 +70,99 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats[]>(fallbackStats)
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
+  const [revenue, setRevenue] = useState<RevenueSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const router = useRouter()
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  useEffect(() => {
-    if (mounted) {
-      fetchDashboardData()
-    }
-  }, [mounted])
+  const fetchDashboardData = useCallback(async (opts?: { silent?: boolean }) => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
-  const fetchDashboardData = async () => {
     try {
-      setLoading(true)
+      if (!opts?.silent) setLoading(true)
       setError(null)
 
-      // Add cache-busting timestamp and headers to prevent stale data
-      const response = await fetch(`/api/admin/dashboard?t=${Date.now()}`, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-      })
+      const [dashRes, revRes] = await Promise.all([
+        fetch(`/api/admin/dashboard?t=${Date.now()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        }),
+        fetch(`/api/admin/revenue?t=${Date.now()}&status=paid&includePending=1`, {
+          cache: "no-store",
+          signal: controller.signal,
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+          },
+        }),
+      ])
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data')
+      if (!dashRes.ok) {
+        throw new Error("Failed to fetch dashboard data")
       }
 
-      const data: DashboardData = await response.json()
-
+      const data: DashboardData = await dashRes.json()
       setStats(data.stats)
       setRecentOrders(data.recentOrders)
       setTopProducts(data.topProducts)
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error)
-      setError('Gagal memuat data dashboard')
-      // Keep fallback stats
+
+      if (revRes.ok) {
+        const rev = await revRes.json()
+        setRevenue({
+          grossSales: rev.metrics.grossSales,
+          platformCommission: rev.metrics.platformCommission,
+          sellerEarnings: rev.metrics.sellerEarnings,
+          paidOrdersCount: rev.metrics.paidOrdersCount,
+          pendingOrdersCount: rev.metrics.pendingOrdersCount,
+          pendingOrdersAmount: rev.metrics.pendingOrdersAmount,
+          todayCommission: rev.metrics.todayCommission,
+        })
+      } else if (data.revenue) {
+        setRevenue({
+          grossSales: data.revenue.grossSales,
+          platformCommission: data.revenue.platformCommission,
+          sellerEarnings: data.revenue.sellerEarnings,
+          paidOrdersCount: 0,
+          pendingOrdersCount: 0,
+          pendingOrdersAmount: 0,
+          todayCommission: 0,
+        })
+      }
+
+      setLastUpdated(new Date().toISOString())
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return
+      console.error("Failed to fetch dashboard data:", err)
+      setError("Gagal memuat data dashboard")
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  // Prevent hydration mismatch by not rendering until mounted
+  useEffect(() => {
+    if (!mounted) return
+    fetchDashboardData()
+    const id = setInterval(() => fetchDashboardData({ silent: true }), POLL_MS)
+    return () => {
+      clearInterval(id)
+      abortRef.current?.abort()
+    }
+  }, [mounted, fetchDashboardData])
+
   if (!mounted) {
     return (
       <div className="space-y-6">
@@ -126,7 +188,7 @@ export default function AdminDashboard() {
     )
   }
 
-  if (loading) {
+  if (loading && !lastUpdated) {
     return (
       <div className="space-y-6">
         <div>
@@ -158,15 +220,18 @@ export default function AdminDashboard() {
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
             Ringkasan data marketplace digital
+            {lastUpdated
+              ? ` · diperbarui otomatis tiap ${POLL_MS / 1000} dtk`
+              : ""}
           </p>
         </div>
         <Button
-          onClick={fetchDashboardData}
+          onClick={() => fetchDashboardData({ silent: true })}
           disabled={loading}
           variant="outline"
           size="sm"
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
       </div>
@@ -188,7 +253,7 @@ export default function AdminDashboard() {
                 {index === 0 && <Users className="h-4 w-4" />}
                 {index === 1 && <Package className="h-4 w-4" />}
                 {index === 2 && <DollarSign className="h-4 w-4" />}
-                {index === 3 && <Wallet className="h-4 w-4" />}
+                {index === 3 && <Percent className="h-4 w-4" />}
                 {index === 4 && <ShoppingCart className="h-4 w-4" />}
               </div>
             </CardHeader>
@@ -206,6 +271,58 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {revenue && (
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-base font-semibold">Ringkasan Pendapatan</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Hanya pesanan lunas · komisi = (harga×qty) − seller_earnings (~3%)
+              </p>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/admin/revenue">
+                Detail pendapatan
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Penjualan kotor</p>
+                <p className="text-lg font-semibold">{formatCurrency(revenue.grossSales)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Komisi platform</p>
+                <p className="text-lg font-semibold text-emerald-700">
+                  {formatCurrency(revenue.platformCommission)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Hari ini {formatCurrency(revenue.todayCommission)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Bagi hasil seller</p>
+                <p className="text-lg font-semibold flex items-center gap-1.5">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  {formatCurrency(revenue.sellerEarnings)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Pesanan menunggu</p>
+                <p className="text-lg font-semibold text-amber-700">
+                  {revenue.pendingOrdersCount} · {formatCurrency(revenue.pendingOrdersAmount)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {revenue.paidOrdersCount} lunas · menunggu belum dihitung pendapatan
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4 border-border/80 shadow-sm">
           <CardHeader className="pb-3">
@@ -222,18 +339,18 @@ export default function AdminDashboard() {
                         {order.order_number}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {order.userEmail || order.profiles?.email || 'Email tidak tersedia'}
+                        {order.userEmail || order.profiles?.email || "Email tidak tersedia"}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-semibold">
-                        Rp {order.total_amount?.toLocaleString() || '0'}
+                        Rp {order.total_amount?.toLocaleString() || "0"}
                       </p>
-                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${order.status === 'paid' ? 'bg-green-500/10 text-green-700' :
-                        order.status === 'pending' ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700'
+                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${order.status === "paid" ? "bg-green-500/10 text-green-700" :
+                        order.status === "pending" ? "bg-amber-500/10 text-amber-700" : "bg-red-500/10 text-red-700"
                         }`}>
-                        {order.status === 'paid' ? 'Lunas' :
-                          order.status === 'pending' ? 'Menunggu' : 'Gagal'}
+                        {order.status === "paid" ? "Lunas" :
+                          order.status === "pending" ? "Menunggu" : "Gagal"}
                       </span>
                     </div>
                   </div>
