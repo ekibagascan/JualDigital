@@ -199,7 +199,7 @@ export function ProductCard({ product }: ProductCardProps) {
       PRODUCT_CARD_ITEM_CLASS,
     )}>
       <div className="flex flex-col">
-        {/* Portrait thumbnail — equal aspect so desktop grid stays tidy */}
+        {/* Portrait thumbnail — varied on mobile masonry; uniform 3/4 from md+ */}
         <Link
           href={`/product/${product.id}`}
           className="relative block w-full shrink-0"
