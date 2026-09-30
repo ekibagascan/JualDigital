@@ -55,33 +55,6 @@ export function generateId(): string {
   return Math.random().toString(36).substr(2, 9)
 }
 
-/**
- * Product catalog layout:
- * - Mobile (< md): CSS columns-2 masonry (packs uneven card heights)
- * - md+: plain CSS grid — never columns (desktop masonry broke into one huge card + gaps)
- */
-export const PRODUCT_MASONRY_CLASS =
-  "max-md:columns-2 max-md:gap-x-2 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-3 lg:gap-4"
-
-/** Column break + bottom gap only on mobile masonry; unused under md+ grid. */
-export const PRODUCT_CARD_ITEM_CLASS =
-  "max-md:break-inside-avoid max-md:mb-3 md:mb-0"
-
-const PORTRAIT_ASPECTS = [
-  "aspect-[3/4]",
-  "aspect-[2/3]",
-  "aspect-[4/5]",
-  "aspect-[5/7]",
-] as const
-
-/**
- * Varied portrait ratios for mobile masonry packing.
- * md+ forces uniform 3/4 so the CSS grid stays tidy.
- */
-export function portraitAspectForId(id: string): string {
-  let n = 0
-  for (let i = 0; i < id.length; i++) {
-    n = (n + id.charCodeAt(i) * (i + 1)) % PORTRAIT_ASPECTS.length
-  }
-  return `${PORTRAIT_ASPECTS[n]} md:aspect-[3/4]`
-}
+/** Simple product catalog grid: 2 cols mobile, 4 cols desktop. */
+export const PRODUCT_GRID_CLASS =
+  "grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4"

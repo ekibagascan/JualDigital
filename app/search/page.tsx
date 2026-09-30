@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { ProductCard } from "@/components/product/product-card"
 import { productService, ProductService, type Product } from "@/lib/product-service"
-import { PRODUCT_CARD_ITEM_CLASS, PRODUCT_MASONRY_CLASS } from "@/lib/utils"
+import { PRODUCT_GRID_CLASS } from "@/lib/utils"
 
 export default function SearchPage() {
   const searchParams = useSearchParams()
@@ -73,9 +73,9 @@ export default function SearchPage() {
         </div>
 
         {loading ? (
-          <div className={PRODUCT_MASONRY_CLASS}>
+          <div className={PRODUCT_GRID_CLASS}>
             {[...Array(8)].map((_, i) => (
-              <div key={i} className={`animate-pulse ${PRODUCT_CARD_ITEM_CLASS}`}>
+              <div key={i} className="animate-pulse">
                 <div className="bg-muted aspect-[3/4] rounded-lg mb-2"></div>
                 <div className="space-y-1.5">
                   <div className="h-3.5 bg-muted rounded"></div>
@@ -98,7 +98,7 @@ export default function SearchPage() {
             </a>
           </div>
         ) : (
-          <div className={PRODUCT_MASONRY_CLASS}>
+          <div className={PRODUCT_GRID_CLASS}>
             {products.map((product) => (
               <ProductCard
                 key={product.id}

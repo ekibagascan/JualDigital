@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/hooks/use-auth"
-import { formatCurrency, PRODUCT_CARD_ITEM_CLASS, PRODUCT_MASONRY_CLASS } from "@/lib/utils"
+import { formatCurrency, PRODUCT_GRID_CLASS } from "@/lib/utils"
 
 // Mock data
 const mockProducts = [
@@ -234,9 +234,9 @@ export function SellerStore() {
             </Card>
 
             {/* Products Grid */}
-            <div className={PRODUCT_MASONRY_CLASS}>
+            <div className={PRODUCT_GRID_CLASS}>
               {sortedProducts.map((product) => (
-                <Card key={product.id} className={`overflow-hidden ${PRODUCT_CARD_ITEM_CLASS}`}>
+                <Card key={product.id} className="overflow-hidden">
                   <div className="aspect-[3/4] relative">
                     <img
                       src={product.image || "/placeholder.svg"}

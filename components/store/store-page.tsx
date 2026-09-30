@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { supabase } from "@/lib/supabase-client"
 import { ProductCard } from "@/components/product/product-card"
-import { PRODUCT_CARD_ITEM_CLASS, PRODUCT_MASONRY_CLASS } from "@/lib/utils"
+import { PRODUCT_GRID_CLASS } from "@/lib/utils"
 
 interface StorePageProps {
     sellerId: string
@@ -250,9 +250,9 @@ export function StorePage({ sellerId }: StorePageProps) {
                 {/* Content Skeleton */}
                 <div className="container mx-auto px-4 py-8">
                     <Skeleton className="h-12 w-full mb-8" />
-                    <div className={PRODUCT_MASONRY_CLASS}>
+                    <div className={PRODUCT_GRID_CLASS}>
                         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                            <Skeleton key={i} className={`h-64 ${PRODUCT_CARD_ITEM_CLASS}`} />
+                            <Skeleton key={i} className="h-64" />
                         ))}
                     </div>
                 </div>
@@ -409,7 +409,7 @@ export function StorePage({ sellerId }: StorePageProps) {
                         </Card>
 
                         {/* Products Grid */}
-                        <div className={PRODUCT_MASONRY_CLASS}>
+                        <div className={PRODUCT_GRID_CLASS}>
                             {sortedProducts.map((product) => (
                                 <ProductCard
                                     key={product.id}

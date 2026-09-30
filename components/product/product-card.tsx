@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { cn, formatCurrency, portraitAspectForId, PRODUCT_CARD_ITEM_CLASS } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 import type { ProductVariant } from "@/lib/product-service"
 import { useCart } from "@/components/providers/cart-provider"
 import { useSupabaseWishlist } from "@/hooks/use-supabase-wishlist"
@@ -194,22 +194,14 @@ export function ProductCard({ product }: ProductCardProps) {
   }
 
   return (
-    <Card className={cn(
-      "group relative overflow-hidden border border-border/60 shadow-sm hover:shadow-md transition-all duration-300",
-      PRODUCT_CARD_ITEM_CLASS,
-    )}>
+    <Card className="group relative overflow-hidden border border-border/60 shadow-sm hover:shadow-md transition-all duration-300">
       <div className="flex flex-col">
-        {/* Portrait thumbnail — varied on mobile masonry; uniform 3/4 from md+ */}
+        {/* Uniform portrait thumbnail */}
         <Link
           href={`/product/${product.id}`}
           className="relative block w-full shrink-0"
         >
-          <div
-            className={cn(
-              "relative overflow-hidden bg-muted max-h-[28rem]",
-              portraitAspectForId(product.id),
-            )}
-          >
+          <div className="relative overflow-hidden bg-muted aspect-[3/4]">
             <Image
               src={product.image}
               alt={product.title}
