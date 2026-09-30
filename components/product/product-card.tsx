@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency, portraitAspectForId } from "@/lib/utils"
 import type { ProductVariant } from "@/lib/product-service"
 import { useCart } from "@/components/providers/cart-provider"
 import { useSupabaseWishlist } from "@/hooks/use-supabase-wishlist"
@@ -194,20 +194,25 @@ export function ProductCard({ product }: ProductCardProps) {
   }
 
   return (
-    <Card className="group relative overflow-hidden border border-border/60 shadow-sm hover:shadow-md transition-all duration-300 h-full">
-      <div className="flex flex-col h-full">
-        {/* Portrait thumbnail — ~70% of card height */}
+    <Card className="group relative overflow-hidden border border-border/60 shadow-sm hover:shadow-md transition-all duration-300 break-inside-avoid mb-2 md:mb-3 lg:mb-4">
+      <div className="flex flex-col">
+        {/* Portrait thumbnail — varied aspect for masonry packing */}
         <Link
           href={`/product/${product.id}`}
           className="relative block w-full shrink-0"
         >
-          <div className="relative aspect-[3/4] overflow-hidden bg-muted">
+          <div
+            className={cn(
+              "relative overflow-hidden bg-muted max-h-[28rem]",
+              portraitAspectForId(product.id),
+            )}
+          >
             <Image
               src={product.image}
               alt={product.title}
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-105"
-              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />
 
             {/* Badges */}
@@ -285,7 +290,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </Link>
 
         {/* Compact footer — title, price, rating + terjual */}
-        <CardContent className="flex-1 p-2 sm:p-2.5 flex flex-col gap-0.5 min-h-0">
+        <CardContent className="p-2 sm:p-2.5 flex flex-col gap-0.5">
           <h3 className="font-medium text-[13px] sm:text-sm leading-snug line-clamp-2 text-foreground">
             <Link href={`/product/${product.id}`} className="hover:text-primary transition-colors">
               {product.title}

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ProductCard } from "@/components/product/product-card"
 import { productService, type Product } from "@/lib/product-service"
+import { PRODUCT_MASONRY_CLASS } from "@/lib/utils"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -32,7 +33,7 @@ export function NewestProducts() {
     const fetchProductsAndSellers = async () => {
       try {
         const { products: newestProducts, sellerNames } =
-          await productService.getCatalog({ limit: 4, sort: 'newest', include_sellers: true })
+          await productService.getCatalog({ limit: 8, sort: 'newest', include_sellers: true })
         setProducts(newestProducts)
         setSellerNameMap(sellerNames || {})
       } catch (error) {
@@ -54,9 +55,9 @@ export function NewestProducts() {
               Produk digital terbaru yang baru saja ditambahkan
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4 mb-12">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="animate-pulse">
+          <div className={`${PRODUCT_MASONRY_CLASS} mb-12`}>
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="animate-pulse break-inside-avoid mb-2 md:mb-3 lg:mb-4">
                 <div className="bg-muted aspect-[3/4] rounded-lg mb-2"></div>
                 <div className="space-y-1.5">
                   <div className="h-3.5 bg-muted rounded"></div>
@@ -80,7 +81,7 @@ export function NewestProducts() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4 mb-12">
+        <div className={`${PRODUCT_MASONRY_CLASS} mb-12`}>
           {products.map((product) => (
             <ProductCard
               key={product.id}

@@ -6,6 +6,7 @@ import { ProductsFilter } from "@/components/categories/products-filter"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { productService, type Product } from "@/lib/product-service"
+import { PRODUCT_MASONRY_CLASS } from "@/lib/utils"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -112,7 +113,7 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
+          <div className={PRODUCT_MASONRY_CLASS}>
             {products.map((product) => (
               <ProductCard key={product.id} product={transformProduct(product)} />
             ))}

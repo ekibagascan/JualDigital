@@ -54,3 +54,23 @@ export function slugify(text: string): string {
 export function generateId(): string {
   return Math.random().toString(36).substr(2, 9)
 }
+
+/** CSS multi-column masonry for product catalogs (pair with break-inside-avoid on cards). */
+export const PRODUCT_MASONRY_CLASS =
+  "columns-2 md:columns-3 lg:columns-4 gap-x-2 md:gap-x-3 lg:gap-x-4"
+
+const PORTRAIT_ASPECTS = [
+  "aspect-[3/4]",
+  "aspect-[2/3]",
+  "aspect-[4/5]",
+  "aspect-[5/7]",
+] as const
+
+/** Slightly varied portrait ratios so masonry columns pack tightly. */
+export function portraitAspectForId(id: string): (typeof PORTRAIT_ASPECTS)[number] {
+  let n = 0
+  for (let i = 0; i < id.length; i++) {
+    n = (n + id.charCodeAt(i) * (i + 1)) % PORTRAIT_ASPECTS.length
+  }
+  return PORTRAIT_ASPECTS[n]
+}

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/hooks/use-auth"
 import { supabase } from "@/lib/supabase-client"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, PRODUCT_MASONRY_CLASS } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
 
@@ -190,10 +190,10 @@ export function WishlistContent() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
+                <div className={PRODUCT_MASONRY_CLASS}>
                     {wishlistItems.map((item) => (
-                        <Card key={item.id} className="overflow-hidden">
-                            <div className="aspect-video relative">
+                        <Card key={item.id} className="overflow-hidden break-inside-avoid mb-2 md:mb-3 lg:mb-4">
+                            <div className="aspect-[3/4] relative">
                                 {item.products.image_url ? (
                                     <img
                                         src={item.products.image_url}
