@@ -43,8 +43,8 @@ interface DashboardData {
 const fallbackStats: DashboardStats[] = [
   { title: "Total Pengguna", value: "0", change: "0%", changeType: "positive" },
   { title: "Total Produk", value: "0", change: "0%", changeType: "positive" },
-  { title: "Total Pendapatan Seller", value: "Rp 0", change: "0%", changeType: "positive" },
-  { title: "Total Pendapatan Admin", value: "Rp 0", change: "0%", changeType: "positive" },
+  { title: "Penjualan Kotor", value: "Rp 0", change: "0%", changeType: "positive" },
+  { title: "Komisi Platform", value: "Rp 0", change: "0%", changeType: "positive" },
   { title: "Total Pesanan", value: "0", change: "0%", changeType: "positive" },
 ]
 

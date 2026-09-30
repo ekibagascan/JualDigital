@@ -66,8 +66,9 @@ export async function GET(req: NextRequest) {
       console.error('[ADMIN DASHBOARD API] Revenue query error:', revenueError)
     }
 
-    // Calculate total revenue (seller earnings) and admin earnings (3% commission)
-    let totalRevenue = 0
+    // Gross / seller / platform from paid order_items (no double-count)
+    let grossSales = 0
+    let totalSellerEarnings = 0
     let totalAdminEarnings = 0
     
     revenueData?.forEach((item) => {
@@ -79,11 +80,13 @@ export async function GET(req: NextRequest) {
       
       if (!isNaN(price) && !isNaN(quantity) && !isNaN(sellerEarnings)) {
         const itemTotal = price * quantity
-        totalRevenue += sellerEarnings
-        // Admin earnings = 3% commission = total - seller_earnings (which is 97%)
-        totalAdminEarnings += (itemTotal - sellerEarnings)
+        grossSales += itemTotal
+        totalSellerEarnings += sellerEarnings
+        // Platform commission = gross − seller_earnings (~3%)
+        totalAdminEarnings += Math.max(0, itemTotal - sellerEarnings)
       }
     })
+    const totalRevenue = totalSellerEarnings
 
     // 4. Total Orders - simplified
     const { count: totalOrders, error: ordersError } = await supabase
@@ -308,14 +311,14 @@ export async function GET(req: NextRequest) {
           changeType: "positive" as const,
         },
         {
-          title: "Total Pendapatan Seller",
-          value: `Rp ${totalRevenue.toLocaleString()}`,
+          title: "Penjualan Kotor",
+          value: `Rp ${grossSales.toLocaleString("id-ID")}`,
           change: `${revenueChange.toFixed(1)}%`,
           changeType: revenueChange >= 0 ? "positive" : "negative",
         },
         {
-          title: "Total Pendapatan Admin",
-          value: `Rp ${totalAdminEarnings.toLocaleString()}`,
+          title: "Komisi Platform",
+          value: `Rp ${totalAdminEarnings.toLocaleString("id-ID")}`,
           change: `${adminEarningsChange.toFixed(1)}%`,
           changeType: adminEarningsChange >= 0 ? "positive" : "negative",
         },
@@ -326,6 +329,11 @@ export async function GET(req: NextRequest) {
           changeType: ordersChange >= 0 ? "positive" : "negative",
         },
       ],
+      revenue: {
+        grossSales,
+        platformCommission: totalAdminEarnings,
+        sellerEarnings: totalSellerEarnings,
+      },
       recentOrders: recentOrders || [],
       topProducts: processedTopProducts,
     }
