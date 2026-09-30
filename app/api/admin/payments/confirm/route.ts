@@ -190,6 +190,39 @@ export async function POST(req: NextRequest) {
             console.error('[CONFIRM PAYMENT] Error sending download email:', error)
           }
         }
+
+        // Notify sellers via WhatsApp (same as DANA/BCI/Xendit paid paths)
+        try {
+          const { WhatsAppService } = await import('@/lib/whatsapp-service')
+          const { sumOrderItemsLineTotal } = await import('@/lib/utils')
+          const whatsappService = new WhatsAppService()
+          const sellerIds = [...new Set(orderItems.map((item) => item.seller_id).filter(Boolean))]
+
+          for (const sellerId of sellerIds) {
+            const sellerItems = orderItems.filter((item) => item.seller_id === sellerId)
+            const productTitles = sellerItems
+              .map((item) => item.product_title || 'Product')
+              .join(', ')
+            const totalAmount = sumOrderItemsLineTotal(sellerItems)
+            const totalQuantity = sellerItems.reduce((sum, item) => sum + item.quantity, 0)
+
+            try {
+              await whatsappService.sendOrderNotification(sellerId, {
+                orderNumber: order.order_number,
+                productTitle: productTitles,
+                amount: totalAmount,
+                quantity: totalQuantity,
+                buyerName: order.guest_name || undefined,
+                paymentStatus: 'paid',
+              })
+              console.log('[CONFIRM PAYMENT] WhatsApp notification sent to seller:', sellerId)
+            } catch (whatsappError) {
+              console.error('[CONFIRM PAYMENT] Error sending WhatsApp:', whatsappError)
+            }
+          }
+        } catch (whatsappSetupError) {
+          console.error('[CONFIRM PAYMENT] WhatsApp setup error:', whatsappSetupError)
+        }
       }
 
       return NextResponse.json({

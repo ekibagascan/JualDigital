@@ -345,9 +345,8 @@ _Jual Digital - Platform Jual Beli Digital Terpercaya_`
       
       console.warn('[WHATSAPP] No WhatsApp API configured. Message would be sent to:', phone)
       console.warn('[WHATSAPP] Message:', message)
-      
-      // For development/testing, just log the message
-      return true
+      // Do not report success when no provider is configured — callers treat true as delivered
+      return false
     } catch (error) {
       console.error('[WHATSAPP] Error sending message:', error)
       return false
