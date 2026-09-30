@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { ProductCard } from "@/components/product/product-card"
 import { productService, type Product } from "@/lib/product-service"
-import { PRODUCT_MASONRY_CLASS } from "@/lib/utils"
+import { PRODUCT_CARD_ITEM_CLASS, PRODUCT_MASONRY_CLASS } from "@/lib/utils"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -52,7 +52,7 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
         <h2 className="text-2xl font-bold">Produk Terkait</h2>
         <div className={PRODUCT_MASONRY_CLASS}>
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="animate-pulse break-inside-avoid mb-2 md:mb-3 lg:mb-4">
+            <div key={i} className={`animate-pulse ${PRODUCT_CARD_ITEM_CLASS}`}>
               <div className="bg-muted aspect-[3/4] rounded-lg mb-2"></div>
               <div className="space-y-1.5">
                 <div className="h-3.5 bg-muted rounded"></div>

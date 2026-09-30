@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { cn, formatCurrency, portraitAspectForId } from "@/lib/utils"
+import { cn, formatCurrency, portraitAspectForId, PRODUCT_CARD_ITEM_CLASS } from "@/lib/utils"
 import type { ProductVariant } from "@/lib/product-service"
 import { useCart } from "@/components/providers/cart-provider"
 import { useSupabaseWishlist } from "@/hooks/use-supabase-wishlist"
@@ -194,9 +194,12 @@ export function ProductCard({ product }: ProductCardProps) {
   }
 
   return (
-    <Card className="group relative overflow-hidden border border-border/60 shadow-sm hover:shadow-md transition-all duration-300 break-inside-avoid mb-2 md:mb-3 lg:mb-4">
+    <Card className={cn(
+      "group relative overflow-hidden border border-border/60 shadow-sm hover:shadow-md transition-all duration-300",
+      PRODUCT_CARD_ITEM_CLASS,
+    )}>
       <div className="flex flex-col">
-        {/* Portrait thumbnail — varied aspect for masonry packing */}
+        {/* Portrait thumbnail — equal aspect so desktop grid stays tidy */}
         <Link
           href={`/product/${product.id}`}
           className="relative block w-full shrink-0"

@@ -55,22 +55,18 @@ export function generateId(): string {
   return Math.random().toString(36).substr(2, 9)
 }
 
-/** CSS multi-column masonry for product catalogs (pair with break-inside-avoid on cards). */
+/**
+ * Product catalog layout — equal CSS grid on all breakpoints.
+ * (CSS columns masonry was removed: it broke desktop into one huge card + empty gaps.)
+ * Mobile: 2 cols · lg: 4 cols
+ */
 export const PRODUCT_MASONRY_CLASS =
-  "columns-2 md:columns-3 lg:columns-4 gap-x-2 md:gap-x-3 lg:gap-x-4"
+  "grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4"
 
-const PORTRAIT_ASPECTS = [
-  "aspect-[3/4]",
-  "aspect-[2/3]",
-  "aspect-[4/5]",
-  "aspect-[5/7]",
-] as const
+/** Kept for call sites that previously needed column break spacing; no-op under grid. */
+export const PRODUCT_CARD_ITEM_CLASS = ""
 
-/** Slightly varied portrait ratios so masonry columns pack tightly. */
-export function portraitAspectForId(id: string): (typeof PORTRAIT_ASPECTS)[number] {
-  let n = 0
-  for (let i = 0; i < id.length; i++) {
-    n = (n + id.charCodeAt(i) * (i + 1)) % PORTRAIT_ASPECTS.length
-  }
-  return PORTRAIT_ASPECTS[n]
+/** Uniform portrait ratio for equal grid cards. */
+export function portraitAspectForId(_id: string): string {
+  return "aspect-[3/4]"
 }

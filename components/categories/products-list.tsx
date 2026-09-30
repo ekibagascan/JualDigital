@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ProductCard } from "@/components/product/product-card"
 import { productService, type Product } from "@/lib/product-service"
-import { PRODUCT_MASONRY_CLASS } from "@/lib/utils"
+import { cn, PRODUCT_CARD_ITEM_CLASS, PRODUCT_MASONRY_CLASS } from "@/lib/utils"
 
 // Transform Supabase product to match ProductCard interface
 const transformProduct = (product: Product) => ({
@@ -212,7 +212,7 @@ export function ProductsList({ category }: ProductsListProps) {
         </div>
         <div className={PRODUCT_MASONRY_CLASS}>
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="animate-pulse break-inside-avoid mb-2 md:mb-3 lg:mb-4 flex flex-col rounded-lg border overflow-hidden">
+            <div key={i} className={cn("animate-pulse flex flex-col rounded-lg border overflow-hidden", PRODUCT_CARD_ITEM_CLASS)}>
               <div className="bg-muted w-full aspect-[3/4] shrink-0"></div>
               <div className="space-y-1.5 p-2">
                 <div className="h-3.5 bg-muted rounded"></div>
