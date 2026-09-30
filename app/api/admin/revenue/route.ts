@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     const { data: orders, error: ordersError } = await supabase
       .from('orders')
       .select(
-        'id, order_number, user_id, total_amount, status, payment_method, payment_provider, created_at, updated_at, transaction_id'
+        'id, order_number, user_id, guest_name, guest_email, total_amount, status, payment_method, payment_provider, created_at, updated_at, transaction_id'
       )
       .order('created_at', { ascending: false })
 
@@ -83,6 +83,65 @@ export async function GET(req: NextRequest) {
     const orderById = new Map((orders || []).map((o) => [o.id, o]))
     const profileById = new Map((profiles || []).map((p) => [p.id, p]))
     const productById = new Map((products || []).map((p) => [p.id, p]))
+
+    // Auth fallback for registered buyers missing a usable profile row
+    type AuthBuyer = { name: string | null; email: string | null }
+    const authBuyerById = new Map<string, AuthBuyer>()
+    const userIdsNeedingAuth = [
+      ...new Set(
+        (orders || [])
+          .filter((o) => {
+            if (!o.user_id) return false
+            if (o.guest_name || o.guest_email) return false
+            const profile = profileById.get(o.user_id)
+            return !profile?.name && !profile?.email
+          })
+          .map((o) => o.user_id as string)
+      ),
+    ]
+
+    await Promise.all(
+      userIdsNeedingAuth.map(async (userId) => {
+        try {
+          const { data } = await supabase.auth.admin.getUserById(userId)
+          const user = data?.user
+          if (!user) return
+          const meta = user.user_metadata || {}
+          authBuyerById.set(userId, {
+            name:
+              (typeof meta.name === 'string' && meta.name) ||
+              (typeof meta.full_name === 'string' && meta.full_name) ||
+              null,
+            email: user.email || null,
+          })
+        } catch (err) {
+          console.error('[ADMIN REVENUE API] getUserById failed:', userId, err)
+        }
+      })
+    )
+
+    function resolveBuyer(order: {
+      user_id: string | null
+      guest_name: string | null
+      guest_email: string | null
+    }): { buyerName: string; buyerEmail: string } {
+      const profile = order.user_id ? profileById.get(order.user_id) : null
+      const auth = order.user_id ? authBuyerById.get(order.user_id) : null
+
+      const buyerName =
+        order.guest_name ||
+        profile?.name ||
+        auth?.name ||
+        auth?.email ||
+        profile?.email ||
+        order.guest_email ||
+        'Pembeli tidak diketahui'
+
+      const buyerEmail =
+        order.guest_email || profile?.email || auth?.email || '—'
+
+      return { buyerName, buyerEmail }
+    }
 
     // —— Metrics: only status=paid (from order_items to avoid double-count) ——
     let grossSales = 0
@@ -171,7 +230,7 @@ export async function GET(req: NextRequest) {
               : gross - fee
             : seller || gross * 0.97
 
-        const buyer = profileById.get(order.user_id)
+        const { buyerName, buyerEmail } = resolveBuyer(order)
         const product = productById.get(item.product_id)
         const sellerProfile = product?.seller_id ? profileById.get(product.seller_id) : null
         const labels = formatPaymentLabels(order.payment_provider, order.payment_method)
@@ -182,8 +241,8 @@ export async function GET(req: NextRequest) {
           orderNumber: order.order_number,
           date: order.created_at,
           paidAt: order.status === 'paid' ? order.updated_at || order.created_at : null,
-          buyerName: buyer?.name || 'Pembeli tidak diketahui',
-          buyerEmail: buyer?.email || '—',
+          buyerName,
+          buyerEmail,
           productTitle: item.product_title || product?.title || 'Produk tidak diketahui',
           productId: item.product_id,
           sellerName: sellerProfile?.business_name || sellerProfile?.name || '—',

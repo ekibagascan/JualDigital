@@ -354,79 +354,81 @@ export function RevenueManagement() {
             </Select>
           </div>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Pesanan</TableHead>
-                <TableHead>Pembeli</TableHead>
-                <TableHead>Produk</TableHead>
-                <TableHead className="text-right">Kotor</TableHead>
-                <TableHead className="text-right">Komisi</TableHead>
-                <TableHead className="text-right">Seller</TableHead>
-                <TableHead>Metode</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
+        <CardContent className="p-0 sm:p-6">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[1100px]">
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-10">
-                    Belum ada transaksi
-                  </TableCell>
+                  <TableHead className="whitespace-nowrap">Tanggal</TableHead>
+                  <TableHead className="whitespace-nowrap">Pesanan</TableHead>
+                  <TableHead className="whitespace-nowrap">Pembeli</TableHead>
+                  <TableHead className="whitespace-nowrap">Produk</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Gross</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Komisi platform</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Seller earnings</TableHead>
+                  <TableHead className="whitespace-nowrap">Metode</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
                 </TableRow>
-              ) : (
-                filtered.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="whitespace-nowrap text-xs">
-                      {formatDate(tx.date)}
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/admin/orders/${tx.orderId}`}
-                        className="text-sm font-medium hover:underline"
-                      >
-                        {tx.orderNumber}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <div className="min-w-[140px]">
-                        <p className="text-sm font-medium truncate">{tx.buyerName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{tx.buyerEmail}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="min-w-[160px]">
-                        <p className="text-sm truncate">{tx.productTitle}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {tx.quantity}× · {tx.sellerName}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-medium whitespace-nowrap">
-                      {formatCurrency(tx.gross)}
-                    </TableCell>
-                    <TableCell className="text-right text-emerald-700 whitespace-nowrap">
-                      {formatCurrency(tx.platformFee)}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(tx.sellerEarnings)}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{tx.paymentMethod}</span>
-                      {tx.paymentProvider !== tx.paymentMethod && (
-                        <p className="text-xs text-muted-foreground">{tx.paymentProvider}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={tx.status} />
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-10">
+                      Belum ada transaksi
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  filtered.map((tx) => (
+                    <TableRow key={tx.id}>
+                      <TableCell className="whitespace-nowrap text-xs">
+                        {formatDate(tx.date)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Link
+                          href={`/admin/orders/${tx.orderId}`}
+                          className="text-sm font-medium hover:underline"
+                        >
+                          {tx.orderNumber}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="min-w-[140px] max-w-[200px]">
+                          <p className="text-sm font-medium truncate">{tx.buyerName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{tx.buyerEmail}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="min-w-[160px] max-w-[240px]">
+                          <p className="text-sm truncate">{tx.productTitle}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {tx.quantity}× · {tx.sellerName}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium whitespace-nowrap">
+                        {formatCurrency(tx.gross)}
+                      </TableCell>
+                      <TableCell className="text-right text-emerald-700 whitespace-nowrap">
+                        {formatCurrency(tx.platformFee)}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrency(tx.sellerEarnings)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <span className="text-sm">{tx.paymentMethod}</span>
+                        {tx.paymentProvider !== tx.paymentMethod && (
+                          <p className="text-xs text-muted-foreground">{tx.paymentProvider}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <StatusBadge status={tx.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
