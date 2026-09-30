@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
-import { createServerClient } from '@supabase/ssr'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 
 export async function GET(
   req: NextRequest,
@@ -17,20 +17,7 @@ export async function GET(
     }
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     // Get order by ID
     const { data: order, error: orderError } = await supabase
@@ -128,23 +115,10 @@ export async function PUT(
     const body = await req.json()
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     // Update order
-    const { data: order, error: updateError } = await supabase
+    const { data: updatedOrders, error: updateError } = await supabase
       .from('orders')
       .update({
         status: body.status,
@@ -152,7 +126,6 @@ export async function PUT(
       })
       .eq('id', params.id)
       .select()
-      .single()
 
     if (updateError) {
       console.error('[ADMIN ORDER API] Update error:', updateError)
@@ -161,6 +134,16 @@ export async function PUT(
         { status: 500 }
       )
     }
+
+    if (!updatedOrders?.length) {
+      console.error('[ADMIN ORDER API] Update matched 0 rows:', params.id)
+      return NextResponse.json(
+        { error: 'Order not found or update failed' },
+        { status: 404 }
+      )
+    }
+
+    const order = updatedOrders[0]
 
     return NextResponse.json({ order }, {
       headers: {

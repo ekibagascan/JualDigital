@@ -98,7 +98,10 @@ export function PaymentManagement() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/admin/payments/')
+      const response = await fetch(
+        `/api/admin/payments/?t=${Date.now()}&r=${Math.random().toString(36).slice(2)}`,
+        { cache: 'no-store', headers: { Pragma: 'no-cache' } }
+      )
       if (!response.ok) {
         throw new Error('Failed to fetch payments')
       }

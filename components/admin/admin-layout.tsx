@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Megaphone,
   ShoppingCart,
+  TrendingUp,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,7 @@ import { toast } from "@/hooks/use-toast"
 
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Pendapatan", href: "/admin/revenue", icon: TrendingUp },
   { name: "Pengguna", href: "/admin/users", icon: Users },
   { name: "Produk", href: "/admin/products", icon: Package },
   { name: "Pesanan", href: "/admin/orders", icon: ShoppingCart },

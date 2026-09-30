@@ -22,14 +22,15 @@ const nextConfig = {
     ],
   },
   headers: async () => [
-    // Static assets and pages (long cache)
+    // Only hashed/static assets — never apply long cache to HTML or API
+    // (a previous catch-all /(.*) + /api override could leave dual Cache-Control
+    // and made admin GETs look stale after approve/reject).
     {
-      source: "/(.*)",
+      source: "/_next/static/:path*",
       headers: [
         { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
       ],
     },
-    // API routes: never cache - must come last so it overrides for /api/* (admin, users, products, etc.)
     {
       source: "/api/:path*",
       headers: [

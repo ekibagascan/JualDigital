@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unstable_noStore as noStore } from 'next/cache'
-import { createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 import { sendSellerApplicationApproved, sendSellerApplicationRejected } from '@/lib/email-service'
 import { generateSlug, isReservedSlug } from '@/lib/slug-utils'
 
@@ -20,20 +19,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     // Get all users from profiles table - force fresh query with aggressive cache-busting
     const timestamp = Date.now()
@@ -42,19 +28,7 @@ export async function GET(req: NextRequest) {
     
     // Use createClient with service role key to bypass ALL caching and RLS
     // This ensures we get the absolute latest data from Supabase
-    const freshSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        },
-        db: {
-          schema: 'public'
-        }
-      }
-    )
+    const freshSupabase = createServiceRoleClient()
     
     // Query with explicit cache-busting - use a random parameter to force fresh query
     const { data: users, error: usersError } = await freshSupabase
@@ -245,20 +219,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     const { userId, action, role, status, rejectionReason, telegramFeatureEnabled } = await req.json()
 
@@ -342,16 +303,7 @@ export async function PUT(req: NextRequest) {
     // Update and return the FULL updated user data in one query
     // Use createClient (not createServerClient) with service role key to properly bypass RLS
     // createServerClient from @supabase/ssr may still apply RLS policies
-    const updateSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
+    const updateSupabase = createServiceRoleClient()
     
     // Use UPSERT instead of UPDATE to handle cases where profile doesn't exist yet
     // This will create the profile if it doesn't exist, or update if it does
@@ -448,16 +400,7 @@ export async function PUT(req: NextRequest) {
     
     // Create a completely fresh Supabase client with no connection reuse
     // Use createClient (not createServerClient) with service role key to properly bypass RLS
-    const verifySupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
+    const verifySupabase = createServiceRoleClient()
     
     // Query directly with explicit cache-busting - use a filter that forces fresh query
     const { data: verifiedUser, error: verifyError } = await verifySupabase

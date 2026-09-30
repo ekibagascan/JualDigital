@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
-import { createServerClient } from '@supabase/ssr'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 
 export async function GET(
   req: NextRequest,
@@ -17,20 +17,7 @@ export async function GET(
     }
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     // Get product by ID
     const { data: product, error: productError } = await supabase
@@ -84,23 +71,10 @@ export async function PUT(
     const body = await req.json()
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     // Update product
-    const { data: product, error: updateError } = await supabase
+    const { data: updatedProducts, error: updateError } = await supabase
       .from('products')
       .update({
         title: body.title,
@@ -114,7 +88,6 @@ export async function PUT(
       })
       .eq('id', params.id)
       .select()
-      .single()
 
     if (updateError) {
       console.error('[ADMIN PRODUCT API] Update error:', updateError)
@@ -124,7 +97,24 @@ export async function PUT(
       )
     }
 
-    return NextResponse.json({ product })
+    if (!updatedProducts?.length) {
+      console.error('[ADMIN PRODUCT API] Update matched 0 rows:', params.id)
+      return NextResponse.json(
+        { error: 'Product not found or update failed' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(
+      { product: updatedProducts[0] },
+      {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    )
 
   } catch (error) {
     console.error('[ADMIN PRODUCT API] Error:', error)
@@ -149,20 +139,7 @@ export async function DELETE(
     }
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     // First, delete related records to avoid foreign key constraints
     // Delete order_items

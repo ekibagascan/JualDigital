@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 import { sendWithdrawalApproved, sendWithdrawalRejected, sendWithdrawalCompleted } from '@/lib/email-service'
 
-type SupabaseAdmin = ReturnType<typeof createClient>
+type SupabaseAdmin = ReturnType<typeof createServiceRoleClient>
 
 type OrderJoin = {
   order_number: string | null
@@ -201,10 +201,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     const { data: withdrawal, error: fetchError } = await supabase
       .from('withdrawals')
@@ -281,10 +278,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     const { data: existing, error: fetchError } = await supabase
       .from('withdrawals')
@@ -367,10 +361,23 @@ export async function PUT(
     }
 
     if (!updatedWithdrawals?.length) {
+      console.error('[ADMIN WITHDRAWAL API] Update matched 0 rows:', params.id)
       return NextResponse.json({ error: 'Withdrawal not found or update failed' }, { status: 404 })
     }
 
     const updatedWithdrawal = updatedWithdrawals[0]
+
+    if (updatedWithdrawal.status !== status) {
+      console.error('[ADMIN WITHDRAWAL API] Status mismatch after update', {
+        expected: status,
+        got: updatedWithdrawal.status,
+        id: params.id,
+      })
+      return NextResponse.json(
+        { error: 'Update did not persist status change' },
+        { status: 500 }
+      )
+    }
 
     try {
       const { data: sellerProfile, error: profileError } = await supabase

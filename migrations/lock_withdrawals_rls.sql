@@ -28,5 +28,8 @@ CREATE POLICY "sellers_select_own_withdrawals"
 -- No INSERT / UPDATE / DELETE for authenticated or anon clients.
 -- Creates and status changes go through Next.js APIs using the service role key.
 
--- Optional: allow sellers to see nothing more than their rows (already covered).
--- Service role bypasses RLS for admin list + create + status updates.
+-- Service role bypasses RLS ONLY when the request Authorization header is the
+-- service role JWT (createClient from @supabase/supabase-js / createServiceRoleClient).
+-- Do NOT use createServerClient(@supabase/ssr) with the service role key + cookies:
+-- a logged-in seller session in cookies overrides Authorization and RLS applies again
+-- (admin updates then match 0 rows / status appears to snap back).

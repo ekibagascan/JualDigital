@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 import { sendDownloadEmail } from '@/lib/email-service'
 
 export const dynamic = 'force-dynamic'
@@ -22,10 +22,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const dryRun = body.dryRun === true
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     // Get all sellers from profiles (email is in auth.users, not profiles)
     const { data: sellers, error } = await supabase

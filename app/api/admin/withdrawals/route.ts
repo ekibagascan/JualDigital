@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
-import { createServerClient } from '@supabase/ssr'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 
 export async function GET(req: NextRequest) {
   try {
-    // Check admin authentication
     if (!(await isAdminRequest(req))) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -13,23 +12,8 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
-    // Get all withdrawals first
     const { data: withdrawals, error: withdrawalsError } = await supabase
       .from('withdrawals')
       .select('*')
@@ -43,7 +27,6 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Get all profiles for seller information
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('*')
@@ -52,7 +35,6 @@ export async function GET(req: NextRequest) {
       console.error('[ADMIN WITHDRAWALS API] Profiles query error:', profilesError)
     }
 
-    // Process withdrawals with seller information
     const processedWithdrawals = withdrawals?.map(withdrawal => {
       const seller = profiles?.find(p => p.id === withdrawal.seller_id)
       return {
@@ -67,22 +49,12 @@ export async function GET(req: NextRequest) {
       }
     }) || []
 
-    if (withdrawalsError) {
-      console.error('[ADMIN WITHDRAWALS API] Withdrawals query error:', withdrawalsError)
-      return NextResponse.json(
-        { error: 'Failed to fetch withdrawals' },
-        { status: 500 }
-      )
-    }
-
-    // Calculate stats
     const totalWithdrawals = processedWithdrawals?.length || 0
     const pendingWithdrawals = processedWithdrawals?.filter(w => w.status === 'pending').length || 0
     const approvedWithdrawals = processedWithdrawals?.filter(w => w.status === 'approved').length || 0
     const rejectedWithdrawals = processedWithdrawals?.filter(w => w.status === 'rejected').length || 0
     const completedWithdrawals = processedWithdrawals?.filter(w => w.status === 'completed').length || 0
 
-    // Calculate total amounts
     const totalAmount = processedWithdrawals?.reduce((sum, w) => sum + (w.amount || 0), 0) || 0
     const pendingAmount = processedWithdrawals?.filter(w => w.status === 'pending').reduce((sum, w) => sum + (w.amount || 0), 0) || 0
     const approvedAmount = processedWithdrawals?.filter(w => w.status === 'approved').reduce((sum, w) => sum + (w.amount || 0), 0) || 0
@@ -103,8 +75,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    // Add cache-busting headers
-    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
     response.headers.set('Pragma', 'no-cache')
     response.headers.set('Expires', '0')
     response.headers.set('Last-Modified', new Date().toUTCString())
@@ -118,4 +89,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

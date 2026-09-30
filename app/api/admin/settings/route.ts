@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 
 export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
@@ -15,10 +15,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     // Get all payment-related settings
     const { data: settings, error } = await supabase
@@ -81,10 +78,7 @@ export async function PUT(req: NextRequest) {
       payment_default_method,
     } = body
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     // Prepare settings to save
     const settingsToSave = []

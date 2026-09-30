@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
-import { createServerClient } from '@supabase/ssr'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,20 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Use service role key for admin operations to bypass RLS
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return req.cookies.getAll()
-          },
-          setAll() {
-            // Service role doesn't need to set cookies
-          },
-        },
-      }
-    )
+    const supabase = createServiceRoleClient()
 
     // Get all orders
     const { data: orders, error: ordersError } = await supabase

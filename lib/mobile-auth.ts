@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
+import { createServiceRoleClient } from '@/lib/supabase-service'
 
 /**
  * Resolve the authenticated user from Bearer JWT (mobile) or cookies (web).
@@ -34,10 +35,7 @@ export async function getUserFromRequest(req: NextRequest): Promise<User | null>
 }
 
 export function serviceRoleClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  return createServiceRoleClient()
 }
 
 /** First defined value among camelCase / snake_case aliases. */

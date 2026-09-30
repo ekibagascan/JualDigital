@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   CreditCard,
   Search,
@@ -89,69 +89,76 @@ export function WithdrawalManagementAdmin() {
   const [mounted, setMounted] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailData, setDetailData] = useState<WithdrawalDetailPayload | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  /** Preserve local status until list API catches up after approve/reject */
+  const pendingStatusRef = useRef<Map<string, WithdrawalWithProfile["status"]>>(new Map())
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Debug: Log when withdrawals state changes
+  const mergeWithdrawals = (apiList: WithdrawalWithProfile[]) => {
+    return apiList.map((row) => {
+      const pending = pendingStatusRef.current.get(row.id)
+      if (pending && row.status !== pending) {
+        return { ...row, status: pending }
+      }
+      if (pending && row.status === pending) {
+        pendingStatusRef.current.delete(row.id)
+      }
+      return row
+    })
+  }
+
+  const fetchWithdrawalsList = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
+    try {
+      const response = await fetch(
+        `/api/admin/withdrawals/?t=${Date.now()}&r=${Math.random().toString(36).slice(2)}`,
+        {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch withdrawals: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setWithdrawals(mergeWithdrawals(data.withdrawals || []))
+    } catch (error) {
+      console.error("Error fetching withdrawals:", error)
+      if (!opts?.silent) {
+        toast({
+          title: "Error",
+          description: "Gagal memuat data penarikan",
+          variant: "destructive",
+        })
+      }
+    } finally {
+      if (!opts?.silent) setLoading(false)
+    }
+  }
+
   // Auto-refresh every 30 seconds to keep data fresh
   useEffect(() => {
     if (!mounted) return
 
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
-        })
-        if (response.ok) {
-          const data = await response.json()
-          setWithdrawals(data.withdrawals || [])
-        }
-      } catch (error) {
-        console.error('Auto-refresh error:', error)
-      }
-    }, 30000) // 30 seconds
+    const interval = setInterval(() => {
+      void fetchWithdrawalsList({ silent: true })
+    }, 30000)
 
     return () => clearInterval(interval)
   }, [mounted])
 
   useEffect(() => {
     if (mounted) {
-      const fetchWithdrawals = async () => {
-        setLoading(true)
-        try {
-          const response = await fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
-            }
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to fetch withdrawals: ${response.status}`)
-          }
-
-          const data = await response.json()
-          setWithdrawals(data.withdrawals || [])
-        } catch (error) {
-          console.error('Error fetching withdrawals:', error)
-          toast({
-            title: "Error",
-            description: "Gagal memuat data penarikan",
-            variant: "destructive",
-          })
-        } finally {
-          setLoading(false)
-        }
-      }
-
-      fetchWithdrawals()
+      void fetchWithdrawalsList()
     }
   }, [mounted])
 
@@ -167,13 +174,17 @@ export function WithdrawalManagementAdmin() {
   const fetchWithdrawalDetail = async (withdrawalId: string) => {
     setDetailLoading(true)
     try {
-      const response = await fetch(`/api/admin/withdrawals/${withdrawalId}?t=${Date.now()}`, {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          Pragma: 'no-cache',
-          Expires: '0',
-        },
-      })
+      const response = await fetch(
+        `/api/admin/withdrawals/${withdrawalId}/?t=${Date.now()}&r=${Math.random().toString(36).slice(2)}`,
+        {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        }
+      )
       if (!response.ok) {
         throw new Error(`Failed to fetch withdrawal detail: ${response.status}`)
       }
@@ -184,7 +195,7 @@ export function WithdrawalManagementAdmin() {
       }
       return data
     } catch (error) {
-      console.error('Error fetching withdrawal detail:', error)
+      console.error("Error fetching withdrawal detail:", error)
       setDetailData(null)
       toast({
         title: "Error",
@@ -242,28 +253,37 @@ export function WithdrawalManagementAdmin() {
       return
     }
 
+    const previous = selectedWithdrawal
+    const status = approvalAction === "approve" ? "approved" : "rejected"
+    const updateData: { status: string; rejection_reason?: string } = { status }
+
+    if (approvalAction === "reject" && rejectionReason) {
+      updateData.rejection_reason = rejectionReason
+    }
+
+    setActionLoading(true)
     try {
-      const status = approvalAction === "approve" ? "approved" : "rejected"
-      const updateData: { status: string; rejection_reason?: string } = { status }
-
-      if (approvalAction === "reject" && rejectionReason) {
-        updateData.rejection_reason = rejectionReason
-      }
-
-      // Optimistic UI update - immediately update the local state
-      setWithdrawals(prevWithdrawals =>
-        prevWithdrawals.map(w =>
-          w.id === selectedWithdrawal.id
-            ? { ...w, status: status as 'pending' | 'approved' | 'rejected' | 'completed', rejection_reason: updateData.rejection_reason }
+      pendingStatusRef.current.set(previous.id, status)
+      setWithdrawals((prev) =>
+        prev.map((w) =>
+          w.id === previous.id
+            ? {
+                ...w,
+                status: status as WithdrawalWithProfile["status"],
+                rejection_reason: updateData.rejection_reason,
+                processed_at: new Date().toISOString(),
+              }
             : w
         )
       )
 
-      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
-        method: 'PUT',
+      const response = await fetch(`/api/admin/withdrawals/${previous.id}/`, {
+        method: "PUT",
+        cache: "no-store",
         headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
         },
         body: JSON.stringify(updateData),
       })
@@ -271,25 +291,21 @@ export function WithdrawalManagementAdmin() {
       const result = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        // Revert optimistic update on error
-        setWithdrawals(prevWithdrawals =>
-          prevWithdrawals.map(w =>
-            w.id === selectedWithdrawal.id
-              ? { ...w, status: selectedWithdrawal.status, rejection_reason: selectedWithdrawal.rejection_reason }
-              : w
-          )
+        pendingStatusRef.current.delete(previous.id)
+        setWithdrawals((prev) =>
+          prev.map((w) => (w.id === previous.id ? { ...w, ...previous } : w))
         )
         throw new Error(
-          typeof result?.error === 'string' ? result.error : 'Failed to update withdrawal status'
+          typeof result?.error === "string" ? result.error : "Failed to update withdrawal status"
         )
       }
 
-      // Update local state immediately with the response data (optimistic update)
       if (result.withdrawal) {
-        setWithdrawals(prevWithdrawals =>
-          prevWithdrawals.map(w =>
-            w.id === selectedWithdrawal.id
-              ? { ...w, ...result.withdrawal }
+        pendingStatusRef.current.set(previous.id, result.withdrawal.status)
+        setWithdrawals((prev) =>
+          prev.map((w) =>
+            w.id === previous.id
+              ? { ...w, ...result.withdrawal, profiles: w.profiles }
               : w
           )
         )
@@ -298,40 +314,28 @@ export function WithdrawalManagementAdmin() {
       const actionText = approvalAction === "approve" ? "disetujui" : "ditolak"
       toast({
         title: `Penarikan ${actionText}`,
-        description: `Penarikan ${selectedWithdrawal.id} berhasil ${actionText}.`,
+        description: `Penarikan ${previous.id} berhasil ${actionText}.`,
       })
-
-      // Also refresh data after a short delay to ensure everything is in sync
-      setTimeout(async () => {
-        try {
-          const refreshResponse = await fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
-            }
-          })
-          if (refreshResponse.ok) {
-            const data = await refreshResponse.json()
-            setWithdrawals(data.withdrawals || [])
-          }
-        } catch (error) {
-          console.error('Error refreshing withdrawals:', error)
-        }
-      }, 300)
 
       setIsApprovalDialogOpen(false)
       setIsDetailDialogOpen(false)
       setRejectionReason("")
       setSelectedWithdrawal(null)
       setDetailData(null)
+
+      // Background sync — merge preserves pending status until DB list catches up
+      setTimeout(() => {
+        void fetchWithdrawalsList({ silent: true })
+      }, 500)
     } catch (error) {
-      console.error('Error updating withdrawal:', error)
+      console.error("Error updating withdrawal:", error)
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Gagal memperbarui status penarikan",
         variant: "destructive",
       })
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -424,23 +428,7 @@ export function WithdrawalManagementAdmin() {
           <Button
             variant="outline"
             onClick={() => {
-              setLoading(true)
-              fetch(`/api/admin/withdrawals/?t=${Date.now()}`, {
-                headers: {
-                  'Cache-Control': 'no-cache, no-store, must-revalidate',
-                  'Pragma': 'no-cache',
-                  'Expires': '0'
-                }
-              })
-                .then(res => res.json())
-                .then(data => {
-                  setWithdrawals(data.withdrawals || [])
-                  setLoading(false)
-                })
-                .catch(error => {
-                  console.error('Error refreshing:', error)
-                  setLoading(false)
-                })
+              void fetchWithdrawalsList()
             }}
             disabled={loading}
           >
@@ -967,16 +955,26 @@ export function WithdrawalManagementAdmin() {
             </div>
           )}
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setIsApprovalDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsApprovalDialogOpen(false)} disabled={actionLoading}>
               Batal
             </Button>
             <Button
               onClick={handleConfirmApproval}
               disabled={
-                approvalAction === "approve" && (detailLoading || wouldExceed)
+                actionLoading ||
+                (approvalAction === "approve" && (detailLoading || wouldExceed))
               }
             >
-              {approvalAction === "approve" ? "Setujui" : "Tolak"}
+              {actionLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : approvalAction === "approve" ? (
+                "Setujui"
+              ) : (
+                "Tolak"
+              )}
             </Button>
           </div>
         </DialogContent>

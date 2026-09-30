@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -76,6 +76,7 @@ export function OrderManagementAdmin() {
     const [mounted, setMounted] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
     const [statusFilter, setStatusFilter] = useState("all")
+    const pendingStatusRef = useRef<Map<string, string>>(new Map())
 
     useEffect(() => {
         setMounted(true)
@@ -92,7 +93,7 @@ export function OrderManagementAdmin() {
         if (!mounted) return
 
         const interval = setInterval(() => {
-            fetchOrders()
+            fetchOrders(true)
         }, 30000)
 
         return () => clearInterval(interval)
@@ -104,12 +105,12 @@ export function OrderManagementAdmin() {
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                fetchOrders()
+                fetchOrders(true)
             }
         }
 
         const handleFocus = () => {
-            fetchOrders()
+            fetchOrders(true)
         }
 
         document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -121,31 +122,48 @@ export function OrderManagementAdmin() {
         }
     }, [mounted])
 
-    const fetchOrders = async () => {
+    const fetchOrders = async (silent = false) => {
         try {
-            setLoading(true)
-            setError(null)
+            if (!silent) {
+                setLoading(true)
+                setError(null)
+            }
 
-            // Add cache-busting timestamp and no-cache headers
-            const response = await fetch(`/api/admin/orders/?t=${Date.now()}`, {
-                headers: {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
+            const response = await fetch(
+                `/api/admin/orders/?t=${Date.now()}&r=${Math.random().toString(36).slice(2)}`,
+                {
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
                 }
-            })
+            )
             if (!response.ok) {
                 throw new Error('Failed to fetch orders')
             }
 
             const data: OrderData = await response.json()
-            setOrders(data.orders)
+            setOrders((apiOrders) => {
+                // apiOrders param name is misleading — this replaces from `data.orders`
+                return data.orders.map(apiOrder => {
+                    const pending = pendingStatusRef.current.get(apiOrder.id)
+                    if (pending && apiOrder.status !== pending) {
+                        return { ...apiOrder, status: pending }
+                    }
+                    if (pending && apiOrder.status === pending) {
+                        pendingStatusRef.current.delete(apiOrder.id)
+                    }
+                    return apiOrder
+                })
+            })
             setStats(data.stats)
         } catch (error) {
             console.error('Failed to fetch orders:', error)
-            setError('Gagal memuat data pesanan')
+            if (!silent) setError('Gagal memuat data pesanan')
         } finally {
-            setLoading(false)
+            if (!silent) setLoading(false)
         }
     }
 
@@ -168,6 +186,8 @@ export function OrderManagementAdmin() {
         const oldStatus = order.status
         
         try {
+            pendingStatusRef.current.set(order.id, newStatus)
+
             // Optimistic UI update - immediately update the local state
             setOrders(prevOrders =>
                 prevOrders.map(o =>
@@ -195,18 +215,22 @@ export function OrderManagementAdmin() {
                 return newStats
             })
 
-            const response = await fetch(`/api/admin/orders/${order.id}`, {
+            const response = await fetch(`/api/admin/orders/${order.id}/`, {
                 method: 'PUT',
+                cache: 'no-store',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Cache-Control': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
                 },
                 body: JSON.stringify({
                     status: newStatus
                 }),
             })
 
+            const result = await response.json().catch(() => ({}))
+
             if (!response.ok) {
+                pendingStatusRef.current.delete(order.id)
                 // Revert optimistic update on error
                 setOrders(prevOrders =>
                     prevOrders.map(o =>
@@ -234,14 +258,12 @@ export function OrderManagementAdmin() {
                     
                     return revertedStats
                 })
-                throw new Error('Failed to update order status')
+                throw new Error(typeof result?.error === 'string' ? result.error : 'Failed to update order status')
             }
-
-            const result = await response.json()
-            console.log('[ORDER MANAGEMENT] Update response:', result)
 
             // Update local state with the response data
             if (result.order) {
+                pendingStatusRef.current.set(order.id, result.order.status)
                 setOrders(prevOrders =>
                     prevOrders.map(o =>
                         o.id === order.id ? { ...o, status: result.order.status } : o
@@ -254,15 +276,14 @@ export function OrderManagementAdmin() {
                 description: `Pesanan ${order.order_number} berhasil diubah menjadi ${getStatusLabel(newStatus)}.`,
             })
 
-            // Refresh data after a short delay to ensure everything is in sync
-            setTimeout(async () => {
-                await fetchOrders()
-            }, 300)
+            setTimeout(() => {
+                void fetchOrders(true)
+            }, 500)
         } catch (error) {
             console.error('Failed to update order status:', error)
             toast({
                 title: "Gagal mengubah status",
-                description: "Terjadi kesalahan saat mengubah status pesanan.",
+                description: error instanceof Error ? error.message : "Terjadi kesalahan saat mengubah status pesanan.",
                 variant: "destructive",
             })
         }

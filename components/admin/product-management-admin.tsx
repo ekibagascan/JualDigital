@@ -180,8 +180,9 @@ export function ProductManagementAdmin() {
 
     try {
       // Make API call to delete the product
-      const response = await fetch(`/api/admin/products/${productToDelete.id}`, {
+      const response = await fetch(`/api/admin/products/${productToDelete.id}/`, {
         method: 'DELETE',
+        cache: 'no-store',
       });
 
       if (!response.ok) {
@@ -223,10 +224,12 @@ export function ProductManagementAdmin() {
       const newStatus = product.status === "active" ? "inactive" : "active"
 
       // Make API call to update the product status
-      const response = await fetch(`/api/admin/products/${product.id}`, {
+      const response = await fetch(`/api/admin/products/${product.id}/`, {
         method: 'PUT',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
         body: JSON.stringify({
           ...product,
@@ -269,10 +272,12 @@ export function ProductManagementAdmin() {
       const newFeaturedStatus = !product.featured
 
       // Make API call to update the featured status
-      const response = await fetch(`/api/admin/products/${product.id}`, {
+      const response = await fetch(`/api/admin/products/${product.id}/`, {
         method: 'PUT',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
         body: JSON.stringify({
           ...product,
