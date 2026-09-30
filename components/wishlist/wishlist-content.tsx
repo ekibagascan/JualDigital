@@ -190,7 +190,7 @@ export function WishlistContent() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
                     {wishlistItems.map((item) => (
                         <Card key={item.id} className="overflow-hidden">
                             <div className="aspect-video relative">

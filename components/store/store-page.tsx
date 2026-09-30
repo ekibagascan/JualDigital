@@ -249,7 +249,7 @@ export function StorePage({ sellerId }: StorePageProps) {
                 {/* Content Skeleton */}
                 <div className="container mx-auto px-4 py-8">
                     <Skeleton className="h-12 w-full mb-8" />
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                         {[1, 2, 3, 4, 5, 6].map((i) => (
                             <Skeleton key={i} className="h-64" />
                         ))}
@@ -408,7 +408,7 @@ export function StorePage({ sellerId }: StorePageProps) {
                         </Card>
 
                         {/* Products Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
                             {sortedProducts.map((product) => (
                                 <ProductCard
                                     key={product.id}
