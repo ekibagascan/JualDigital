@@ -53,7 +53,7 @@ export function FeaturedProducts() {
               Produk digital terpopuler dan berkualitas tinggi dari kreator terbaik
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 lg:gap-4 mb-12">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="bg-muted h-48 rounded-lg mb-4"></div>
@@ -79,7 +79,7 @@ export function FeaturedProducts() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 lg:gap-4 mb-12">
           {products.map((product) => (
             <ProductCard
               key={product.id}

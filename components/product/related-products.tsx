@@ -49,7 +49,7 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
     return (
       <div className="space-y-6">
         <h2 className="text-2xl font-bold">Produk Terkait</h2>
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="animate-pulse">
               <div className="bg-muted h-48 rounded-lg mb-4"></div>
@@ -72,7 +72,7 @@ export function RelatedProducts({ category, currentProductId }: RelatedProductsP
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Produk Terkait</h2>
 
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
         {products.map((product) => (
           <ProductCard key={product.id} product={transformProduct(product)} />
         ))}

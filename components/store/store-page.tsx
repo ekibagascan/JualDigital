@@ -408,7 +408,7 @@ export function StorePage({ sellerId }: StorePageProps) {
                         </Card>
 
                         {/* Products Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
                             {sortedProducts.map((product) => (
                                 <ProductCard
                                     key={product.id}

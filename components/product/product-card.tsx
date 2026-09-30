@@ -220,91 +220,93 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
   }
 
   return (
-    <Card className="group relative overflow-hidden hover:shadow-lg transition-all duration-300">
-      {/* Product Image with Link */}
-      <Link href={`/product/${product.id}`} className="block">
-        <div className="relative aspect-[4/3] overflow-hidden">
-          <Image
-            src={product.image}
-            alt={product.title}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-          />
+    <Card className="group relative overflow-hidden hover:shadow-md transition-all duration-300">
+      <div className="flex flex-row md:flex-col h-full">
+        {/* Product Image — ~40% width on mobile (horizontal), full-width landscape on desktop */}
+        <Link
+          href={`/product/${product.id}`}
+          className="relative block w-[40%] min-w-[40%] md:w-full md:min-w-0 shrink-0 self-stretch"
+        >
+          <div className="relative h-full min-h-[112px] md:min-h-0 md:aspect-[16/10] overflow-hidden">
+            <Image
+              src={product.image}
+              alt={product.title}
+              fill
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              sizes="(max-width: 768px) 40vw, (max-width: 1200px) 33vw, 25vw"
+            />
 
-          {/* Badges */}
-          <div className="absolute top-2 left-2 flex flex-col gap-1">
-            {product.isNew && (
-              <Badge variant="secondary" className="text-xs">
-                <BadgeIcon className="w-3 h-3 mr-1" />
-                Baru
-              </Badge>
-            )}
-            {discountPercentage > 0 && (
-              <Badge variant="destructive" className="text-xs">
-                -{discountPercentage}%
-              </Badge>
-            )}
-          </div>
+            {/* Badges */}
+            <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+              {product.isNew && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  <BadgeIcon className="w-2.5 h-2.5 mr-0.5" />
+                  Baru
+                </Badge>
+              )}
+              {discountPercentage > 0 && (
+                <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                  -{discountPercentage}%
+                </Badge>
+              )}
+            </div>
 
-          {/* Action Buttons */}
-          <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {/* Wishlist Button */}
-            <Button
-              size="icon"
-              variant="secondary"
-              className="h-8 w-8 bg-white/90 hover:bg-white"
-              onClick={handleWishlist}
-            >
-              <Heart className={`w-4 h-4 ${isInWishlist(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"}`} />
-            </Button>
-
-            {/* Preview Button */}
-            {product.livePreview && (
+            {/* Hover actions (desktop) */}
+            <div className="absolute top-1.5 right-1.5 hidden md:flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <Button
                 size="icon"
                 variant="secondary"
-                className="h-8 w-8 bg-white/90 hover:bg-white"
-                onClick={handlePreviewClick}
+                className="h-7 w-7 bg-white/90 hover:bg-white"
+                onClick={handleWishlist}
               >
-                <Eye className="w-4 h-4 text-gray-600" />
+                <Heart className={`w-3.5 h-3.5 ${isInWishlist(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"}`} />
               </Button>
-            )}
-          </div>
 
-          {/* Mobile Preview Overlay */}
-          {showPreview && isMobile && product.livePreview && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-              <div className="bg-white p-4 rounded-lg max-w-sm mx-4">
-                <h3 className="font-semibold mb-2">Preview</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Lihat preview produk ini
-                </p>
-                <div className="flex gap-2">
-                  <Button size="sm" asChild>
-                    <a href={product.livePreview} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4 mr-1" />
-                      Lihat Preview
-                    </a>
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setShowPreview(false)}>
-                    Tutup
-                  </Button>
+              {product.livePreview && (
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="h-7 w-7 bg-white/90 hover:bg-white"
+                  onClick={handlePreviewClick}
+                >
+                  <Eye className="w-3.5 h-3.5 text-gray-600" />
+                </Button>
+              )}
+            </div>
+
+            {/* Mobile Preview Overlay */}
+            {showPreview && isMobile && product.livePreview && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                <div className="bg-white p-3 rounded-lg max-w-[90%] mx-2">
+                  <h3 className="font-semibold text-sm mb-1">Preview</h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Lihat preview produk ini
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" asChild>
+                      <a href={product.livePreview} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                        Lihat
+                      </a>
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowPreview(false)}>
+                      Tutup
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </Link>
+            )}
+          </div>
+        </Link>
 
-      <CardContent className="p-2 sm:p-4">
-        <div className="space-y-2 sm:space-y-3">
-          <div>
-            <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
+        <CardContent className="flex-1 min-w-0 p-2.5 sm:p-3 flex flex-col justify-between gap-1.5">
+          <div className="space-y-0.5 min-w-0">
+            <h3 className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors">
               <Link href={`/product/${product.id}`} className="hover:text-primary">
                 {product.title}
               </Link>
             </h3>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted-foreground truncate">
               oleh{" "}
               <Link
                 href={`/toko/${product.seller_id}`}
@@ -314,48 +316,47 @@ export function ProductCard({ product, sellerName }: ProductCardProps) {
                 {sellerName || product.author}
               </Link>
             </p>
-          </div>
 
-          <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
-
-          <div className="flex items-center gap-2 text-xs">
-            <div className="flex items-center gap-1">
-              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-              <span>{product.rating}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Download className="w-3 h-3 text-muted-foreground" />
-              <span>{product.sales.toLocaleString("id-ID")}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-primary">{formatCurrency(product.price)}</span>
-                {product.originalPrice && (
-                  <span className="text-xs text-muted-foreground line-through">
-                    {formatCurrency(product.originalPrice)}
-                  </span>
-                )}
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-0.5">
+              <div className="flex items-center gap-0.5">
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                <span>{product.rating}</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <Download className="w-3 h-3" />
+                <span>{product.sales.toLocaleString("id-ID")}</span>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-1 pt-2">
-            <Button size="sm" variant="outline" className="flex-1 bg-transparent text-xs px-2" onClick={handleAddToCart}>
-              <ShoppingCart className="w-3 h-3 mr-1" />
-              <span className="hidden sm:inline">Keranjang</span>
-              <span className="sm:hidden">Cart</span>
-            </Button>
-            <Button size="sm" className="flex-1 text-xs px-2" onClick={handleBuyNow}>
-              <span className="hidden sm:inline">Beli Sekarang</span>
-              <span className="sm:hidden">Beli</span>
-            </Button>
+          <div className="space-y-1.5 mt-auto">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-bold text-sm text-primary">{formatCurrency(product.price)}</span>
+              {product.originalPrice && (
+                <span className="text-[10px] text-muted-foreground line-through">
+                  {formatCurrency(product.originalPrice)}
+                </span>
+              )}
+            </div>
+
+            {/* Icon cart + primary buy — saves space, keeps both actions */}
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 shrink-0 px-0 bg-transparent"
+                onClick={handleAddToCart}
+                aria-label="Tambah ke keranjang"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" className="h-8 flex-1 text-xs px-2" onClick={handleBuyNow}>
+                Beli Sekarang
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
+      </div>
 
       {/* Variant Selection Dialog */}
       <Dialog open={showVariantDialog} onOpenChange={setShowVariantDialog}>

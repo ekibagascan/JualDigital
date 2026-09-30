@@ -209,13 +209,14 @@ export function ProductsList({ category }: ProductsListProps) {
             <p className="text-sm text-muted-foreground">Loading products...</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="bg-muted h-48 rounded-lg mb-4"></div>
-              <div className="space-y-2">
+            <div key={i} className="animate-pulse flex md:flex-col gap-2 rounded-lg border p-0 overflow-hidden">
+              <div className="bg-muted w-[40%] md:w-full md:aspect-[16/10] min-h-[112px] shrink-0"></div>
+              <div className="flex-1 space-y-2 p-2">
                 <div className="h-4 bg-muted rounded"></div>
                 <div className="h-3 bg-muted rounded w-3/4"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
               </div>
             </div>
           ))}
@@ -246,7 +247,7 @@ export function ProductsList({ category }: ProductsListProps) {
           </Button>
         </div>
       ) : (
-        <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6" : "space-y-4"}>
+        <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 lg:gap-4" : "space-y-3"}>
           {products.map((product) => {
             return (
               <ProductCard
