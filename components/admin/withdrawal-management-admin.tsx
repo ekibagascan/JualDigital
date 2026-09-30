@@ -13,6 +13,7 @@ import {
   Calendar,
   Download,
   Loader2,
+  AlertTriangle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,8 +33,46 @@ interface WithdrawalWithProfile extends Withdrawal {
   profiles?: {
     name?: string
     business_name?: string
+    email?: string
     total_earnings?: number
   }
+}
+
+interface EarningsSummary {
+  total_from_paid_orders: number
+  deducted_withdrawals: {
+    pending: number
+    approved: number
+    completed: number
+    total: number
+  }
+  available_balance: number
+  balance_before_this_request: number
+  requested_amount: number
+  would_exceed_balance: boolean
+}
+
+interface PlatformEarnings {
+  total_gross_sales: number
+  total_platform_fee: number
+  commission_rate_note: string
+}
+
+interface PaidOrderHistoryItem {
+  id: string
+  order_number: string
+  product_title: string
+  date: string | null
+  gross: number
+  seller_earnings: number
+  platform_fee: number
+}
+
+interface WithdrawalDetailPayload {
+  withdrawal: WithdrawalWithProfile
+  earnings_summary: EarningsSummary
+  platform_earnings: PlatformEarnings
+  recent_paid_orders: PaidOrderHistoryItem[]
 }
 
 export function WithdrawalManagementAdmin() {
@@ -48,6 +87,8 @@ export function WithdrawalManagementAdmin() {
   const [loading, setLoading] = useState(true)
   const [withdrawals, setWithdrawals] = useState<WithdrawalWithProfile[]>([])
   const [mounted, setMounted] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailData, setDetailData] = useState<WithdrawalDetailPayload | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -123,15 +164,51 @@ export function WithdrawalManagementAdmin() {
     return matchesSearch && matchesStatus
   })
 
-  const handleViewDetails = (withdrawal: WithdrawalWithProfile) => {
-    setSelectedWithdrawal(withdrawal)
-    setIsDetailDialogOpen(true)
+  const fetchWithdrawalDetail = async (withdrawalId: string) => {
+    setDetailLoading(true)
+    try {
+      const response = await fetch(`/api/admin/withdrawals/${withdrawalId}?t=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch withdrawal detail: ${response.status}`)
+      }
+      const data = (await response.json()) as WithdrawalDetailPayload
+      setDetailData(data)
+      if (data.withdrawal) {
+        setSelectedWithdrawal(data.withdrawal)
+      }
+      return data
+    } catch (error) {
+      console.error('Error fetching withdrawal detail:', error)
+      setDetailData(null)
+      toast({
+        title: "Error",
+        description: "Gagal memuat detail penarikan & riwayat transaksi",
+        variant: "destructive",
+      })
+      return null
+    } finally {
+      setDetailLoading(false)
+    }
   }
 
-  const handleApproveWithdrawal = (withdrawal: WithdrawalWithProfile) => {
+  const handleViewDetails = async (withdrawal: WithdrawalWithProfile) => {
+    setSelectedWithdrawal(withdrawal)
+    setDetailData(null)
+    setIsDetailDialogOpen(true)
+    await fetchWithdrawalDetail(withdrawal.id)
+  }
+
+  const handleApproveWithdrawal = async (withdrawal: WithdrawalWithProfile) => {
     setSelectedWithdrawal(withdrawal)
     setApprovalAction("approve")
     setIsApprovalDialogOpen(true)
+    await fetchWithdrawalDetail(withdrawal.id)
   }
 
   const handleRejectWithdrawal = (withdrawal: WithdrawalWithProfile) => {
@@ -140,6 +217,10 @@ export function WithdrawalManagementAdmin() {
     setIsApprovalDialogOpen(true)
   }
 
+  const wouldExceed =
+    detailData?.earnings_summary?.would_exceed_balance === true &&
+    detailData?.withdrawal?.id === selectedWithdrawal?.id
+
   const handleConfirmApproval = async () => {
     if (!selectedWithdrawal) return
 
@@ -147,6 +228,15 @@ export function WithdrawalManagementAdmin() {
       toast({
         title: "Alasan diperlukan",
         description: "Mohon berikan alasan penolakan penarikan.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (approvalAction === "approve" && wouldExceed) {
+      toast({
+        title: "Tidak dapat disetujui",
+        description: "Jumlah penarikan melebihi saldo tersedia seller.",
         variant: "destructive",
       })
       return
@@ -178,6 +268,8 @@ export function WithdrawalManagementAdmin() {
         body: JSON.stringify(updateData),
       })
 
+      const result = await response.json().catch(() => ({}))
+
       if (!response.ok) {
         // Revert optimistic update on error
         setWithdrawals(prevWithdrawals =>
@@ -187,11 +279,10 @@ export function WithdrawalManagementAdmin() {
               : w
           )
         )
-        throw new Error('Failed to update withdrawal status')
+        throw new Error(
+          typeof result?.error === 'string' ? result.error : 'Failed to update withdrawal status'
+        )
       }
-
-      const result = await response.json()
-      console.log('[WITHDRAWAL MANAGEMENT] Update response:', result)
 
       // Update local state immediately with the response data (optimistic update)
       if (result.withdrawal) {
@@ -202,10 +293,6 @@ export function WithdrawalManagementAdmin() {
               : w
           )
         )
-        console.log('[WITHDRAWAL MANAGEMENT] Updated local state immediately with:', {
-          id: result.withdrawal.id,
-          status: result.withdrawal.status
-        })
       }
 
       const actionText = approvalAction === "approve" ? "disetujui" : "ditolak"
@@ -231,16 +318,18 @@ export function WithdrawalManagementAdmin() {
         } catch (error) {
           console.error('Error refreshing withdrawals:', error)
         }
-      }, 300) // Reduced delay since we have optimistic updates
+      }, 300)
 
       setIsApprovalDialogOpen(false)
+      setIsDetailDialogOpen(false)
       setRejectionReason("")
       setSelectedWithdrawal(null)
+      setDetailData(null)
     } catch (error) {
       console.error('Error updating withdrawal:', error)
       toast({
         title: "Error",
-        description: "Gagal memperbarui status penarikan",
+        description: error instanceof Error ? error.message : "Gagal memperbarui status penarikan",
         variant: "destructive",
       })
     }
@@ -567,42 +656,80 @@ export function WithdrawalManagementAdmin() {
       </Card>
 
       {/* Detail Dialog */}
-      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog
+        open={isDetailDialogOpen}
+        onOpenChange={(open) => {
+          setIsDetailDialogOpen(open)
+          if (!open) {
+            setDetailData(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detail Penarikan Dana</DialogTitle>
             <DialogDescription>Informasi lengkap penarikan {selectedWithdrawal?.id}</DialogDescription>
           </DialogHeader>
           {selectedWithdrawal && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              {detailLoading && (
+                <div className="flex items-center justify-center py-6 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Memuat riwayat & perhitungan saldo...
+                </div>
+              )}
+
+              {detailData?.earnings_summary?.would_exceed_balance && (
+                <div className="rounded-md border border-red-300 bg-red-50 p-4 text-red-800">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
+                    <div className="space-y-1 text-sm">
+                      <p className="font-semibold">PERINGATAN: Melebihi saldo tersedia</p>
+                      <p>
+                        Diminta {formatCurrency(detailData.earnings_summary.requested_amount)} — saldo yang
+                        dapat menutupi permintaan ini hanya{" "}
+                        {formatCurrency(detailData.earnings_summary.balance_before_this_request)}.
+                        Jangan setujui. Fee penarikan Rp 0 (disengaja); High Priority jika ≥ Rp 5jt.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h4 className="font-medium mb-2">Informasi Author</h4>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-2">
                       <span className="text-muted-foreground">Nama:</span>
-                      <span className="font-medium">{selectedWithdrawal.profiles?.name || selectedWithdrawal.profiles?.business_name || "Unknown"}</span>
+                      <span className="font-medium text-right">
+                        {selectedWithdrawal.profiles?.name ||
+                          selectedWithdrawal.profiles?.business_name ||
+                          "Unknown"}
+                      </span>
                     </div>
+                    {selectedWithdrawal.profiles?.email && (
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">Email:</span>
+                        <span className="font-medium text-right">{selectedWithdrawal.profiles.email}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>
                   <h4 className="font-medium mb-2">Informasi Penarikan</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Jumlah:</span>
+                      <span className="text-muted-foreground">Jumlah diminta:</span>
                       <span className="font-medium">{formatCurrency(selectedWithdrawal.amount)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Fee Admin:</span>
-                      <span className="font-medium">Rp 0 (Komisi 3% per transaksi penjualan)</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Jumlah Net:</span>
-                      <span className="font-medium">{formatCurrency(selectedWithdrawal.amount)}</span>
+                      <span className="text-muted-foreground">Fee penarikan:</span>
+                      <span className="font-medium">Rp 0</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Metode:</span>
-                      <span className="font-medium">Bank Transfer</span>
+                      <span className="font-medium">Transfer Bank (manual)</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Bank:</span>
@@ -635,14 +762,165 @@ export function WithdrawalManagementAdmin() {
                       </div>
                     )}
                     {selectedWithdrawal.rejection_reason && (
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground">Alasan Penolakan:</span>
-                        <span className="font-medium">{selectedWithdrawal.rejection_reason}</span>
+                        <span className="font-medium text-right">{selectedWithdrawal.rejection_reason}</span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
+
+              {detailData?.earnings_summary && (
+                <div className="rounded-md border p-4 space-y-3">
+                  <h4 className="font-medium">Perhitungan Saldo</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total earnings (order paid):</span>
+                      <span className="font-medium">
+                        {formatCurrency(detailData.earnings_summary.total_from_paid_orders)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">− Penarikan pending:</span>
+                      <span>
+                        {formatCurrency(detailData.earnings_summary.deducted_withdrawals.pending)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">− Penarikan approved:</span>
+                      <span>
+                        {formatCurrency(detailData.earnings_summary.deducted_withdrawals.approved)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">− Penarikan completed:</span>
+                      <span>
+                        {formatCurrency(detailData.earnings_summary.deducted_withdrawals.completed)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="font-medium">Saldo tersedia (setelah semua penarikan):</span>
+                      <span className="font-medium">
+                        {formatCurrency(detailData.earnings_summary.available_balance)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Saldo penutup permintaan ini:</span>
+                      <span>
+                        {formatCurrency(detailData.earnings_summary.balance_before_this_request)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Jumlah diminta:</span>
+                      <span
+                        className={
+                          detailData.earnings_summary.would_exceed_balance
+                            ? "font-semibold text-red-700"
+                            : "font-medium"
+                        }
+                      >
+                        {formatCurrency(detailData.earnings_summary.requested_amount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {detailData?.platform_earnings && (
+                <div className="rounded-md border p-4 space-y-2">
+                  <h4 className="font-medium">Keuntungan Platform</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total penjualan kotor (paid):</span>
+                      <span className="font-medium">
+                        {formatCurrency(detailData.platform_earnings.total_gross_sales)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Komisi platform (~3%):</span>
+                      <span className="font-semibold text-emerald-700">
+                        {formatCurrency(detailData.platform_earnings.total_platform_fee)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {detailData.platform_earnings.commission_rate_note}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {detailData && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Riwayat Transaksi (order paid)</h4>
+                  {detailData.recent_paid_orders.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Tidak ada order berstatus paid untuk seller ini.
+                    </p>
+                  ) : (
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Order</TableHead>
+                            <TableHead>Produk</TableHead>
+                            <TableHead>Tanggal</TableHead>
+                            <TableHead className="text-right">Gross</TableHead>
+                            <TableHead className="text-right">Earnings seller</TableHead>
+                            <TableHead className="text-right">Fee platform</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {detailData.recent_paid_orders.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-mono text-xs">{item.order_number}</TableCell>
+                              <TableCell className="max-w-[160px] truncate">{item.product_title}</TableCell>
+                              <TableCell className="text-sm">
+                                {item.date
+                                  ? new Date(item.date).toLocaleDateString("id-ID")
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {formatCurrency(item.gross)}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {formatCurrency(item.seller_earnings)}
+                              </TableCell>
+                              <TableCell className="text-right text-sm text-emerald-700">
+                                {formatCurrency(item.platform_fee)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedWithdrawal.status === "pending" && (
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setApprovalAction("reject")
+                      setIsApprovalDialogOpen(true)
+                    }}
+                  >
+                    Tolak
+                  </Button>
+                  <Button
+                    disabled={detailLoading || wouldExceed}
+                    onClick={() => {
+                      if (wouldExceed) return
+                      setApprovalAction("approve")
+                      setIsApprovalDialogOpen(true)
+                    }}
+                  >
+                    Setujui
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -655,10 +933,28 @@ export function WithdrawalManagementAdmin() {
             <DialogTitle>{approvalAction === "approve" ? "Setujui Penarikan" : "Tolak Penarikan"}</DialogTitle>
             <DialogDescription>
               {approvalAction === "approve"
-                ? "Anda akan menyetujui penarikan ini."
+                ? "Anda akan menyetujui penarikan ini (transfer bank manual)."
                 : "Anda akan menolak penarikan ini."}
             </DialogDescription>
           </DialogHeader>
+          {approvalAction === "approve" && wouldExceed && (
+            <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 flex gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Tidak dapat disetujui: jumlah melebihi saldo tersedia seller
+                {detailData?.earnings_summary
+                  ? ` (${formatCurrency(detailData.earnings_summary.requested_amount)} > ${formatCurrency(detailData.earnings_summary.balance_before_this_request)})`
+                  : ""}
+                .
+              </span>
+            </div>
+          )}
+          {approvalAction === "approve" && detailLoading && (
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Memverifikasi saldo...
+            </div>
+          )}
           {approvalAction === "reject" && (
             <div className="mb-4">
               <Label htmlFor="rejectionReason">Alasan Penolakan</Label>
@@ -674,7 +970,14 @@ export function WithdrawalManagementAdmin() {
             <Button variant="outline" onClick={() => setIsApprovalDialogOpen(false)}>
               Batal
             </Button>
-            <Button onClick={handleConfirmApproval}>{approvalAction === "approve" ? "Setujui" : "Tolak"}</Button>
+            <Button
+              onClick={handleConfirmApproval}
+              disabled={
+                approvalAction === "approve" && (detailLoading || wouldExceed)
+              }
+            >
+              {approvalAction === "approve" ? "Setujui" : "Tolak"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

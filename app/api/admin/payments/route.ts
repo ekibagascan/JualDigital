@@ -3,6 +3,89 @@ export const dynamic = 'force-dynamic'
 import { isAdminRequest } from '@/lib/admin-session'
 import { createServerClient } from '@supabase/ssr'
 
+/** Map order payment_provider / payment_method to admin-friendly labels. Never invent "Xendit" for DANA. */
+function formatPaymentLabels(
+  paymentProvider: string | null | undefined,
+  paymentMethod: string | null | undefined
+): { paymentMethod: string; paymentProvider: string } {
+  const provider = (paymentProvider || '').toLowerCase().trim()
+  const method = (paymentMethod || '').toLowerCase().trim()
+
+  // Prefer real gateway from payment_provider; fall back to payment_method
+  if (provider === 'dana' || method === 'dana') {
+    const isVA = method === 'va' || method === 'virtual_account'
+    return {
+      paymentMethod: isVA ? 'Virtual Account' : 'DANA',
+      paymentProvider: 'DANA',
+    }
+  }
+  if (provider === 'bci' || method === 'crypto' || method.startsWith('crypto') || method === 'bci') {
+    return { paymentMethod: 'Crypto', paymentProvider: 'BCI' }
+  }
+  if (provider === 'manual' || method === 'manual') {
+    return { paymentMethod: 'Manual', paymentProvider: 'Manual' }
+  }
+  if (provider === 'apple' || method === 'apple_iap' || method === 'apple') {
+    return { paymentMethod: 'Apple IAP', paymentProvider: 'Apple' }
+  }
+  if (provider === 'telegram' || method === 'telegram_stars' || method === 'telegram') {
+    return { paymentMethod: 'Telegram Stars', paymentProvider: 'Telegram' }
+  }
+  if (method === 'va' || method === 'virtual_account') {
+    return { paymentMethod: 'Virtual Account', paymentProvider: provider ? capitalize(provider) : 'DANA' }
+  }
+
+  // Legacy Xendit only when DB actually says so (not a default)
+  if (provider === 'xendit' || method === 'xendit') {
+    return { paymentMethod: 'Xendit (legacy)', paymentProvider: 'Xendit' }
+  }
+
+  // Checkout often stores payment_method as "fiat" / "BANK_TRANSFER" while provider holds the gateway
+  if (provider) {
+    return {
+      paymentMethod: methodLabel(method) || capitalize(provider),
+      paymentProvider: capitalize(provider),
+    }
+  }
+  if (method) {
+    return {
+      paymentMethod: methodLabel(method),
+      paymentProvider: methodLabel(method),
+    }
+  }
+
+  return { paymentMethod: 'Tidak diketahui', paymentProvider: '—' }
+}
+
+function capitalize(value: string): string {
+  if (!value) return value
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function methodLabel(method: string): string {
+  switch (method) {
+    case 'fiat':
+      return 'Fiat'
+    case 'bank_transfer':
+      return 'Transfer Bank'
+    case 'dana':
+      return 'DANA'
+    case 'manual':
+      return 'Manual'
+    case 'crypto':
+      return 'Crypto'
+    case 'va':
+    case 'virtual_account':
+      return 'Virtual Account'
+    default:
+      return method
+        .split(/[_\s]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ')
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     // Check admin authentication
@@ -114,6 +197,8 @@ export async function GET(req: NextRequest) {
       const platformFee = orderAmount * 0.03 // 3% commission
       const authorEarnings = orderAmount - platformFee
 
+      const labels = formatPaymentLabels(order.payment_provider, order.payment_method)
+
       return {
         id: `PAY-${order.id.slice(0, 8).toUpperCase()}`,
         orderId: order.order_number,
@@ -124,12 +209,12 @@ export async function GET(req: NextRequest) {
         amount: orderAmount,
         platformFee: platformFee,
         authorEarnings: authorEarnings,
-        paymentMethod: 'Xendit', // Since you're using Xendit
-        paymentProvider: 'Xendit',
+        paymentMethod: labels.paymentMethod,
+        paymentProvider: labels.paymentProvider,
         status: order.status,
         createdAt: order.created_at,
         completedAt: order.status === 'paid' ? order.updated_at : null,
-        transactionId: `TXN-${order.id.slice(0, 8).toUpperCase()}`,
+        transactionId: order.transaction_id || `TXN-${order.id.slice(0, 8).toUpperCase()}`,
         failureReason: order.status === 'cancelled' ? 'Order cancelled' : null
       }
     }) || []

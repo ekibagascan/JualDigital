@@ -37,35 +37,39 @@ export class WithdrawalService {
     return totalEarnings // Full amount available
   }
 
+  /**
+   * Create via server API so auth + available balance are enforced server-side.
+   * Do not insert into `withdrawals` from the browser — that bypasses validation.
+   */
   async createWithdrawal(withdrawalData: CreateWithdrawalRequest): Promise<Withdrawal> {
     try {
-      const allowed = await this.canWithdraw(withdrawalData.seller_id, withdrawalData.amount)
-      if (!allowed) {
-        throw new Error('Saldo tidak mencukupi untuk penarikan ini')
-      }
-
-      const { data: withdrawals, error } = await supabase
-        .from('withdrawals')
-        .insert({
-          seller_id: withdrawalData.seller_id,
+      const response = await fetch('/api/seller/withdrawals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           amount: withdrawalData.amount,
-          status: 'pending',
           bank_name: withdrawalData.bank_name,
           account_number: withdrawalData.account_number,
           account_name: withdrawalData.account_name,
-        })
-        .select()
+        }),
+      })
 
-      if (error) {
-        console.error('Create withdrawal error:', error)
-        throw new Error('Failed to create withdrawal request')
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        const message =
+          typeof payload?.error === 'string'
+            ? payload.error
+            : 'Gagal membuat permintaan penarikan'
+        throw new Error(message)
       }
 
-      if (!withdrawals || withdrawals.length === 0) {
-        throw new Error('Failed to create withdrawal request')
+      if (!payload?.withdrawal) {
+        throw new Error('Gagal membuat permintaan penarikan')
       }
 
-      return withdrawals[0]
+      return payload.withdrawal as Withdrawal
     } catch (error) {
       console.error('Withdrawal service error:', error)
       throw error

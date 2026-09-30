@@ -231,8 +231,15 @@ export class OrderService {
         tax_amount: orderData.tax_amount,
         platform_fee: 0, // No platform fee for now
         status: 'pending',
-        payment_method: orderData.payment_method || 'BANK_TRANSFER',
-        payment_provider: paymentMethod, // Use configured payment method
+        payment_method:
+          paymentMethod === 'dana'
+            ? 'DANA'
+            : paymentMethod === 'manual'
+              ? 'MANUAL'
+              : paymentMethod === 'bci'
+                ? 'CRYPTO'
+                : orderData.payment_method || 'BANK_TRANSFER',
+        payment_provider: paymentMethod, // Use configured payment method (dana | manual | bci)
         note: orderData.note || null, // Add note if provided
       }
 
@@ -401,6 +408,7 @@ export class OrderService {
           .from('orders')
           .update({
             payment_provider: 'dana',
+            payment_method: 'DANA',
             transaction_id: danaOrder.referenceNo || order.order_number,
             invoice_url: danaOrder.webRedirectUrl,
           })
@@ -444,6 +452,7 @@ export class OrderService {
           .from('orders')
           .update({
             payment_provider: 'manual',
+            payment_method: 'MANUAL',
             invoice_url: paymentUrl,
           })
           .eq('id', order.id)

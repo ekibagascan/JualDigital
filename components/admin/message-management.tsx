@@ -31,52 +31,9 @@ interface ContactMessage {
 }
 
 export function MessageManagement() {
-  const [messages, setMessages] = useState<ContactMessage[]>([
-    {
-      id: "1",
-      name: "Ahmad Rizki",
-      email: "ahmad@example.com",
-      subject: "Pertanyaan tentang pembayaran",
-      message:
-        "Halo, saya ingin bertanya tentang metode pembayaran yang tersedia. Apakah bisa menggunakan transfer bank lokal? Saya sudah mencoba beberapa kali tapi selalu gagal. Mohon bantuannya.",
-      date: "2024-01-15",
-      status: "unread",
-      category: "billing",
-    },
-    {
-      id: "2",
-      name: "Siti Nurhaliza",
-      email: "siti@example.com",
-      subject: "Masalah download produk",
-      message:
-        "Saya sudah membeli produk e-book digital marketing tapi tidak bisa download. Link yang diberikan tidak berfungsi. Tolong segera diperbaiki.",
-      date: "2024-01-14",
-      status: "read",
-      category: "technical",
-    },
-    {
-      id: "3",
-      name: "Budi Santoso",
-      email: "budi@example.com",
-      subject: "Refund request",
-      message:
-        "Saya ingin mengajukan refund untuk pembelian template website karena tidak sesuai dengan deskripsi. Bagaimana prosedurnya?",
-      date: "2024-01-13",
-      status: "replied",
-      category: "support",
-    },
-    {
-      id: "4",
-      name: "Maya Sari",
-      email: "maya@example.com",
-      subject: "Pertanyaan umum",
-      message:
-        "Apakah ada diskon untuk pembelian dalam jumlah banyak? Saya berencana membeli beberapa template sekaligus untuk proyek perusahaan.",
-      date: "2024-01-12",
-      status: "unread",
-      category: "general",
-    },
-  ])
+  // No contact_messages table or API yet — contact form is also mock.
+  // Keep empty until real submissions are wired; do not show demo tickets.
+  const [messages, setMessages] = useState<ContactMessage[]>([])
 
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null)
   const [replyText, setReplyText] = useState("")
@@ -316,11 +273,11 @@ export function MessageManagement() {
             <Card>
               <CardContent className="p-8 text-center">
                 <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Tidak ada pesan</h3>
+                <h3 className="text-lg font-medium mb-2">Belum ada pesan</h3>
                 <p className="text-muted-foreground">
                   {searchQuery || statusFilter !== "all" || categoryFilter !== "all"
                     ? "Tidak ada pesan yang sesuai dengan filter"
-                    : "Belum ada pesan masuk"}
+                    : "Belum ada pesan kontak masuk"}
                 </p>
               </CardContent>
             </Card>
@@ -329,6 +286,15 @@ export function MessageManagement() {
 
         <TabsContent value="unread">
           <div className="space-y-4">
+            {filteredMessages.filter((m) => m.status === "unread").length === 0 && (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Belum ada pesan</h3>
+                  <p className="text-muted-foreground">Tidak ada pesan belum dibaca</p>
+                </CardContent>
+              </Card>
+            )}
             {filteredMessages
               .filter((m) => m.status === "unread")
               .map((message) => (
@@ -419,6 +385,15 @@ export function MessageManagement() {
 
         <TabsContent value="read">
           <div className="space-y-4">
+            {filteredMessages.filter((m) => m.status === "read").length === 0 && (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Belum ada pesan</h3>
+                  <p className="text-muted-foreground">Tidak ada pesan yang sudah dibaca</p>
+                </CardContent>
+              </Card>
+            )}
             {filteredMessages
               .filter((m) => m.status === "read")
               .map((message) => (
@@ -499,6 +474,15 @@ export function MessageManagement() {
 
         <TabsContent value="replied">
           <div className="space-y-4">
+            {filteredMessages.filter((m) => m.status === "replied").length === 0 && (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Belum ada pesan</h3>
+                  <p className="text-muted-foreground">Tidak ada pesan yang sudah dibalas</p>
+                </CardContent>
+              </Card>
+            )}
             {filteredMessages
               .filter((m) => m.status === "replied")
               .map((message) => (

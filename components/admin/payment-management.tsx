@@ -173,9 +173,22 @@ export function PaymentManagement() {
 
   const getMethodBadge = (method: string) => {
     switch (method) {
+      case "DANA":
+        return <Badge variant="outline">DANA</Badge>
+      case "Virtual Account":
+        return <Badge variant="outline">Virtual Account</Badge>
+      case "Manual":
+        return <Badge variant="outline">Manual</Badge>
+      case "Crypto":
+        return <Badge variant="outline">Crypto / BCI</Badge>
+      case "Apple IAP":
+        return <Badge variant="outline">Apple IAP</Badge>
+      case "Telegram Stars":
+        return <Badge variant="outline">Telegram Stars</Badge>
       case "Credit Card":
         return <Badge variant="outline">Kartu Kredit</Badge>
       case "Bank Transfer":
+      case "Transfer Bank":
         return <Badge variant="outline">Transfer Bank</Badge>
       case "E-Wallet":
         return <Badge variant="outline">E-Wallet</Badge>
@@ -313,9 +326,12 @@ export function PaymentManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Metode</SelectItem>
-                <SelectItem value="Credit Card">Kartu Kredit</SelectItem>
-                <SelectItem value="Bank Transfer">Transfer Bank</SelectItem>
-                <SelectItem value="E-Wallet">E-Wallet</SelectItem>
+                <SelectItem value="DANA">DANA</SelectItem>
+                <SelectItem value="Virtual Account">Virtual Account</SelectItem>
+                <SelectItem value="Manual">Manual</SelectItem>
+                <SelectItem value="Crypto">Crypto / BCI</SelectItem>
+                <SelectItem value="Apple IAP">Apple IAP</SelectItem>
+                <SelectItem value="Telegram Stars">Telegram Stars</SelectItem>
               </SelectContent>
             </Select>
             <Select value={dateFilter} onValueChange={setDateFilter}>
