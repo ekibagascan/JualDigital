@@ -533,7 +533,7 @@ export function PaymentManagement() {
                     <span className="font-medium">{formatCurrency(selectedPayment.amount)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Platform Fee (10%):</span>
+                    <span className="text-muted-foreground">Platform Fee (5%):</span>
                     <span className="font-medium">-{formatCurrency(selectedPayment.platformFee)}</span>
                   </div>
                   <div className="border-t pt-2 flex justify-between font-medium">

@@ -164,8 +164,8 @@ export async function GET(req: NextRequest) {
       const qty = item.quantity || 0
       const gross = price * qty
       const seller = toNumber(item.seller_earnings)
-      // Prefer stored split; fall back to ~3% if seller_earnings missing
-      const fee = seller > 0 || gross === 0 ? Math.max(0, gross - seller) : gross * 0.03
+      // Prefer stored split; fall back to 5% if seller_earnings missing
+      const fee = seller > 0 || gross === 0 ? Math.max(0, gross - seller) : gross * 0.05
       const sellerShare = seller > 0 || gross === 0 ? seller : gross - fee
 
       grossSales += gross
@@ -221,14 +221,14 @@ export async function GET(req: NextRequest) {
           order.status === 'paid'
             ? seller > 0 || gross === 0
               ? Math.max(0, gross - seller)
-              : gross * 0.03
-            : Math.max(0, gross - (seller || gross * 0.97))
+              : gross * 0.05
+            : Math.max(0, gross - (seller || gross * 0.95))
         const sellerShare =
           order.status === 'paid'
             ? seller > 0 || gross === 0
               ? seller
               : gross - fee
-            : seller || gross * 0.97
+            : seller || gross * 0.95
 
         const { buyerName, buyerEmail } = resolveBuyer(order)
         const product = productById.get(item.product_id)
@@ -291,7 +291,7 @@ export async function GET(req: NextRequest) {
         meta: {
           generatedAt: new Date().toISOString(),
           pollHintSeconds: 12,
-          note: 'Pendapatan hanya dari pesanan berstatus paid. Komisi = (harga×qty) − seller_earnings (~3%).',
+          note: 'Pendapatan hanya dari pesanan berstatus paid. Komisi = (harga×qty) − seller_earnings (~5%).',
         },
       },
       { headers: noStoreHeaders }

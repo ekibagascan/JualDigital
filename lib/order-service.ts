@@ -277,7 +277,7 @@ export class OrderService {
           product_image: item.image_url,
           price: unitPrice,
           quantity: item.quantity,
-          seller_earnings: unitPrice * item.quantity * 0.97, // 3% commission
+          seller_earnings: unitPrice * item.quantity * 0.95, // 5% platform commission
         }
       })
 

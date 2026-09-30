@@ -547,7 +547,7 @@ export function SellerRegistrationFlow() {
                     onCheckedChange={(checked) => handleInputChange("agreedToCommission", checked as boolean)}
                   />
                   <Label htmlFor="agreedToCommission" className="text-sm leading-relaxed">
-                    Saya setuju dengan syarat dan ketentuan platform, termasuk komisi 3% dari setiap penjualan yang berhasil.
+                    Saya setuju dengan syarat dan ketentuan platform, termasuk komisi 5% dari setiap penjualan yang berhasil.
                   </Label>
                 </div>
               </div>

@@ -277,7 +277,7 @@ export default function AdminDashboard() {
             <div>
               <CardTitle className="text-base font-semibold">Ringkasan Pendapatan</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Hanya pesanan lunas · komisi = (harga×qty) − seller_earnings (~3%)
+                Hanya pesanan lunas · komisi = (harga×qty) − seller_earnings (~5%)
               </p>
             </div>
             <Button asChild variant="outline" size="sm">

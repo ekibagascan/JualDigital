@@ -173,7 +173,7 @@ async function buildSellerEarningsContext(
     platform_earnings: {
       total_gross_sales: totalGrossSales,
       total_platform_fee: platformEarnings,
-      commission_rate_note: 'Komisi platform ~3% dari penjualan (price×qty − seller_earnings). Biaya penarikan = Rp 0.',
+      commission_rate_note: 'Komisi platform ~5% dari penjualan (price×qty − seller_earnings). Biaya penarikan = Rp 0.',
     },
     recent_paid_orders: recentPaidOrders,
   }

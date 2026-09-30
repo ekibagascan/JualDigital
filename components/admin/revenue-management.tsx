@@ -218,7 +218,7 @@ export function RevenueManagement() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Pendapatan</h2>
           <p className="text-muted-foreground">
-            Penjualan kotor, komisi platform (~3%), dan bagi hasil seller — hanya pesanan lunas.
+            Penjualan kotor, komisi platform (~5%), dan bagi hasil seller — hanya pesanan lunas.
           </p>
           {lastUpdated && (
             <p className="text-xs text-muted-foreground mt-1">
@@ -262,7 +262,7 @@ export function RevenueManagement() {
         <MetricCard
           title="Pendapatan Seller"
           value={formatCurrency(metrics.sellerEarnings)}
-          hint="97% dari item lunas (seller_earnings)"
+          hint="95% dari item lunas (seller_earnings)"
           icon={<Wallet className="h-4 w-4" />}
         />
         <MetricCard

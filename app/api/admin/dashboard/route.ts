@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
         const itemTotal = price * quantity
         grossSales += itemTotal
         totalSellerEarnings += sellerEarnings
-        // Platform commission = gross − seller_earnings (~3%)
+        // Platform commission = gross − seller_earnings (~5%)
         totalAdminEarnings += Math.max(0, itemTotal - sellerEarnings)
       }
     })

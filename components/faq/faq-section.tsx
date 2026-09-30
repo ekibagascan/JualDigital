@@ -68,7 +68,7 @@ const faqData = [
       {
         question: "Berapa komisi yang dikenakan?",
         answer:
-          "Platform mengenakan komisi 3% dari setiap penjualan yang berhasil. Ini termasuk biaya pemrosesan pembayaran dan layanan platform.",
+          "Platform mengenakan komisi 5% dari setiap penjualan yang berhasil. Ini termasuk biaya pemrosesan pembayaran dan layanan platform.",
       },
       {
         question: "Kapan saya bisa menarik penghasilan?",
