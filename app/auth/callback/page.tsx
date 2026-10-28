@@ -17,9 +17,32 @@ function AuthCallbackContent() {
         window.location.href = path
     }
 
+    const isIOSBrowser = () => /iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+    const emailConfirmType = () => {
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        const type = (hash.get('type') || searchParams.get('type') || '').toLowerCase()
+        if (type === 'signup' || type === 'email' || type === 'invite' || type === 'email_change') {
+            return type
+        }
+        return null
+    }
+
+    const handoffConfirmedToApp = () => {
+        window.location.replace('jualdigital://auth/confirmed')
+    }
+
     useEffect(() => {
         const handleAuthCallback = async () => {
             if (isProcessing) return
+
+            // Email is already confirmed by Supabase /verify before this page loads.
+            // On iPhone, return to the app instead of finishing a website session.
+            if (isIOSBrowser() && emailConfirmType()) {
+                handoffConfirmedToApp()
+                return
+            }
+
             setIsProcessing(true)
 
             const next = searchParams.get('next') || '/'
@@ -60,6 +83,10 @@ function AuthCallbackContent() {
                     }, 2000)
                 } else {
                     console.log('[AUTH CALLBACK] Exchange successful, redirecting to:', next)
+                    if (isIOSBrowser() && emailConfirmType()) {
+                        handoffConfirmedToApp()
+                        return
+                    }
                     redirectTo(next)
                 }
             } catch (err) {
@@ -90,6 +117,10 @@ function AuthCallbackContent() {
                 redirectTo(next)
             }, 100)
         } else if (!searchParams.get('code')) {
+            if (isIOSBrowser() && emailConfirmType()) {
+                handoffConfirmedToApp()
+                return
+            }
             // No code provided, redirect to login
             console.log('[AUTH CALLBACK] No code provided, redirecting to login')
             redirectTo('/login')

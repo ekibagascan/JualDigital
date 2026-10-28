@@ -4,7 +4,9 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ClientProviders } from "@/components/providers/client-providers"
+import Script from "next/script"
 import { createSupabaseServerClient } from "@/lib/supabase-server"
+import { iosAuthHandoffScript } from "@/lib/ios-auth-handoff"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -45,6 +47,9 @@ export default async function RootLayout({
   return (
     <html lang="id">
       <body className={inter.className}>
+        <Script id="ios-auth-handoff" strategy="beforeInteractive">
+          {iosAuthHandoffScript}
+        </Script>
         <ClientProviders initialUser={user}>
           {children}
           <Toaster />

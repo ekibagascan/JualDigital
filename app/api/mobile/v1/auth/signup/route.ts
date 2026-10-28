@@ -26,6 +26,9 @@ export async function POST(req: NextRequest) {
       password,
       options: {
         data: { name, full_name: name },
+        // After Supabase verifies the email it sends the browser here.
+        // That page hands an iPhone back to the app. Do not autoconfirm.
+        emailRedirectTo: 'https://jualdigital.id/auth/confirmed',
       },
     })
 

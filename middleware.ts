@@ -11,7 +11,17 @@ export async function middleware(request: NextRequest) {
   }
   
   // Skip middleware for login page to prevent redirect loops
-  if (pathname === '/login' || pathname === '/register' || pathname === '/auth/callback' || pathname === '/mulai-jualan') {
+  if (
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/auth/callback' ||
+    pathname === '/auth/callback/' ||
+    pathname === '/auth/confirmed' ||
+    pathname === '/auth/confirmed/' ||
+    pathname === '/auth/app-return' ||
+    pathname === '/auth/app-return/' ||
+    pathname === '/mulai-jualan'
+  ) {
     return NextResponse.next();
   }
   
