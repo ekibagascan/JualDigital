@@ -30,7 +30,7 @@ export const iosAuthHandoffScript = `
     }
     // Supabase falls back to the site root when a redirect URL is not allow-listed.
     // Implicit Google tokens on that root should close the in-app browser, not open the website.
-    if ((path === "/" || path === "") && hash.get("access_token")) {
+    if ((path === "/" || path === "") && (hash.get("access_token") || query.get("code"))) {
       location.replace("jualdigital://auth/callback" + location.search + location.hash);
     }
   } catch (e) {}
