@@ -20,6 +20,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/auth/confirmed/' ||
     pathname === '/auth/app-return' ||
     pathname === '/auth/app-return/' ||
+    pathname === '/account/deleted' ||
+    pathname === '/account/deleted/' ||
     pathname === '/mulai-jualan'
   ) {
     return NextResponse.next();
@@ -47,6 +49,7 @@ export async function middleware(request: NextRequest) {
     '/pesanan-jasa',
     '/belajar',
     '/komunitas',
+    '/account',
   ];
 
   // Cart and checkout should be accessible even without full auth

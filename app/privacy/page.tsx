@@ -96,7 +96,12 @@ export default function PrivacyPage() {
               <ul className="list-disc pl-6 mb-4">
                 <li>Mengakses data pribadi yang kami miliki tentang Anda</li>
                 <li>Meminta perbaikan data yang tidak akurat</li>
-                <li>Meminta penghapusan data pribadi Anda</li>
+                <li>
+                  Menghapus akun Anda secara permanen di{" "}
+                  <a href="/account/delete" className="text-primary underline">
+                    halaman hapus akun
+                  </a>
+                </li>
                 <li>Membatasi pemrosesan data Anda</li>
                 <li>Portabilitas data</li>
                 <li>Menarik persetujuan kapan saja</li>

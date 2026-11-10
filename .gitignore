@@ -35,6 +35,9 @@ product_update_marketing.sql
 dana_production_private_key.pem
 dana_production_public_key.pem
 *.pem
+# Migration dumps (database + files). Never commit.
+.migrate/
+
 # Sensitive dumps — never commit
 all-emails.txt
 email-list.json

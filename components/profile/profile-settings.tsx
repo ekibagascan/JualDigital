@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Camera, Save, Eye, EyeOff, MessageCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -539,6 +540,20 @@ export function ProfileSettings() {
                 {isLoading ? "Mengubah..." : "Ubah Password"}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6 border-destructive/40">
+          <CardHeader>
+            <CardTitle>Hapus akun</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Menghapus akun bersifat permanen. Profil dan data pribadi akan dihapus.
+            </p>
+            <Button variant="destructive" asChild>
+              <Link href="/account/delete">Hapus akun</Link>
+            </Button>
           </CardContent>
         </Card>
       </TabsContent>
