@@ -1,7 +1,14 @@
 import { Resend } from 'resend'
 
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY!)
+let resendClient: Resend | null = null
+
+/** Created on first send so `next build` can import this module without RESEND_API_KEY. */
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY
+  if (!key) return null
+  if (!resendClient) resendClient = new Resend(key)
+  return resendClient
+}
 
 export async function sendDownloadEmail({
   to,
@@ -15,6 +22,12 @@ export async function sendDownloadEmail({
   html: string
 }) {
   try {
+    const resend = getResend()
+    if (!resend) {
+      console.error('[EMAIL SERVICE] RESEND_API_KEY is not set')
+      return false
+    }
+
     const fromEmail = process.env.RESEND_FROM_EMAIL || process.env.MAILERSEND_FROM_EMAIL || 'onboarding@resend.dev'
     const fromName = process.env.RESEND_FROM_NAME || process.env.MAILERSEND_FROM_NAME || 'Jual Digital'
     const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail
