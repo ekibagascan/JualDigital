@@ -6,6 +6,7 @@ import { getPaymentSettings } from './settings-service'
 import { createDanaOrder, getLastCreatePayload } from './dana'
 import { createCryptoPayment } from './bci-payment'
 import { isTelegramCheckoutProduct } from '@/lib/telegram-checkout'
+import { CatalogPolicyError, isHiddenCatalogProduct } from '@/lib/content-policy'
 import { sumOrderItemsLineTotal } from '@/lib/utils'
 
 export interface OrderItem {
@@ -80,7 +81,7 @@ export class OrderService {
 
       const { data: products, error: productsError } = await this.supabase
         .from('products')
-        .select('id, seller_id, title, price, tags, delivery_method, telegram_enabled')
+        .select('id, seller_id, title, description, long_description, category, price, tags, delivery_method, telegram_enabled')
         .in('id', productIds)
 
       if (productsError) {
@@ -94,6 +95,10 @@ export class OrderService {
         if (!productMap[item.product_id]) {
           throw new Error('One or more products are no longer available')
         }
+      }
+
+      if ((products || []).some((product) => isHiddenCatalogProduct(product))) {
+        throw new CatalogPolicyError()
       }
 
       if (orderData.user_id) {

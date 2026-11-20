@@ -5,6 +5,7 @@ import {
   isTelegramCheckoutProduct,
   type TelegramCheckoutProductLike,
 } from "@/lib/telegram-checkout"
+import { isHiddenCatalogProduct } from "@/lib/content-policy"
 
 export const dynamic = "force-dynamic"
 
@@ -40,11 +41,11 @@ export async function GET(req: NextRequest) {
 
     const { data: product, error } = await supabase
       .from("products")
-      .select("id, title, description, price, tags, delivery_method, telegram_enabled, telegram_stars_price")
+      .select("id, title, description, category, price, tags, delivery_method, telegram_enabled, telegram_stars_price")
       .eq("id", productId)
       .single()
 
-    if (error || !product) {
+    if (error || !product || isHiddenCatalogProduct(product)) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 

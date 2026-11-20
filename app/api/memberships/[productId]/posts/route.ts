@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { getUserFromRequest, serviceRoleClient } from '@/lib/mobile-auth'
+import { validateUserText } from '@/lib/content-policy'
 
 export async function POST(
   request: NextRequest,
@@ -20,7 +21,24 @@ export async function POST(
       return NextResponse.json({ error: 'Judul postingan wajib diisi' }, { status: 400 })
     }
 
+    const textViolation = validateUserText(title, postBody)
+    if (textViolation) {
+      return NextResponse.json(textViolation, { status: 400 })
+    }
+
     const supabase = serviceRoleClient()
+
+    const { data: author } = await supabase
+      .from('profiles')
+      .select('status')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (author?.status === 'suspended') {
+      return NextResponse.json(
+        { error: 'Akun ditangguhkan', code: 'account_suspended' },
+        { status: 403 }
+      )
+    }
 
     const { data: product } = await supabase
       .from('products')

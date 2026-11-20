@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
-import { getUserFromRequest, serviceRoleClient } from '@/lib/mobile-auth'
+import { getUserFromRequest, requestMayBeAuthenticated, serviceRoleClient } from '@/lib/mobile-auth'
+import { containsProfanity, validateUserText } from '@/lib/content-policy'
+import { excludeIds, getBlockedUserIds } from '@/lib/moderation'
 
 function productIdFrom(searchParams: URLSearchParams, body?: Record<string, unknown>) {
   const fromQuery =
@@ -70,6 +72,8 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = serviceRoleClient()
+    const viewer = requestMayBeAuthenticated(request) ? await getUserFromRequest(request) : null
+    const blockedIds = await getBlockedUserIds(viewer?.id)
 
     const { data: reviews, error } = await supabase
       .from('reviews')
@@ -112,7 +116,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const processedReviews = (reviews || []).map((review) => {
+    const visibleReviews = excludeIds(reviews || [], blockedIds, 'user_id').filter((review) => {
+      const text = review.content || (review as { comment?: string | null }).comment || ''
+      return !containsProfanity(text)
+    })
+
+    const processedReviews = visibleReviews.map((review) => {
       const userProfile = profiles.find((profile) => profile.id === review.user_id)
       return mapReview(review, userProfile, productId)
     })
@@ -137,8 +146,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>
     const user = await getUserFromRequest(request)
-    const bodyUserId = typeof body.userId === 'string' ? body.userId : ''
-    const userId = user?.id || bodyUserId
+    const userId = user?.id || ''
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized', message: 'Login diperlukan untuk menulis ulasan' },
@@ -163,7 +171,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const textViolation = validateUserText(content)
+    if (textViolation) {
+      return NextResponse.json(textViolation, { status: 400 })
+    }
+
     const supabase = serviceRoleClient()
+
+    const { data: reviewer } = await supabase
+      .from('profiles')
+      .select('status')
+      .eq('id', userId)
+      .maybeSingle()
+    if (reviewer?.status === 'suspended') {
+      return NextResponse.json(
+        { error: 'Akun ditangguhkan', code: 'account_suspended' },
+        { status: 403 }
+      )
+    }
 
     const { data: product, error: productError } = await supabase
       .from('products')

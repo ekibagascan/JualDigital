@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isHiddenCatalogProduct, type CatalogText } from '@/lib/content-policy'
+import { excludeIds, getBlockedUserIds } from '@/lib/moderation'
+import { getUserFromRequest, requestMayBeAuthenticated } from '@/lib/mobile-auth'
 
 /** CDN/edge can cache public catalog briefly to cut Supabase egress. */
 export const revalidate = 60
@@ -15,11 +18,13 @@ function supabaseAnon() {
   )
 }
 
-function jsonCached(body: unknown, status = 200) {
+function jsonCached(body: unknown, status = 200, personalized = false) {
   return NextResponse.json(body, {
     status,
     headers: {
-      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      'Cache-Control': personalized
+        ? 'private, no-store'
+        : 'public, s-maxage=60, stale-while-revalidate=300',
     },
   })
 }
@@ -170,14 +175,15 @@ export async function GET(request: NextRequest) {
       return { products: data || [], count: count ?? 0 }
     }
 
-    let result: { products: Record<string, unknown>[]; count: number }
+    type ListedProduct = CatalogText & { seller_id?: string | null; product_type?: string }
+    let result: { products: ListedProduct[]; count: number }
     try {
-      result = await runList(true)
+      result = (await runList(true)) as { products: ListedProduct[]; count: number }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       if (/product_type/i.test(message)) {
         includeProductType = false
-        result = await runList(false)
+        result = (await runList(false)) as { products: ListedProduct[]; count: number }
       } else {
         throw err
       }
@@ -185,24 +191,31 @@ export async function GET(request: NextRequest) {
 
     const products = result.products.map((p) => ({
       ...p,
-      product_type: includeProductType
-        ? (p as { product_type?: string }).product_type || 'digital_product'
-        : 'digital_product',
+      product_type: includeProductType ? p.product_type || 'digital_product' : 'digital_product',
     }))
+
+    const viewer = requestMayBeAuthenticated(request) ? await getUserFromRequest(request) : null
+    const blockedIds = await getBlockedUserIds(viewer?.id)
+    const visible = excludeIds(
+      products.filter((product) => !isHiddenCatalogProduct(product as CatalogText)),
+      blockedIds,
+      'seller_id'
+    )
+    const removed = products.length - visible.length
 
     let sellerNames: Record<string, string> | undefined
     if (includeSellers) {
       sellerNames = await fetchSellerNames(
         supabase,
-        products.map((p) => (p as { seller_id?: string }).seller_id || '')
+        visible.map((p) => (p as { seller_id?: string }).seller_id || '')
       )
     }
 
     return jsonCached({
-      products,
-      count: result.count,
+      products: visible,
+      count: Math.max(0, (result.count ?? visible.length) - removed),
       ...(sellerNames ? { sellerNames } : {}),
-    })
+    }, 200, !!viewer)
   } catch (error) {
     console.error('[PRODUCTS API]', error)
     return NextResponse.json(

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { isHiddenCatalogProduct } from '@/lib/content-policy'
 
 /** Slim columns for catalog cards/lists — cuts payload vs select('*'). */
 export const PRODUCT_LIST_COLUMNS =
@@ -246,7 +247,7 @@ export class ProductService {
         return []
       }
 
-      return (products || []) as Product[]
+      return ((products || []) as Product[]).filter((product) => !isHiddenCatalogProduct(product))
     } catch (error) {
       console.error('Error fetching products:', error)
       return []
@@ -270,6 +271,8 @@ export class ProductService {
         console.error('Error fetching product:', error)
         return null
       }
+
+      if (!product || isHiddenCatalogProduct(product)) return null
 
       return product
     } catch (error) {
@@ -319,7 +322,9 @@ export class ProductService {
       }
 
       if (featuredProducts && featuredProducts.length >= limit) {
-        return (featuredProducts as Product[]).slice(0, limit)
+        return (featuredProducts as Product[])
+          .filter((product) => !isHiddenCatalogProduct(product))
+          .slice(0, limit)
       }
 
       const remainingLimit = limit - (featuredProducts?.length || 0)
@@ -342,10 +347,12 @@ export class ProductService {
         return [
           ...((featuredProducts || []) as Product[]),
           ...((topProducts || []) as Product[]),
-        ].slice(0, limit)
+        ]
+          .filter((product) => !isHiddenCatalogProduct(product))
+          .slice(0, limit)
       }
 
-      return (featuredProducts || []) as Product[]
+      return ((featuredProducts || []) as Product[]).filter((product) => !isHiddenCatalogProduct(product))
     } catch (error) {
       console.error('Error in getFeaturedProducts:', error)
       return []

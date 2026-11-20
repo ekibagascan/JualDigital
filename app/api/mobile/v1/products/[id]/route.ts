@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
-import { serviceRoleClient } from '@/lib/mobile-auth'
+import { getUserFromRequest, requestMayBeAuthenticated, serviceRoleClient } from '@/lib/mobile-auth'
+import { isHiddenCatalogProduct, type CatalogText } from '@/lib/content-policy'
+import { getBlockedUserIds } from '@/lib/moderation'
 
 const BASE_COLUMNS =
   'id, title, description, price, original_price, image_url, images, category, tags, seller_id, status, rating, total_sales, total_reviews, featured, created_at, delivery_method, long_description, file_url, download_link, live_preview, file_size, format, pages, language, license'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -43,27 +45,36 @@ export async function GET(
       )
     }
 
-    if (!data) {
+    const row = data as (CatalogText & {
+      seller_id?: string | null
+      product_type?: string
+    }) | null
+
+    if (!row || isHiddenCatalogProduct(row)) {
+      return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
+    }
+
+    const viewer = requestMayBeAuthenticated(request) ? await getUserFromRequest(request) : null
+    const blockedIds = await getBlockedUserIds(viewer?.id)
+    if (row.seller_id && blockedIds.includes(row.seller_id)) {
       return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
     }
 
     let sellerName: string | null = null
     let sellerLogo: string | null = null
-    if (data.seller_id) {
+    if (row.seller_id) {
       const { data: seller } = await supabase
         .from('profiles')
         .select('name, business_name, shop_logo, avatar_url')
-        .eq('id', data.seller_id)
+        .eq('id', row.seller_id)
         .maybeSingle()
       sellerName = seller?.business_name || seller?.name || null
       sellerLogo = seller?.shop_logo || seller?.avatar_url || null
     }
 
     const product = {
-      ...data,
-      product_type: includeType
-        ? (data as { product_type?: string }).product_type || 'digital_product'
-        : 'digital_product',
+      ...row,
+      product_type: includeType ? row.product_type || 'digital_product' : 'digital_product',
       seller_name: sellerName,
       seller_logo: sellerLogo,
       total_views: 0,

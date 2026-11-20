@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isProhibitedCategory } from '@/lib/content-policy'
 
 export const revalidate = 300
 
@@ -21,7 +22,7 @@ export async function GET(_req: NextRequest) {
     }
 
     const categoriesWithCounts = await Promise.all(
-      (categories || []).map(async (category) => {
+      (categories || []).filter((category) => !isProhibitedCategory(category)).map(async (category) => {
         const { count, error: countError } = await supabase
           .from('products')
           .select('id', { count: 'exact', head: true })

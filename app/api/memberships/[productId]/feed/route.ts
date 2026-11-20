@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { getUserFromRequest, serviceRoleClient } from '@/lib/mobile-auth'
+import { containsProfanity } from '@/lib/content-policy'
+import { getBlockedUserIds } from '@/lib/moderation'
 
 export async function GET(
   request: NextRequest,
@@ -46,20 +48,41 @@ export async function GET(
       }
     }
 
-    const { data: posts, error } = await supabase
+    const blockedIds = user ? await getBlockedUserIds(user.id) : []
+    const blocked = new Set(blockedIds)
+
+    let postsQuery = supabase
       .from('membership_posts')
       .select('*')
       .eq('product_id', productId)
+      .is('removed_at', null)
       .not('published_at', 'is', null)
       .order('published_at', { ascending: false })
       .limit(50)
+
+    let { data: posts, error } = await postsQuery
+    if (error && /removed_at/i.test(error.message || '')) {
+      ;({ data: posts, error } = await supabase
+        .from('membership_posts')
+        .select('*')
+        .eq('product_id', productId)
+        .not('published_at', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(50))
+    }
 
     if (error) {
       console.error('[MEMBERSHIP FEED]', error)
       return NextResponse.json({ error: 'Gagal memuat feed komunitas' }, { status: 500 })
     }
 
-    const visible = (posts || []).map((post) => {
+    const visible = (posts || [])
+      .filter((post) => {
+        if (post.removed_at) return false
+        if (post.author_id && blocked.has(post.author_id)) return false
+        return !containsProfanity([post.title, post.body].filter(Boolean).join('\n'))
+      })
+      .map((post) => {
       const canView =
         isSeller ||
         post.is_public_teaser ||

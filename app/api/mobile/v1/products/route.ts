@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
-import { serviceRoleClient } from '@/lib/mobile-auth'
+import { getUserFromRequest, requestMayBeAuthenticated, serviceRoleClient } from '@/lib/mobile-auth'
+import { isHiddenCatalogProduct, type CatalogText } from '@/lib/content-policy'
+import { excludeIds, getBlockedUserIds } from '@/lib/moderation'
 
 const BASE_COLUMNS =
   'id, title, description, price, original_price, image_url, images, category, tags, seller_id, status, rating, total_sales, total_reviews, featured, created_at, delivery_method'
@@ -91,16 +93,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const products = (data || []).map((p) => ({
+    const rows = (data || []) as Array<CatalogText & { seller_id?: string | null; product_type?: string }>
+    const products = rows.map((p) => ({
       ...p,
-      product_type: includeType
-        ? (p as { product_type?: string }).product_type || 'digital_product'
-        : 'digital_product',
+      product_type: includeType ? p.product_type || 'digital_product' : 'digital_product',
     }))
 
+    const viewer = requestMayBeAuthenticated(request) ? await getUserFromRequest(request) : null
+    const blockedIds = await getBlockedUserIds(viewer?.id)
+    const visible = excludeIds(
+      products.filter((product) => !isHiddenCatalogProduct(product as CatalogText)),
+      blockedIds,
+      'seller_id'
+    )
+
     return NextResponse.json({
-      products,
-      count: count ?? 0,
+      products: visible,
+      count: Math.max(0, (count ?? visible.length) - (products.length - visible.length)),
     })
   } catch (error) {
     console.error('[MOBILE PRODUCTS] Error:', error)

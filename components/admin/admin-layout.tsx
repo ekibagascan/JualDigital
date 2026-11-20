@@ -19,6 +19,7 @@ import {
   Megaphone,
   ShoppingCart,
   TrendingUp,
+  ShieldAlert,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Pesanan", href: "/admin/orders", icon: ShoppingCart },
   { name: "Pembayaran", href: "/admin/payments", icon: CreditCard },
   { name: "Penarikan", href: "/admin/withdrawals", icon: Wallet },
+  { name: "Laporan", href: "/admin/moderation", icon: ShieldAlert },
   { name: "Pesan", href: "/admin/messages", icon: MessageSquare },
   { name: "Pengumuman", href: "/admin/announcements", icon: Megaphone },
   { name: "Pengaturan", href: "/admin/settings", icon: Settings },

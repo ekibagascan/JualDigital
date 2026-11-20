@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { createServerClient } from '@supabase/ssr'
 import { OrderService } from '@/lib/order-service'
+import { CatalogPolicyError } from '@/lib/content-policy'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
@@ -87,6 +88,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ order, paymentUrl })
   } catch (error: unknown) {
     console.error('[CHECKOUT] Error:', error)
+    if (error instanceof CatalogPolicyError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: 400 })
+    }
     const errorMessage = error instanceof Error ? error.message : 'Checkout failed'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

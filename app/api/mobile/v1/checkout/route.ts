@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { getUserFromRequest, serviceRoleClient } from '@/lib/mobile-auth'
 import { OrderService, type OrderItem } from '@/lib/order-service'
+import { CatalogPolicyError } from '@/lib/content-policy'
 
 type MobileCheckoutItem = {
   productId?: string
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
     })
   } catch (error: unknown) {
     console.error('[MOBILE CHECKOUT] Error:', error)
+    if (error instanceof CatalogPolicyError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: 400 })
+    }
     const message = error instanceof Error ? error.message : 'Checkout gagal'
     return NextResponse.json({ error: message }, { status: 500 })
   }

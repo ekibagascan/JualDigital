@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { getUserFromRequest, pickBody, serviceRoleClient } from '@/lib/mobile-auth'
+import { validateProductListing } from '@/lib/content-policy'
 
 function asObject(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
@@ -16,7 +17,7 @@ async function loadOwnedProduct(userId: string, productId: string) {
   const supabase = serviceRoleClient()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, telegram_feature_enabled')
+    .select('role, telegram_feature_enabled, status')
     .eq('id', userId)
     .single()
 
@@ -46,6 +47,12 @@ async function updateProduct(req: NextRequest, productId: string) {
   const { supabase, profile, product: existingProduct } = await loadOwnedProduct(user.id, productId)
   if (!profile) {
     return NextResponse.json({ error: 'Seller access required' }, { status: 403 })
+  }
+  if (profile.status === 'suspended') {
+    return NextResponse.json(
+      { error: 'Akun ditangguhkan', code: 'account_suspended' },
+      { status: 403 }
+    )
   }
   if (!existingProduct) {
     return NextResponse.json({ error: 'Product not found or access denied' }, { status: 404 })
@@ -98,6 +105,23 @@ async function updateProduct(req: NextRequest, productId: string) {
     deliveryMethodRaw === 'upload'
       ? 'file'
       : deliveryMethodRaw || (existingProduct.delivery_method as string) || 'file'
+
+  const nextStatus = String(status || existingProduct.status || '')
+  const violation = validateProductListing({
+    creating: false,
+    status: nextStatus,
+    product: {
+      title,
+      description,
+      long_description:
+        longDescription !== undefined ? longDescription : (existingProduct.long_description as string | null),
+      category,
+      tags: tags || (existingProduct.tags as string[] | null) || [],
+    },
+  })
+  if (violation) {
+    return NextResponse.json(violation, { status: 400 })
+  }
 
   const updatePayload: Record<string, unknown> = {
     title,
