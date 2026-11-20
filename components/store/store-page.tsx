@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { supabase } from "@/lib/supabase-client"
 import { ProductCard } from "@/components/product/product-card"
 import { PRODUCT_GRID_CLASS } from "@/lib/utils"
+import { isHiddenCatalogProduct } from "@/lib/content-policy"
 
 interface StorePageProps {
     sellerId: string
@@ -115,7 +116,7 @@ export function StorePage({ sellerId }: StorePageProps) {
             if (productsError) {
                 console.error('Error loading products:', productsError)
             } else {
-                setProducts(productsData || [])
+                setProducts((productsData || []).filter((product) => !isHiddenCatalogProduct(product)))
             }
 
             // Load reviews for seller's products

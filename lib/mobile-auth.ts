@@ -4,6 +4,13 @@ import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { createServiceRoleClient } from '@/lib/supabase-service'
 
+/** True when the request might carry a Supabase session. Avoids an auth round-trip for anonymous catalog traffic. */
+export function requestMayBeAuthenticated(req: NextRequest): boolean {
+  const auth = req.headers.get('authorization')
+  if (auth?.startsWith('Bearer ') && auth.slice(7).trim()) return true
+  return req.cookies.getAll().some((cookie) => cookie.name.startsWith('sb-') && cookie.value)
+}
+
 /**
  * Resolve the authenticated user from Bearer JWT (mobile) or cookies (web).
  */

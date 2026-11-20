@@ -1,5 +1,6 @@
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
+import { CURRENT_TERMS_VERSION } from "@/lib/terms"
 
 export default function TermsPage() {
   return (
@@ -11,7 +12,7 @@ export default function TermsPage() {
 
           <div className="prose prose-lg max-w-none">
             <p className="text-muted-foreground mb-4">
-              Platform mengenakan komisi 5% dari setiap penjualan yang berhasil.
+              Platform mengenakan komisi 5% dari setiap penjualan yang berhasil. Versi syarat ini: {CURRENT_TERMS_VERSION}.
             </p>
 
             <section className="mb-8">
@@ -101,6 +102,31 @@ export default function TermsPage() {
               <p className="mb-4">
                 Kami berhak menangguhkan atau menutup akun yang melanggar syarat dan ketentuan ini tanpa pemberitahuan
                 terlebih dahulu.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-2xl font-semibold mb-4">8A. Toleransi nol terhadap konten yang tidak pantas</h2>
+              <p className="mb-4">
+                Jual Digital tidak menoleransi konten yang tidak pantas atau pengguna yang menyalahgunakan platform.
+                Dilarang mengunggah ujaran kebencian, pelecehan, ancaman, konten seksual, atau penipuan. Dilarang juga
+                menjual layanan yang memanipulasi status, peringkat, atau visibilitas di layanan lain, termasuk
+                followers, likes, views, subscriber, SMM panel, suntik followers, dan boost akun.
+              </p>
+              <p className="mb-4">
+                Setiap pengguna dapat melaporkan konten atau pengguna lain dan dapat memblokir pengguna. Laporan
+                ditinjau oleh tim Jual Digital, dan kami berkomitmen menindak laporan tersebut dalam waktu 24 jam
+                dengan menurunkan konten yang melanggar dan/atau menangguhkan akun yang bersangkutan.
+              </p>
+              <h3 className="text-xl font-semibold mb-3">Zero tolerance for objectionable content and abusive users</h3>
+              <p className="mb-4">
+                Jual Digital has zero tolerance for objectionable content and for users who abuse the platform.
+                Hate speech, harassment, threats, sexual content, scams, and social-media manipulation services are
+                prohibited. That includes selling followers, likes, views, subscribers, SMM panels, or account boosts.
+              </p>
+              <p className="mb-4">
+                Users can report content or other users and can block users. Jual Digital reviews reports and will
+                act within 24 hours by removing the offending content and/or suspending the abusive account.
               </p>
             </section>
 

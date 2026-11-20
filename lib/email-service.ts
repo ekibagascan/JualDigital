@@ -527,4 +527,78 @@ Tim Jual Digital
   `
 
   return sendDownloadEmail({ to, subject, text, html })
-} 
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** Email the operator when a user reports content or blocks another user. */
+export async function sendModerationAlert({
+  reportId,
+  targetType,
+  targetId,
+  reason,
+  details,
+  reporterId,
+  source,
+}: {
+  reportId: string
+  targetType: string
+  targetId: string
+  reason: string
+  details?: string | null
+  reporterId: string
+  source: 'report' | 'block'
+}): Promise<boolean> {
+  const to = process.env.MODERATION_NOTIFY_EMAIL || process.env.ADMIN_EMAIL
+  if (!to) {
+    console.warn('[EMAIL SERVICE] No MODERATION_NOTIFY_EMAIL or ADMIN_EMAIL; report stored for the admin queue only')
+    return false
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://jualdigital.id'
+  const queueUrl = `${baseUrl}/admin/moderation`
+  const kind = source === 'block' ? 'Pemblokiran pengguna' : 'Laporan konten'
+  const subject = `[Jual Digital] ${kind} baru — tindak dalam 24 jam`
+  const safeReason = escapeHtml(reason)
+  const safeDetails = escapeHtml(details || '-')
+
+  const text = `
+${kind}
+
+Report ID: ${reportId}
+Target: ${targetType} ${targetId}
+Alasan: ${reason}
+Detail: ${details || '-'}
+Pelapor: ${reporterId}
+
+Tinjau dan tindak dalam 24 jam: ${queueUrl}
+`
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #111;">
+  <div style="max-width: 640px; margin: 0 auto; padding: 20px;">
+    <h2 style="margin-top: 0;">${escapeHtml(kind)}</h2>
+    <p>Ada laporan baru yang harus ditinjau dalam <strong>24 jam</strong>.</p>
+    <ul>
+      <li><strong>Report ID:</strong> ${escapeHtml(reportId)}</li>
+      <li><strong>Target:</strong> ${escapeHtml(targetType)} ${escapeHtml(targetId)}</li>
+      <li><strong>Alasan:</strong> ${safeReason}</li>
+      <li><strong>Detail:</strong> ${safeDetails}</li>
+      <li><strong>Pelapor:</strong> ${escapeHtml(reporterId)}</li>
+    </ul>
+    <p><a href="${escapeHtml(queueUrl)}">Buka antrean moderasi</a></p>
+  </div>
+</body>
+</html>
+`
+
+  return sendDownloadEmail({ to, subject, text, html })
+}

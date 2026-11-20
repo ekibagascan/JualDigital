@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase-client'
+import { containsProfanity, validateUserText } from '@/lib/content-policy'
 
 export interface Review {
   id: string
@@ -22,6 +23,9 @@ export interface CreateReviewRequest {
 export class ReviewService {
   async createReview(reviewData: CreateReviewRequest): Promise<Review> {
     try {
+      const violation = validateUserText(reviewData.comment)
+      if (violation) throw new Error(violation.message)
+
       const { data: review, error } = await supabase
         .from('reviews')
         .insert({
@@ -64,7 +68,7 @@ export class ReviewService {
         return []
       }
 
-      return reviews?.map(review => ({
+      return reviews?.filter((review) => !containsProfanity(review.comment || review.content)).map(review => ({
         ...review,
         user_name: review.profiles?.name,
         user_avatar: review.profiles?.avatar_url,
@@ -103,6 +107,9 @@ export class ReviewService {
 
   async updateReview(reviewId: string, rating: number, comment: string): Promise<void> {
     try {
+      const violation = validateUserText(comment)
+      if (violation) throw new Error(violation.message)
+
       const { error } = await supabase
         .from('reviews')
         .update({

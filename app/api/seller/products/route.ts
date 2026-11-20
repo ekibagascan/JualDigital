@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { getUserFromRequest, pickBody, serviceRoleClient } from '@/lib/mobile-auth'
 import { calculateSellerTrustScore } from '@/lib/seller-trust-service'
+import { validateProductListing, type PolicyViolation } from '@/lib/content-policy'
 
 const ALLOWED_TYPES = ['digital_product', 'service', 'course', 'membership'] as const
 type ProductType = (typeof ALLOWED_TYPES)[number]
@@ -43,11 +44,28 @@ function linkList(body: Record<string, unknown>, downloadLink: unknown) {
   return []
 }
 
+function extraText(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const texts: string[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const record = item as Record<string, unknown>
+    for (const key of ['title', 'name', 'description', 'body']) {
+      if (typeof record[key] === 'string') texts.push(record[key] as string)
+    }
+  }
+  return texts
+}
+
+function policyResponse(violation: PolicyViolation) {
+  return NextResponse.json(violation, { status: 400 })
+}
+
 async function requireSeller(userId: string) {
   const supabase = serviceRoleClient()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, telegram_feature_enabled')
+    .select('role, telegram_feature_enabled, status')
     .eq('id', userId)
     .single()
 
@@ -87,6 +105,12 @@ export async function POST(req: NextRequest) {
     const { supabase, profile } = await requireSeller(actor.id)
     if (!profile) {
       return NextResponse.json({ error: 'Seller access required' }, { status: 403 })
+    }
+    if (profile.status === 'suspended') {
+      return NextResponse.json(
+        { error: 'Akun ditangguhkan', code: 'account_suspended' },
+        { status: 403 }
+      )
     }
 
     const title = pickBody<string>(body, 'title')
@@ -139,11 +163,11 @@ export async function POST(req: NextRequest) {
     let parsedPrice = parsePrice(price)
     if (resolvedType === 'service' && Array.isArray(servicePackages) && servicePackages.length) {
       parsedPrice = Math.min(
-        ...servicePackages.map((p: { price?: number | string }) => parsePrice(p.price))
+        ...(servicePackages as { price?: number | string }[]).map((p) => parsePrice(p.price))
       )
     } else if (resolvedType === 'membership' && Array.isArray(membershipTiers) && membershipTiers.length) {
       parsedPrice = Math.min(
-        ...membershipTiers.map((t: { price_monthly?: number | string }) => parsePrice(t.price_monthly))
+        ...(membershipTiers as { price_monthly?: number | string }[]).map((t) => parsePrice(t.price_monthly))
       )
     }
     if (isNaN(parsedPrice) || parsedPrice < 0) {
@@ -174,6 +198,24 @@ export async function POST(req: NextRequest) {
         },
       ]
     }
+
+    const violation = validateProductListing({
+      creating: true,
+      product: {
+        title,
+        description,
+        long_description: longDescription,
+        category,
+        tags,
+      },
+      extras: [
+        ...extraText(servicePackages),
+        ...extraText(membershipTiers),
+        ...extraText(variants),
+        ...extraText(courseSections),
+      ],
+    })
+    if (violation) return policyResponse(violation)
 
     let initialStatus = 'draft'
     if (submitForReview) {
@@ -267,33 +309,28 @@ export async function POST(req: NextRequest) {
     }
 
     if (resolvedType === 'service' && product && Array.isArray(servicePackages)) {
-      const rows = servicePackages
-        .filter((p: { title?: string; price?: number | string }) => p.title && p.price !== undefined)
-        .map(
-          (
-            p: {
-              tier?: string
-              title: string
-              description?: string
-              price: number | string
-              delivery_days?: number
-              revisions?: number
-              features?: string[]
-              sort_order?: number
-            },
-            idx: number
-          ) => ({
+      const rows = (servicePackages as Array<{
+        tier?: string
+        title?: string
+        description?: string
+        price?: number | string
+        delivery_days?: number
+        revisions?: number
+        features?: string[]
+        sort_order?: number
+      }>)
+        .filter((p) => p.title && p.price !== undefined)
+        .map((p, idx) => ({
             product_id: product.id,
             tier: p.tier || ['basic', 'standard', 'premium'][idx] || 'basic',
-            title: p.title,
+            title: p.title || '',
             description: p.description || null,
             price: parsePrice(p.price),
             delivery_days: p.delivery_days ?? 3,
             revisions: p.revisions ?? 1,
             features: p.features || [],
             sort_order: p.sort_order ?? idx,
-          })
-        )
+          }))
       if (rows.length) {
         const { error: pkgErr } = await supabase.from('service_packages').insert(rows)
         if (pkgErr) console.error('[SELLER PRODUCTS API] service_packages', pkgErr)
@@ -348,30 +385,25 @@ export async function POST(req: NextRequest) {
     }
 
     if (resolvedType === 'membership' && product && Array.isArray(membershipTiers)) {
-      const rows = membershipTiers
-        .filter((t: { name?: string; price_monthly?: number | string }) => t.name && t.price_monthly !== undefined)
-        .map(
-          (
-            t: {
-              name: string
-              description?: string
-              price_monthly: number | string
-              price_yearly?: number | string
-              perks?: string[]
-              sort_order?: number
-            },
-            idx: number
-          ) => ({
+      const rows = (membershipTiers as Array<{
+        name?: string
+        description?: string
+        price_monthly?: number | string
+        price_yearly?: number | string
+        perks?: string[]
+        sort_order?: number
+      }>)
+        .filter((t) => t.name && t.price_monthly !== undefined)
+        .map((t, idx) => ({
             product_id: product.id,
-            name: t.name,
+            name: t.name || '',
             description: t.description || null,
             price_monthly: parsePrice(t.price_monthly),
             price_yearly: t.price_yearly != null ? parsePrice(t.price_yearly) : null,
             perks: t.perks || [],
             sort_order: t.sort_order ?? idx,
             is_active: true,
-          })
-        )
+          }))
       if (rows.length) {
         const { error: tierErr } = await supabase.from('membership_tiers').insert(rows)
         if (tierErr) console.error('[SELLER PRODUCTS API] membership_tiers', tierErr)

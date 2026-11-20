@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { serviceRoleClient } from '@/lib/mobile-auth'
+import { isHiddenCatalogProduct } from '@/lib/content-policy'
 
 /** GET service packages for a jasa product */
 export async function GET(
@@ -9,6 +10,26 @@ export async function GET(
 ) {
   try {
     const supabase = serviceRoleClient()
+    const fullProduct = await supabase
+      .from('products')
+      .select('id, title, description, long_description, category, tags, status')
+      .eq('id', params.id)
+      .maybeSingle()
+
+    const productResult =
+      fullProduct.error && /column|schema cache/i.test(fullProduct.error.message || '')
+        ? await supabase
+            .from('products')
+            .select('id, title, description, category, status')
+            .eq('id', params.id)
+            .maybeSingle()
+        : fullProduct
+    const product = productResult.data
+
+    if (!product || product.status !== 'active' || isHiddenCatalogProduct(product)) {
+      return NextResponse.json({ error: 'Produk tidak ditemukan' }, { status: 404 })
+    }
+
     const { data, error } = await supabase
       .from('service_packages')
       .select('id, product_id, tier, title, description, price, delivery_days, revisions, features, sort_order')
